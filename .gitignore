@@ -1,0 +1,27 @@
+# Node & Environment
+.env
+.env.local
+.env.*.local
+*.env
+*.log
+
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build & Dist Outputs
+dist/
+frontend/dist/
+build/
+
+# Temp Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# System & OS Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
