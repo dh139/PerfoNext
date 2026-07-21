@@ -10,6 +10,7 @@ const Layout = () => {
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeCycle, setActiveCycle] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Fetch unread notification counts
@@ -48,6 +49,7 @@ const Layout = () => {
   const getPageTitle = () => {
     const path = location.pathname;
     if (path === '/') return 'Overview Dashboard';
+    if (path === '/dashboard') return 'Overview Dashboard';
     if (path === '/notifications') return 'Notification Alerts';
     if (path.startsWith('/reports/employee')) return 'Performance Summary Report';
     if (path === '/reports/department') return 'Team Performance Summary';
@@ -63,19 +65,42 @@ const Layout = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Fixed Sidebar */}
-      <Sidebar />
+      {/* Fixed Responsive Sidebar */}
+      <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
       {/* Main Viewport Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+      <div className="flex-1 ml-0 md:ml-64 flex flex-col min-h-screen w-full overflow-x-hidden">
         {/* Top Sticky Header */}
-        <header className="bg-white border-b border-slate-200 h-16 px-8 flex items-center justify-between sticky top-0 z-20">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight">{getPageTitle()}</h2>
-            <p className="text-xs text-slate-500 hidden sm:block">Welcome, {user?.firstName} {user?.lastName}</p>
+        <header className="bg-white border-b border-slate-200 h-16 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-20 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label="Toggle Navigation Sidebar"
+              className="md:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer flex flex-col justify-center items-center gap-1.5 w-9 h-9 border border-slate-200"
+            >
+              <span
+                className={`w-4 h-0.5 bg-slate-700 rounded-full transition-all duration-300 transform origin-center ${
+                  sidebarOpen ? 'rotate-45 translate-y-1.5 bg-sky-600' : ''
+                }`}
+              />
+              <span
+                className={`w-4 h-0.5 bg-slate-700 rounded-full transition-all duration-300 ${
+                  sidebarOpen ? 'opacity-0 scale-0' : ''
+                }`}
+              />
+              <span
+                className={`w-4 h-0.5 bg-slate-700 rounded-full transition-all duration-300 transform origin-center ${
+                  sidebarOpen ? '-rotate-45 -translate-y-1.5 bg-sky-600' : ''
+                }`}
+              />
+            </button>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800 tracking-tight">{getPageTitle()}</h2>
+              <p className="text-xs text-slate-500 hidden sm:block">Welcome, {user?.firstName} {user?.lastName}</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             {/* Active Cycle Quick Status Banner */}
             {activeCycle && (
               <div className="hidden lg:flex items-center gap-2 bg-sky-50 text-sky-800 border border-sky-100 px-3 py-1.5 rounded-lg text-xs font-semibold">
@@ -95,7 +120,7 @@ const Layout = () => {
             </Link>
 
             {/* User Profile Badge */}
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
               <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-100 flex items-center justify-center font-bold text-xs uppercase">
                 {user?.firstName[0]}{user?.lastName[0]}
               </div>
@@ -110,7 +135,7 @@ const Layout = () => {
         </header>
 
         {/* Dynamic page container */}
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 md:p-8 overflow-y-auto">
           <Outlet />
         </main>
       </div>

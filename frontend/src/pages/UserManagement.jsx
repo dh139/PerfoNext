@@ -231,16 +231,17 @@ const UserManagement = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Employee Code</label>
-                  <input
-                    type="text"
-                    value={employeeCode}
-                    onChange={(e) => setEmployeeCode(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-semibold"
-                    required
-                  />
-                </div>
+                {editUser && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Employee Code</label>
+                    <input
+                      type="text"
+                      value={employeeCode}
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-slate-500 cursor-not-allowed font-semibold"
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Access Privilege (Role)</label>

@@ -396,6 +396,7 @@ const ManagerDashboard = ({ data, user }) => {
 
 const HRDashboard = ({ data, user }) => {
   const { stats, activeCycleMetrics, scoreDistribution, recentAudits } = data;
+  const [expandedCycleId, setExpandedCycleId] = useState(null);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -512,6 +513,68 @@ const HRDashboard = ({ data, user }) => {
                         ></div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Detailed Employee Submissions Breakdown Table */}
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => setExpandedCycleId(expandedCycleId === item.cycleId ? null : item.cycleId)}
+                      className="text-xs font-bold text-sky-700 hover:text-sky-800 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileText size={14} />
+                      <span>{expandedCycleId === item.cycleId ? 'Hide Employee Submissions Breakdown' : 'View Employee Submissions Breakdown'}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">({item.submissions?.length || 0} employees)</span>
+                    </button>
+
+                    {expandedCycleId === item.cycleId && (
+                      <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2 animate-fade-in">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="text-[10px] font-bold uppercase text-slate-400 border-b border-slate-200">
+                              <th className="pb-2">Employee</th>
+                              <th className="pb-2">Self Assessment</th>
+                              <th className="pb-2">Manager Review</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {item.submissions?.map(sub => (
+                              <tr key={sub.employeeId} className="hover:bg-slate-100/50">
+                                <td className="py-2.5 font-bold text-slate-800">
+                                  {sub.firstName} {sub.lastName}
+                                  <span className="text-[9px] text-slate-400 block font-normal">{sub.employeeCode}</span>
+                                </td>
+                                <td className="py-2.5">
+                                  {sub.selfSubmitted ? (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      <CheckCircle2 size={12} />
+                                      <span>Submitted {sub.selfSubmittedAt ? `(${new Date(sub.selfSubmittedAt).toLocaleString()})` : ''}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-slate-200/60 text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                      <Clock size={12} />
+                                      <span>Pending</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5">
+                                  {sub.managerSubmitted ? (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      <CheckCircle2 size={12} />
+                                      <span>Submitted {sub.managerSubmittedAt ? `(${new Date(sub.managerSubmittedAt).toLocaleString()})` : ''}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-slate-200/60 text-slate-600 px-2 py-0.5 rounded text-[10px] font-semibold">
+                                      <Clock size={12} />
+                                      <span>Pending</span>
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

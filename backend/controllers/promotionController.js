@@ -18,8 +18,8 @@ const getPromotions = async (req, res) => {
     const promotions = await Promotion.find(filter)
       .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
       .populate('currentDesignationId proposedDesignationId')
-      .populate({ path: 'recommendedBy', select: 'firstName lastName email' })
-      .populate({ path: 'approvedBy', select: 'firstName lastName email' });
+      .populate({ path: 'recommendedBy', select: 'firstName lastName email role' })
+      .populate({ path: 'approvedBy', select: 'firstName lastName email role' });
 
     res.json(promotions);
   } catch (error) {
@@ -32,6 +32,18 @@ const createPromotion = async (req, res) => {
   try {
     const { employeeId, currentDesignationId, proposedDesignationId, salaryIncrementPercent, effectiveDate, supportingReviewScores } = req.body;
     const recommendedBy = req.user.id;
+
+    // Check if a promotion recommendation is already pending approval for this employee
+    const existingPending = await Promotion.findOne({
+      employeeId,
+      status: 'proposed'
+    });
+
+    if (existingPending) {
+      return res.status(400).json({
+        message: 'A promotion recommendation for this employee is already pending HR/Admin approval.'
+      });
+    }
 
     const promotion = await Promotion.create({
       employeeId,

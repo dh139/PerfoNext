@@ -69,10 +69,24 @@ const createUser = async (req, res) => {
     if (emailExists) {
       return res.status(400).json({ message: 'Email already exists.' });
     }
-
-    const codeExists = await User.findOne({ employeeCode });
-    if (codeExists) {
-      return res.status(400).json({ message: 'Employee Code already exists.' });
+    // Auto-generate employeeCode if not provided
+    let finalCode = employeeCode;
+    if (!finalCode) {
+      const count = await User.countDocuments();
+      const lastUser = await User.findOne({}, { employeeCode: 1 }).sort({ createdAt: -1 });
+      let nextNum = count + 1;
+      if (lastUser && lastUser.employeeCode) {
+        const match = lastUser.employeeCode.match(/(\d+)/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
+      finalCode = `EMP${String(nextNum).padStart(3, '0')}`;
+    } else {
+      const codeExists = await User.findOne({ employeeCode: finalCode });
+      if (codeExists) {
+        return res.status(400).json({ message: 'Employee Code already exists.' });
+      }
     }
 
     if (mobile) {
@@ -86,13 +100,13 @@ const createUser = async (req, res) => {
     const passwordHash = await bcrypt.hash(password || 'EPTS2026!', salt);
 
     const newUser = await User.create({
-      employeeCode,
+      employeeCode: finalCode,
       firstName,
       lastName,
       email,
       mobile,
       passwordHash,
-      departmentId,
+      departmentId: departmentId || null,
       designationId,
       managerId: managerId || null,
       joiningDate: joiningDate || new Date(),

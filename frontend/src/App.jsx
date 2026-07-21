@@ -28,13 +28,18 @@ import FeedbackCenter from './pages/FeedbackCenter';
 import SkillMatrix from './pages/SkillMatrix';
 import Certifications from './pages/Certifications';
 import IntegrationsWorkspace from './pages/IntegrationsWorkspace';
+import LandingPage from './pages/LandingPage';
+import useAuthStore from './store/authStore';
 
 function App() {
+  const { token } = useAuthStore();
+
   return (
     <>
       <ToastContainer />
       <Routes>
       {/* Public Routes */}
+      <Route path="/landing" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -44,6 +49,7 @@ function App() {
         <Route element={<Layout />}>
           {/* Dashboard */}
           <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
 
           {/* Profile */}
           <Route path="/profile" element={<Profile />} />

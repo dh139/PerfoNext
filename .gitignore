@@ -26,3 +26,7 @@ Thumbs.db
 .idea/
 .claude/
 ui-ux-pro-max-skill/
+
+# Ignore Utility Scripts
+backend/scripts/
+

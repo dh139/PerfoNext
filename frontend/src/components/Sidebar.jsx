@@ -17,16 +17,18 @@ import {
   TrendingUp,
   MessageSquare,
   Layers,
-  Cpu
+  Cpu,
+  X
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {
+      if (setSidebarOpen) setSidebarOpen(false);
       await logout();
       navigate('/login');
     } catch (err) {
@@ -40,6 +42,7 @@ const Sidebar = () => {
       case 'hr': return 'HR Manager';
       case 'manager': return 'Reporting Manager';
       case 'employee': return 'Employee';
+      case 'executive': return 'CEO / Mgmt';
       default: return role;
     }
   };
@@ -50,11 +53,16 @@ const Sidebar = () => {
       case 'hr': return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
       case 'manager': return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
       case 'employee': return 'bg-sky-500/10 text-sky-400 border border-sky-500/20';
+      case 'executive': return 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20';
       default: return 'bg-slate-500/10 text-slate-400';
     }
   };
 
   const isActive = (path) => location.pathname === path;
+
+  const handleNavClick = () => {
+    if (setSidebarOpen) setSidebarOpen(false);
+  };
 
   const linkClass = (path) => `
     flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer
@@ -64,17 +72,36 @@ const Sidebar = () => {
   `;
 
   return (
-    <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col text-slate-100 h-screen fixed left-0 top-0 z-30">
-      {/* Brand Header */}
-      <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-        <div className="p-2 bg-sky-600 rounded-lg text-white">
-          <Activity size={20} />
+    <>
+      {/* Mobile Backdrop Overlay */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen && setSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-30 md:hidden transition-opacity"
+        />
+      )}
+
+      {/* Sidebar Drawer */}
+      <div className={`w-64 bg-slate-900 border-r border-slate-800 flex flex-col text-slate-100 h-screen fixed left-0 top-0 z-40 transition-transform duration-300 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        {/* Brand Header */}
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-sky-600 rounded-lg text-white">
+              <Activity size={20} />
+            </div>
+            <div>
+              <h1 className="font-bold text-base tracking-wide uppercase text-white">EPTS</h1>
+            </div>
+          </div>
+
+          {/* Close button on mobile */}
+          <button
+            onClick={() => setSidebarOpen && setSidebarOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+          >
+            <X size={20} />
+          </button>
         </div>
-        <div>
-          <h1 className="font-bold text-base tracking-wide uppercase text-white">EPTS</h1>
-       
-        </div>
-      </div>
 
       {/* User Session card */}
       {user && (
@@ -236,6 +263,7 @@ const Sidebar = () => {
         </button>
       </div>
     </div>
+    </>
   );
 };
 

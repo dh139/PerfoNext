@@ -63,8 +63,11 @@ const PromotionsWorkspace = () => {
     }
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleCreatePromo = async (e) => {
     e.preventDefault();
+    if (submitting) return;
     setError('');
 
     if (!selectedEmpId || !proposedDesignationId || !effectiveDate) {
@@ -73,6 +76,7 @@ const PromotionsWorkspace = () => {
     }
 
     try {
+      setSubmitting(true);
       // Collect most recent score ID if any
       const scoreIds = supportingCycles.map(s => s._id);
 
@@ -91,6 +95,8 @@ const PromotionsWorkspace = () => {
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Failed to recommend promotion.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -109,6 +115,17 @@ const PromotionsWorkspace = () => {
     } catch (err) {
       console.error(err);
       toast.error('Failed to update promotion status.');
+    }
+  };
+
+  const getRoleLabel = (r) => {
+    switch (r) {
+      case 'admin': return 'Administrator';
+      case 'hr': return 'HR Manager';
+      case 'manager': return 'Reporting Manager';
+      case 'employee': return 'Employee';
+      case 'executive': return 'CEO / Management';
+      default: return r || 'N/A';
     }
   };
 
@@ -191,7 +208,7 @@ const PromotionsWorkspace = () => {
                     <td className="py-4 px-4 font-extrabold text-emerald-700">+{promo.salaryIncrementPercent}%</td>
                     <td className="py-4 px-4 text-slate-500">
                       {promo.recommendedBy?.firstName} {promo.recommendedBy?.lastName}
-                      <span className="text-[9px] text-slate-400 block mt-0.5">Role: {promo.recommendedBy?.role}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">Role: {getRoleLabel(promo.recommendedBy?.role)}</span>
                     </td>
                     <td className="py-4 px-4">
                       <span className={`inline-block font-semibold px-2 py-0.5 rounded-full text-[9px] uppercase border ${getStatusBadge(promo.status)}`}>
@@ -336,9 +353,10 @@ const PromotionsWorkspace = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors"
+                  disabled={submitting}
+                  className="bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors flex items-center gap-2"
                 >
-                  Submit Recommendation
+                  {submitting ? 'Submitting...' : 'Submit Recommendation'}
                 </button>
               </div>
             </form>

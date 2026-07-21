@@ -7,6 +7,11 @@ const KpiTemplate = require('../models/KpiTemplate');
 const Notification = require('../models/Notification');
 const { calculateReviewScores } = require('../utils/scoring');
 const { logAction } = require('../utils/logger');
+const {
+  sendReviewCycleStartedEmail,
+  sendSelfAssessmentSubmittedEmail,
+  sendFinalReportGeneratedEmail
+} = require('../services/emailService');
 
 // ==================== REVIEW CYCLE CONTROLLERS ====================
 
@@ -81,13 +86,25 @@ const updateReviewCycle = async (req, res) => {
 // Helper: notify all active employees of new cycle
 const notifyAllEmployeesOfNewCycle = async (cycle) => {
   try {
-    const employees = await User.find({ employmentStatus: 'active' });
-    const notifications = employees.map(emp => ({
-      userId: emp._id,
+    // Only send self-assessment prompts to active employees with role 'employee'
+    const targetEmployees = await User.find({ role: 'employee', employmentStatus: 'active' });
+    const allUsers = await User.find({ employmentStatus: 'active' });
+
+    // In-app notifications for all active users
+    const notifications = allUsers.map(u => ({
+      userId: u._id,
       type: 'review_assigned',
-      message: `A new performance review cycle has been started for ${cycle.reviewMonth}. Please complete your self-assessment before ${new Date(cycle.endDate).toLocaleDateString()}.`
+      message: `A new performance review cycle has been started for ${cycle.reviewMonth}.`
     }));
     await Notification.insertMany(notifications);
+
+    // Email notifications specifically to employees eligible for self-assessment
+    for (const emp of targetEmployees) {
+      if (emp.email) {
+        sendReviewCycleStartedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.endDate)
+          .catch(err => console.error(`Review cycle email failed for ${emp.email}:`, err));
+      }
+    }
   } catch (err) {
     console.error('Notification seeding failed:', err);
   }
@@ -172,13 +189,22 @@ const submitSelfAssessment = async (req, res) => {
 
     // If submitted, notify Manager
     if (status === 'submitted') {
-      const user = await User.findById(employeeId);
+      const user = await User.findById(employeeId).populate('managerId');
       if (user && user.managerId) {
         await Notification.create({
-          userId: user.managerId,
+          userId: user.managerId._id,
           type: 'assessment_pending',
           message: `${user.firstName} ${user.lastName} has submitted their self-assessment for ${cycle.reviewMonth}. Please complete your manager review.`
         });
+
+        if (user.managerId.email) {
+          sendSelfAssessmentSubmittedEmail(
+            user.managerId.email,
+            user.managerId.firstName,
+            `${user.firstName} ${user.lastName}`,
+            cycle.reviewMonth
+          ).catch(err => console.error('Manager email notification failed:', err));
+        }
       }
 
       // Check if we can trigger calculation immediately
@@ -248,9 +274,9 @@ const submitManagerReview = async (req, res) => {
       return res.status(400).json({ message: 'Manager review can only be submitted for active review cycles.' });
     }
 
-    // Verify manager assignment
+    // Verify manager assignment or HR/Admin access
     const employee = await User.findById(employeeId);
-    if (!employee || employee.managerId?.toString() !== managerId.toString()) {
+    if (!employee || (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin'].includes(req.user.role))) {
       return res.status(403).json({ message: 'You are not the designated manager for this employee.' });
     }
 
@@ -343,6 +369,13 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         type: 'review_completed',
         message: `Your performance review for ${cycle.reviewMonth} is complete. Your final score is ${finalScore} (${rating}).`
       });
+
+      // Send email notification to Employee when report is published
+      const emp = await User.findById(employeeId);
+      if (emp && emp.email) {
+        sendFinalReportGeneratedEmail(emp.email, emp.firstName, cycle.reviewMonth, finalScore, rating)
+          .catch(err => console.error('Final report email notification failed:', err));
+      }
 
       console.log(`Scores calculated successfully for Employee: ${employeeId} in Cycle: ${reviewCycleId}`);
     }

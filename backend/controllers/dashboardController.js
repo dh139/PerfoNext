@@ -119,11 +119,34 @@ const getDashboardData = async (req, res) => {
       // Completion metrics for active cycles
       const activeCycleMetrics = [];
       for (const cycle of activeCycles) {
-        const totalEmployees = await User.countDocuments({ employmentStatus: 'active' });
+        // Count active employees eligible for self-assessments (role: 'employee')
+        const eligibleEmployees = await User.countDocuments({ role: 'employee', employmentStatus: 'active' });
+        const totalEmployees = eligibleEmployees > 0 
+          ? eligibleEmployees 
+          : await User.countDocuments({ role: { $ne: 'admin' }, employmentStatus: 'active' });
         
         const selfSubmitted = await SelfAssessment.countDocuments({ reviewCycleId: cycle._id, status: 'submitted' });
         const managerSubmitted = await ManagerReview.countDocuments({ reviewCycleId: cycle._id, status: 'submitted' });
         const bothCompleted = await ReviewScore.countDocuments({ reviewCycleId: cycle._id });
+
+        // Detailed employee submission status & timestamps
+        const eligibleUserList = await User.find({ role: 'employee', employmentStatus: 'active' })
+          .select('firstName lastName employeeCode');
+
+        const submissions = await Promise.all(eligibleUserList.map(async (emp) => {
+          const selfDoc = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
+          const mgrDoc = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
+          return {
+            employeeId: emp._id,
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            employeeCode: emp.employeeCode,
+            selfSubmitted: selfDoc?.status === 'submitted',
+            selfSubmittedAt: selfDoc?.submittedAt || null,
+            managerSubmitted: mgrDoc?.status === 'submitted',
+            managerSubmittedAt: mgrDoc?.submittedAt || null
+          };
+        }));
 
         activeCycleMetrics.push({
           cycleId: cycle._id,
@@ -131,7 +154,8 @@ const getDashboardData = async (req, res) => {
           totalEmployees,
           selfSubmittedPercent: totalEmployees > 0 ? Math.round((selfSubmitted / totalEmployees) * 100) : 0,
           managerSubmittedPercent: totalEmployees > 0 ? Math.round((managerSubmitted / totalEmployees) * 100) : 0,
-          completedPercent: totalEmployees > 0 ? Math.round((bothCompleted / totalEmployees) * 100) : 0
+          completedPercent: totalEmployees > 0 ? Math.round((bothCompleted / totalEmployees) * 100) : 0,
+          submissions
         });
       }
 

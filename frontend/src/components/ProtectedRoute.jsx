@@ -6,7 +6,7 @@ const ProtectedRoute = ({ allowedRoles = [] }) => {
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/landing" replace />;
   }
 
   if (allowedRoles.length > 0 && (!user || !allowedRoles.includes(user.role))) {

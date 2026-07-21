@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
-import { AlertCircle, User, Mail, Phone, Lock, Key, Briefcase, Layers, Activity } from 'lucide-react';
+import api from '../utils/api';
+import { AlertCircle, CheckCircle2, User, Mail, Phone, Lock, Key, Briefcase, Layers, Activity } from 'lucide-react';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,6 +10,19 @@ const Register = () => {
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successData, setSuccessData] = useState(null);
+  const [countdown, setCountdown] = useState(5);
+
+  // Auto-redirect countdown timer for custom success modal
+  useEffect(() => {
+    let timer;
+    if (successData && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (successData && countdown === 0) {
+      navigate('/login');
+    }
+    return () => clearTimeout(timer);
+  }, [successData, countdown, navigate]);
 
   // Form Fields
   const [role, setRole] = useState('employee');
@@ -26,15 +39,15 @@ const Register = () => {
     const fetchMetadata = async () => {
       try {
         setLoading(true);
-        const deptRes = await axios.get('/api/auth/departments');
+        const deptRes = await api.get('/api/auth/departments');
         setDepartments(deptRes.data);
         if (deptRes.data.length > 0) setDepartmentId(deptRes.data[0]._id);
 
-        const desRes = await axios.get('/api/auth/designations');
+        const desRes = await api.get('/api/auth/designations');
         setDesignations(desRes.data);
         if (desRes.data.length > 0) setDesignationId(desRes.data[0]._id);
 
-        const managersRes = await axios.get('/api/auth/managers');
+        const managersRes = await api.get('/api/auth/managers');
         setManagers(managersRes.data);
       } catch (err) {
         console.error('Registration metadata fetch failed:', err);
@@ -76,7 +89,7 @@ const Register = () => {
     }
 
     try {
-      const res = await axios.post('/api/auth/register', {
+      const res = await api.post('/api/auth/register', {
         firstName,
         lastName,
         email,
@@ -88,8 +101,11 @@ const Register = () => {
         role
       });
 
-      alert(res.data.message || 'Registration successful! Redirecting to login page.');
-      navigate('/login');
+      setSuccessData({
+        employeeCode: res.data.employeeCode,
+        message: res.data.message,
+        email
+      });
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Registration failed. Please check inputs.');
@@ -106,6 +122,44 @@ const Register = () => {
       {/* Decorative Aurora background glow */}
       <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] bg-sky-700/10 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] bg-indigo-700/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+      {/* Custom Registration Success Modal */}
+      {successData && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-5 shadow-[0_25px_60px_rgba(0,0,0,0.5)] relative overflow-hidden animate-scale-up">
+            <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/10">
+              <CheckCircle2 size={36} className="animate-bounce" />
+            </div>
+
+            <div>
+              <h3 className="text-xl font-bold text-slate-100">Account Created Successfully!</h3>
+              <p className="text-xs text-slate-400 mt-1">Welcome to the EPTS Performance Tracking System.</p>
+            </div>
+
+            <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-2 text-left text-xs">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                <span className="text-slate-400 font-medium">Assigned Employee Code:</span>
+                <span className="font-extrabold text-sky-400 bg-sky-950/80 border border-sky-800 px-2.5 py-0.5 rounded-md text-sm">{successData.employeeCode || 'EMP'}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-400 font-medium">Registered Email:</span>
+                <span className="font-semibold text-slate-200 truncate">{successData.email}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400">
+              A welcome confirmation email has been dispatched. Auto-redirecting to login in <span className="font-bold text-sky-400">{countdown}s</span>...
+            </p>
+
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-sky-600/25 transition-all text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Proceed to Sign In Now
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.3)] p-8 relative z-10 space-y-6 text-xs text-slate-200">
         

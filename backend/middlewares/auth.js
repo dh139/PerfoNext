@@ -11,7 +11,7 @@ const generateAccessToken = (user) => {
       firstName: user.firstName,
       lastName: user.lastName
     },
-    process.env.JWT_SECRET || 'epts_access_token_secret_2026_xyz',
+    process.env.JWT_SECRET,
     { expiresIn: '15m' }
   );
 };
@@ -19,7 +19,7 @@ const generateAccessToken = (user) => {
 const generateRefreshToken = (user) => {
   return jwt.sign(
     { id: user._id },
-    process.env.JWT_REFRESH_SECRET || 'epts_refresh_token_secret_2026_abc',
+    process.env.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
 };
