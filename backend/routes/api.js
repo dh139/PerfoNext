@@ -87,15 +87,15 @@ router.get('/dashboard/:role', verifyToken, dashboardController.getDashboardData
 
 // Reports
 router.get('/reports/employee/:id', verifyToken, reportController.getEmployeeReport);
-router.get('/reports/department/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager'), reportController.getDepartmentReport);
-router.get('/reports/review-completion', verifyToken, authorizeRoles('admin', 'hr', 'manager'), reportController.getReviewCompletionReport);
+router.get('/reports/department/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), reportController.getDepartmentReport);
+router.get('/reports/review-completion', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), reportController.getReviewCompletionReport);
 
 // Notifications
 router.get('/notifications', verifyToken, notificationController.getNotifications);
 router.patch('/notifications/:id/read', verifyToken, notificationController.markAsRead);
 
 // Audit Logs
-router.get('/audit-logs', verifyToken, authorizeRoles('admin'), auditController.getAuditLogs);
+router.get('/audit-logs', verifyToken, authorizeRoles('admin', 'hr', 'executive'), auditController.getAuditLogs);
 
 // ==================== PHASE 2 ROUTES ====================
 
@@ -119,11 +119,11 @@ router.get('/documents', verifyToken, documentController.getDocuments);
 router.post('/documents/upload', verifyToken, upload.single('file'), documentController.uploadDocument);
 
 // AI Insights Routes
-router.get('/insights/:employeeId', verifyToken, authorizeRoles('admin', 'hr', 'manager'), insightController.getEmployeeInsights);
+router.get('/insights/:employeeId', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), insightController.getEmployeeInsights);
 
 // 360 Feedback Routes
 router.get('/feedback/requests', verifyToken, feedbackController.getFeedbackRequests);
-router.post('/feedback/requests', verifyToken, authorizeRoles('admin', 'hr', 'manager'), feedbackController.createFeedbackRequest);
+router.post('/feedback/requests', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), feedbackController.createFeedbackRequest);
 router.post('/feedback/responses', verifyToken, feedbackController.submitFeedbackResponse);
 router.get('/feedback/summary/:employeeId', verifyToken, feedbackController.getFeedbackSummary);
 

@@ -71,7 +71,7 @@ const Sidebar = () => {
           <Activity size={20} />
         </div>
         <div>
-          <h1 className="font-bold text-base tracking-wide uppercase text-white">EPTS Core</h1>
+          <h1 className="font-bold text-base tracking-wide uppercase text-white">EPTS</h1>
        
         </div>
       </div>
@@ -163,16 +163,18 @@ const Sidebar = () => {
           <span>Ecosystem Hub</span>
         </Link>
 
-        {/* Manager-only Links */}
-        {user?.role === 'manager' && (
+        {/* Manager & Executive Links */}
+        {(user?.role === 'manager' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Management</p>
             </div>
-            <Link to="/manager/reviews" className={linkClass('/manager/reviews')}>
-              <ClipboardList size={18} />
-              <span>Pending Reviews</span>
-            </Link>
+            {user?.role === 'manager' && (
+              <Link to="/manager/reviews" className={linkClass('/manager/reviews')}>
+                <ClipboardList size={18} />
+                <span>Pending Reviews</span>
+              </Link>
+            )}
             <Link to="/reports/department" className={linkClass('/reports/department')}>
               <FileText size={18} />
               <span>Team Reports</span>
@@ -180,8 +182,8 @@ const Sidebar = () => {
           </>
         )}
 
-        {/* HR-only Links */}
-        {(user?.role === 'hr' || user?.role === 'admin') && (
+        {/* HR & Executive Links */}
+        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
@@ -201,8 +203,8 @@ const Sidebar = () => {
           </>
         )}
 
-        {/* Admin-only Links */}
-        {user?.role === 'admin' && (
+        {/* Admin & Executive Links */}
+        {(user?.role === 'admin' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>

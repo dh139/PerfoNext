@@ -3,8 +3,8 @@ const ReviewScore = require('../models/ReviewScore');
 const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 
-const GROQ_API_KEY = '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';
-const GROQ_MODEL = 'llama-3.3-70b-versatile';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 const getAiInsights = async (employeeId) => {
   try {

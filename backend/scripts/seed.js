@@ -115,6 +115,22 @@ const seedDB = async () => {
       role: 'manager'
     });
 
+    // 4.5. CEO / Executive Management
+    const userCEO = await User.create({
+      employeeCode: 'EMP000',
+      firstName: 'Rajesh',
+      lastName: 'Mehta',
+      email: 'ceo@epts.com',
+      mobile: '9876543299',
+      passwordHash: await getHash('CeoPass123!'),
+      departmentId: deptHR._id,
+      designationId: desAdmin._id,
+      managerId: null,
+      joiningDate: new Date('2022-01-01'),
+      employmentStatus: 'active',
+      role: 'executive'
+    });
+
     // 5. Software Engineers (reporting to MgrEng)
     const userDev1 = await User.create({
       employeeCode: 'EMP005',

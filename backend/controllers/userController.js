@@ -3,6 +3,7 @@ const Department = require('../models/Department');
 const Designation = require('../models/Designation');
 const bcrypt = require('bcryptjs');
 const { logAction } = require('../utils/logger');
+const { sendWelcomeEmail } = require('../services/emailService');
 
 // ==================== USER CONTROLLERS ====================
 
@@ -111,6 +112,13 @@ const createUser = async (req, res) => {
       after: userObj,
       ipAddress: req.ip || ''
     });
+
+    // Send welcome confirmation email
+    try {
+      await sendWelcomeEmail(newUser.email, newUser.firstName, newUser.employeeCode, newUser.role);
+    } catch (emailErr) {
+      console.error('Welcome email error:', emailErr);
+    }
 
     res.status(201).json(userObj);
   } catch (error) {

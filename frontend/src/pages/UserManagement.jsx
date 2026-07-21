@@ -242,17 +242,21 @@ const UserManagement = () => {
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 md:col-span-2">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Access Privilege (Role)</label>
                   <select
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium"
+                    onChange={(e) => {
+                      setRole(e.target.value);
+                      if (e.target.value === 'executive') setManagerId('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
                   >
                     <option value="employee">Employee</option>
                     <option value="manager">Reporting Manager</option>
                     <option value="hr">HR Manager</option>
                     <option value="admin">Administrator</option>
+                    <option value="executive">CEO / Executive Management</option>
                   </select>
                 </div>
 
@@ -315,27 +319,19 @@ const UserManagement = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
-                  <select
-                    value={managerId}
-                    onChange={(e) => setManagerId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
-                  >
-                    <option value="">No reporting manager (CEO / executive)</option>
-                    {managers.filter(m => m._id !== editUser?._id).map(m => (
-                      <option key={m._id} value={m._id}>{m.firstName} {m.lastName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Department</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Department</label>
+                    <span className={`text-[9px] font-bold ${role === 'executive' ? 'text-slate-400 font-normal' : 'text-rose-500'}`}>
+                      {role === 'executive' ? '(Optional)' : '* Required'}
+                    </span>
+                  </div>
                   <select
                     value={departmentId}
                     onChange={(e) => setDepartmentId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
-                    required
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium"
+                    required={role !== 'executive'}
                   >
+                    <option value="">{role === 'executive' ? 'Select Department (Optional)' : 'Select Department *'}</option>
                     {departments.map(d => (
                       <option key={d._id} value={d._id}>{d.departmentName}</option>
                     ))}
@@ -343,18 +339,44 @@ const UserManagement = () => {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Designation</label>
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Designation</label>
+                    <span className="text-[9px] font-bold text-rose-500">* Required</span>
+                  </div>
                   <select
                     value={designationId}
                     onChange={(e) => setDesignationId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium"
                     required
                   >
+                    <option value="">Select Designation *</option>
                     {designations.map(d => (
                       <option key={d._id} value={d._id}>{d.designationName}</option>
                     ))}
                   </select>
                 </div>
+
+                {role !== 'executive' && (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
+                      <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-500' : 'text-slate-400 font-normal'}`}>
+                        {role === 'employee' ? '* Required for Employees' : '(Optional)'}
+                      </span>
+                    </div>
+                    <select
+                      value={managerId}
+                      onChange={(e) => setManagerId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
+                      required={role === 'employee'}
+                    >
+                      <option value="">{role === 'employee' ? 'Select Direct Manager *' : 'No reporting manager (Optional)'}</option>
+                      {managers.filter(m => m._id !== editUser?._id).map(m => (
+                        <option key={m._id} value={m._id}>{m.firstName} {m.lastName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {editUser && (
                   <div className="space-y-1.5">

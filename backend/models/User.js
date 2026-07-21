@@ -40,7 +40,7 @@ const userSchema = new mongoose.Schema(
     departmentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Department',
-      required: true,
+      required: false,
       index: true
     },
     designationId: {
@@ -67,7 +67,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'hr', 'manager', 'employee'],
+      enum: ['admin', 'hr', 'manager', 'employee', 'executive'],
       required: true,
       index: true
     },

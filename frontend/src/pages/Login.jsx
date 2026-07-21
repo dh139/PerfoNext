@@ -131,46 +131,7 @@ const Login = () => {
           Don't have an account? <Link to="/register" className="text-sky-500 hover:underline font-semibold">Register here</Link>
         </div>
 
-        {/* Quick Seeding accounts credentials list */}
-        {/* <div className="mt-8 pt-6 border-t border-slate-800">
-          <div className="flex items-center gap-2 mb-3">
-            <Key size={14} className="text-sky-500" />
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide">Developer Quick Logins</h4>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <button
-              onClick={() => handleQuickLogin('admin@epts.com', 'AdminPass123!')}
-              className="bg-slate-800/40 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 p-2.5 rounded-lg text-left text-slate-300 cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-rose-400">System Admin</p>
-              <p className="opacity-75 truncate">admin@epts.com</p>
-            </button>
-
-            <button
-              onClick={() => handleQuickLogin('hr@epts.com', 'HrPass123!')}
-              className="bg-slate-800/40 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 p-2.5 rounded-lg text-left text-slate-300 cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-emerald-400">HR Manager</p>
-              <p className="opacity-75 truncate">hr@epts.com</p>
-            </button>
-
-            <button
-              onClick={() => handleQuickLogin('manager1@epts.com', 'ManagerPass123!')}
-              className="bg-slate-800/40 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 p-2.5 rounded-lg text-left text-slate-300 cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-amber-400">Engineering Mgr</p>
-              <p className="opacity-75 truncate">manager1@epts.com</p>
-            </button>
-
-            <button
-              onClick={() => handleQuickLogin('dev1@epts.com', 'EmpPass123!')}
-              className="bg-slate-800/40 hover:bg-slate-800 border border-slate-800/80 hover:border-slate-700 p-2.5 rounded-lg text-left text-slate-300 cursor-pointer transition-colors"
-            >
-              <p className="font-semibold text-sky-400">Employee Dev</p>
-              <p className="opacity-75 truncate">dev1@epts.com</p>
-            </button>
-          </div>
-        </div> */}
+     
       </div>
     </div>
   );

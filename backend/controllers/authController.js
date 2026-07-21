@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { generateAccessToken, generateRefreshToken } = require('../middlewares/auth');
 const { logAction } = require('../utils/logger');
-const { sendOtpEmail } = require('../services/emailService');
+const { sendOtpEmail, sendWelcomeEmail } = require('../services/emailService');
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000;
 
@@ -127,8 +127,20 @@ const register = async (req, res) => {
   try {
     const { firstName, lastName, email, mobile, password, departmentId, designationId, managerId, role } = req.body;
 
-    if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
-      return res.status(400).json({ message: 'All fields are required.' });
+    const targetRole = role || 'employee';
+
+    if (targetRole === 'employee') {
+      if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId || !managerId) {
+        return res.status(400).json({ message: 'First name, last name, email, mobile, password, department, designation, and reporting manager are required for Employees.' });
+      }
+    } else if (targetRole === 'executive') {
+      if (!firstName || !lastName || !email || !mobile || !password || !designationId) {
+        return res.status(400).json({ message: 'First name, last name, email, mobile, password, and designation are required for CEO / Management.' });
+      }
+    } else {
+      if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
+        return res.status(400).json({ message: 'First name, last name, email, mobile, password, department, and designation are required.' });
+      }
     }
 
     const existingUser = await User.findOne({ email });
@@ -162,11 +174,11 @@ const register = async (req, res) => {
       email,
       mobile,
       passwordHash,
-      departmentId,
+      departmentId: departmentId || null,
       designationId,
-      managerId: managerId || null,
+      managerId: targetRole === 'executive' ? null : (managerId || null),
       joiningDate: new Date(),
-      role: role || 'employee',
+      role: targetRole,
       employmentStatus: 'active'
     });
 
@@ -178,6 +190,13 @@ const register = async (req, res) => {
       after: user.toObject(),
       ipAddress: req.ip || ''
     });
+
+    // Send welcome confirmation email
+    try {
+      await sendWelcomeEmail(user.email, user.firstName, user.employeeCode, user.role);
+    } catch (emailErr) {
+      console.error('Welcome email error:', emailErr);
+    }
 
     res.status(201).json({
       message: `Registration successful! Your generated Employee Code is ${employeeCode}.`,

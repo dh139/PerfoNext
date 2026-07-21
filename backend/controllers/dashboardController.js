@@ -109,7 +109,7 @@ const getDashboardData = async (req, res) => {
       });
     }
 
-    if (role === 'hr' || role === 'admin') {
+    if (role === 'hr' || role === 'admin' || role === 'executive') {
       // 3. HR & Admin Dashboard Data
       const totalDepartments = await Department.countDocuments({ status: 'active' });
       const totalTemplates = await KpiTemplate.countDocuments({ status: 'active' });

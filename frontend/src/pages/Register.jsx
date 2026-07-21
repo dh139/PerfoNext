@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { AlertCircle, User, Mail, Phone, Lock, Key, Briefcase, Layers, Activity } from 'lucide-react';
-import { toast } from '../store/toastStore';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -13,7 +12,7 @@ const Register = () => {
   const [error, setError] = useState('');
 
   // Form Fields
-  const [employeeCode, setEmployeeCode] = useState('');
+  const [role, setRole] = useState('employee');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -22,13 +21,11 @@ const Register = () => {
   const [departmentId, setDepartmentId] = useState('');
   const [designationId, setDesignationId] = useState('');
   const [managerId, setManagerId] = useState('');
-  const [role, setRole] = useState('employee');
 
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         setLoading(true);
-        // Direct axios requests as user is not authorized yet
         const deptRes = await axios.get('/api/auth/departments');
         setDepartments(deptRes.data);
         if (deptRes.data.length > 0) setDepartmentId(deptRes.data[0]._id);
@@ -49,13 +46,33 @@ const Register = () => {
     fetchMetadata();
   }, []);
 
+  const handleRoleChange = (newRole) => {
+    setRole(newRole);
+    if (newRole === 'executive') {
+      setManagerId('');
+    }
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
-      setError('Please fill in all required fields.');
-      return;
+    // Role-wise validation rules
+    if (role === 'employee') {
+      if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId || !managerId) {
+        setError('First Name, Last Name, Email, Mobile, Password, Department, Designation, and Reporting Manager are required for Employees.');
+        return;
+      }
+    } else if (role === 'executive') {
+      if (!firstName || !lastName || !email || !mobile || !password || !designationId) {
+        setError('First Name, Last Name, Email, Mobile, Password, and Designation are required for CEO / Management.');
+        return;
+      }
+    } else {
+      if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
+        setError('First Name, Last Name, Email, Mobile, Password, Department, and Designation are required.');
+        return;
+      }
     }
 
     try {
@@ -65,13 +82,13 @@ const Register = () => {
         email,
         mobile,
         password,
-        departmentId,
+        departmentId: departmentId || null,
         designationId,
-        managerId: managerId || null,
+        managerId: role === 'executive' ? null : (managerId || null),
         role
       });
 
-      toast.success(res.data.message || 'Registration successful! Redirecting to login page.');
+      alert(res.data.message || 'Registration successful! Redirecting to login page.');
       navigate('/login');
     } catch (err) {
       console.error(err);
@@ -79,10 +96,10 @@ const Register = () => {
     }
   };
 
-  // Filter designations by selected department
-  const filteredDesignations = designations.filter(
-    des => des.departmentId?._id === departmentId || des.departmentId === departmentId
-  );
+  // Filter designations by selected department (or show all if optional department not set)
+  const filteredDesignations = departmentId
+    ? designations.filter(des => des.departmentId?._id === departmentId || des.departmentId === departmentId)
+    : designations;
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 relative overflow-hidden my-auto">
@@ -110,10 +127,30 @@ const Register = () => {
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* System Role Selection */}
+            <div className="space-y-1.5 md:col-span-2 bg-slate-950/40 border border-slate-800 p-3 rounded-xl">
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-[10px] font-bold text-sky-400 tracking-wide uppercase">Select System Role</label>
+                <span className="text-[9px] text-slate-400 font-medium">Determines required organization fields</span>
+              </div>
+              <select
+                value={role}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 text-slate-100 p-2.5 rounded-xl outline-none font-bold text-xs transition-all"
+                required
+              >
+                <option value="employee" className="bg-slate-900 text-slate-200">Employee</option>
+                <option value="manager" className="bg-slate-900 text-slate-200">Reporting Manager</option>
+                <option value="hr" className="bg-slate-900 text-slate-200">HR Manager</option>
+                <option value="admin" className="bg-slate-900 text-slate-200">Administrator</option>
+                <option value="executive" className="bg-slate-900 text-slate-200">CEO / Management</option>
+              </select>
+            </div>
 
             {/* Email Address */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Email Address</label>
+              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Email Address <span className="text-rose-400">*</span></label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <Mail size={14} />
@@ -131,7 +168,7 @@ const Register = () => {
 
             {/* First Name */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">First Name</label>
+              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">First Name <span className="text-rose-400">*</span></label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <User size={14} />
@@ -149,7 +186,7 @@ const Register = () => {
 
             {/* Last Name */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Last Name</label>
+              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Last Name <span className="text-rose-400">*</span></label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <User size={14} />
@@ -167,7 +204,7 @@ const Register = () => {
 
             {/* Mobile Number */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Mobile Number</label>
+              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Mobile Number <span className="text-rose-400">*</span></label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <Phone size={14} />
@@ -184,8 +221,8 @@ const Register = () => {
             </div>
 
             {/* Password */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Password</label>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Password <span className="text-rose-400">*</span></label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500">
                   <Lock size={14} />
@@ -201,67 +238,72 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Department */}
+            {/* Department Field */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Department</label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Department</label>
+                <span className={`text-[9px] font-bold ${role === 'executive' ? 'text-slate-500 font-normal' : 'text-rose-400'}`}>
+                  {role === 'executive' ? '(Optional)' : '* Required'}
+                </span>
+              </div>
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
                 className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none font-semibold text-xs transition-all"
-                required
+                required={role !== 'executive'}
               >
-                <option value="" className="bg-slate-900 text-slate-400">Select Department</option>
+                <option value="" className="bg-slate-900 text-slate-400">
+                  {role === 'executive' ? 'Select Department (Optional)' : 'Select Department *'}
+                </option>
                 {departments.map(d => (
                   <option key={d._id} value={d._id} className="bg-slate-900 text-slate-200">{d.departmentName}</option>
                 ))}
               </select>
             </div>
 
-            {/* Designation */}
+            {/* Designation Field */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Designation</label>
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Designation</label>
+                <span className="text-[9px] font-bold text-rose-400">* Required</span>
+              </div>
               <select
                 value={designationId}
                 onChange={(e) => setDesignationId(e.target.value)}
                 className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none font-semibold text-xs transition-all"
                 required
               >
-                <option value="" className="bg-slate-900 text-slate-400">Select Designation</option>
+                <option value="" className="bg-slate-900 text-slate-400">Select Designation *</option>
                 {filteredDesignations.map(d => (
                   <option key={d._id} value={d._id} className="bg-slate-900 text-slate-200">{d.designationName}</option>
                 ))}
               </select>
             </div>
 
-            {/* Reporting Manager */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Reporting Manager (Optional)</label>
-              <select
-                value={managerId}
-                onChange={(e) => setManagerId(e.target.value)}
-                className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none text-xs transition-all"
-              >
-                <option value="" className="bg-slate-900 text-slate-400">Select Manager (None)</option>
-                {managers.map(m => (
-                  <option key={m._id} value={m._id} className="bg-slate-900 text-slate-200">{m.firstName} {m.lastName} ({m.role})</option>
-                ))}
-              </select>
-            </div>
-
-            {/* System Role */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">System Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none font-bold text-xs transition-all"
-                required
-              >
-                <option value="employee" className="bg-slate-900 text-slate-200">Employee</option>
-                <option value="manager" className="bg-slate-900 text-slate-200">Manager</option>
-                <option value="hr" className="bg-slate-900 text-slate-200">HR Manager</option>
-              </select>
-            </div>
+            {/* Reporting Manager Field (Hidden for CEO / Management) */}
+            {role !== 'executive' && (
+              <div className="space-y-1.5 md:col-span-2">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Reporting Manager</label>
+                  <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-400' : 'text-slate-500 font-normal'}`}>
+                    {role === 'employee' ? '* Required for Employees' : '(Optional)'}
+                  </span>
+                </div>
+                <select
+                  value={managerId}
+                  onChange={(e) => setManagerId(e.target.value)}
+                  className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none text-xs transition-all"
+                  required={role === 'employee'}
+                >
+                  <option value="" className="bg-slate-900 text-slate-400">
+                    {role === 'employee' ? 'Select Reporting Manager *' : 'Select Manager (Optional / None)'}
+                  </option>
+                  {managers.map(m => (
+                    <option key={m._id} value={m._id} className="bg-slate-900 text-slate-200">{m.firstName} {m.lastName} ({m.role})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
           </div>
 
