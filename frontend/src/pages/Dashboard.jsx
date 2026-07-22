@@ -16,7 +16,11 @@ import {
   CheckCircle2,
   Clock,
   Bell,
-  ClipboardList
+  ClipboardList,
+  Lock,
+  Unlock,
+  BookOpen,
+  Check
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -83,7 +87,129 @@ const Dashboard = () => {
 
 const EmployeeDashboard = ({ data, user }) => {
   const navigate = useNavigate();
-  const { profile, pendingSelfAssessments, reviewScores, notifications } = data;
+  const {
+    profile,
+    pendingSelfAssessments,
+    reviewScores,
+    notifications,
+    skillsCount = 0,
+    certificationsCount = 0,
+    managerVerified = false,
+    selfAssessmentStatus = 'none',
+    managerReviewStatus = 'none',
+    finalScoreFinalized = false,
+    finalScore = null,
+    ratingBand = null,
+    activeCycleId = null
+  } = data;
+
+  // Lifecycle journey calculation
+  const totalStages = 6;
+  let completedStages = 1; // Profile is always completed
+  if (skillsCount > 0) completedStages++;
+  if (certificationsCount > 0) completedStages++;
+  if (managerVerified) completedStages++;
+  if (selfAssessmentStatus === 'submitted') completedStages++;
+  if (managerReviewStatus === 'complete') completedStages++;
+
+  const progressPercent = Math.round((completedStages / totalStages) * 100);
+
+  const checklistItems = [
+    {
+      label: 'Complete Profile & Activation',
+      desc: 'Verify department, designation and contact info.',
+      status: 'complete',
+      icon: <CheckCircle2 size={16} className="text-emerald-600" />,
+      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+      action: null
+    },
+    {
+      label: 'Add Core Skills',
+      desc: skillsCount > 0 ? `Listed ${skillsCount} skills in your matrix.` : 'List your core competencies and rating levels.',
+      status: skillsCount > 0 ? 'complete' : 'warning',
+      icon: skillsCount > 0 ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} className="text-amber-600" />,
+      badgeClass: skillsCount > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse',
+      action: skillsCount > 0 ? null : {
+        text: 'Add Skills',
+        link: '/skills'
+      }
+    },
+    {
+      label: 'Upload Certifications',
+      desc: certificationsCount > 0 ? `Registered ${certificationsCount} professional credentials.` : 'Upload professional credentials and PDF proof.',
+      status: certificationsCount > 0 ? 'complete' : 'warning',
+      icon: certificationsCount > 0 ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} className="text-amber-600" />,
+      badgeClass: certificationsCount > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse',
+      action: certificationsCount > 0 ? null : {
+        text: 'Upload Certificates',
+        link: '/certifications'
+      }
+    },
+    {
+      label: 'Verify Reporting Manager',
+      desc: managerVerified ? `Reporting directly to ${profile?.managerId?.firstName} ${profile?.managerId?.lastName}.` : 'No direct reporting manager assigned.',
+      status: managerVerified ? 'complete' : 'danger',
+      icon: managerVerified ? <CheckCircle2 size={16} className="text-emerald-600" /> : <AlertCircle size={16} className="text-rose-600" />,
+      badgeClass: managerVerified ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100',
+      action: null
+    },
+    {
+      label: 'Self Assessment',
+      desc: selfAssessmentStatus === 'none' 
+        ? 'No active review cycles at this time.' 
+        : selfAssessmentStatus === 'pending'
+        ? 'Evaluate your KPIs and add self-comments.'
+        : 'Self assessment successfully submitted.',
+      status: selfAssessmentStatus === 'submitted' ? 'complete' : selfAssessmentStatus === 'pending' ? 'warning' : 'locked',
+      icon: selfAssessmentStatus === 'submitted' 
+        ? <CheckCircle2 size={16} className="text-emerald-600" /> 
+        : selfAssessmentStatus === 'pending'
+        ? <AlertCircle size={16} className="text-amber-600" />
+        : <Lock size={16} className="text-slate-400" />,
+      badgeClass: selfAssessmentStatus === 'submitted'
+        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+        : selfAssessmentStatus === 'pending'
+        ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+        : 'bg-slate-50 text-slate-500 border-slate-100',
+      action: selfAssessmentStatus === 'pending' ? {
+        text: 'Continue Review',
+        link: `/assessment/${activeCycleId}`
+      } : null
+    },
+    {
+      label: 'Manager Evaluation',
+      desc: managerReviewStatus === 'none'
+        ? 'Awaiting self-assessment completion.'
+        : managerReviewStatus === 'waiting'
+        ? 'Awaiting manager feedback and KPI scores.'
+        : 'Manager score finalized.',
+      status: managerReviewStatus === 'complete' ? 'complete' : managerReviewStatus === 'waiting' ? 'pending' : 'locked',
+      icon: managerReviewStatus === 'complete' 
+        ? <CheckCircle2 size={16} className="text-emerald-600" /> 
+        : managerReviewStatus === 'waiting'
+        ? <Clock size={16} className="text-sky-600" />
+        : <Lock size={16} className="text-slate-400" />,
+      badgeClass: managerReviewStatus === 'complete'
+        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+        : managerReviewStatus === 'waiting'
+        ? 'bg-sky-50 text-sky-700 border-sky-100 animate-pulse'
+        : 'bg-slate-50 text-slate-500 border-slate-100',
+      action: null
+    },
+    {
+      label: 'Final Performance result',
+      desc: finalScoreFinalized 
+        ? `Result published! Final Grade: ${finalScore} (${ratingBand})` 
+        : 'Locked until review cycle ends.',
+      status: finalScoreFinalized ? 'complete' : 'locked',
+      icon: finalScoreFinalized ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Lock size={16} className="text-slate-400" />,
+      badgeClass: finalScoreFinalized ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100',
+      action: finalScoreFinalized ? {
+        text: 'View Performance',
+        link: `/reports/employee/${user.id}`
+      } : null
+    }
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -95,7 +221,7 @@ const EmployeeDashboard = ({ data, user }) => {
             Welcome back, {user?.firstName}!
           </h1>
           <p className="text-slate-400 text-xs md:text-sm mt-1">
-            Department: <span className="text-slate-300 font-semibold">{profile?.departmentId?.departmentName}</span> | Designation: <span className="text-slate-300 font-semibold">{profile?.designationId?.designationName}</span>
+            Department: <span className="text-slate-300 font-semibold">{profile?.departmentId?.departmentName || 'N/A'}</span> | Designation: <span className="text-slate-300 font-semibold">{profile?.designationId?.designationName || 'N/A'}</span>
           </p>
         </div>
         {profile?.managerId && (
@@ -108,49 +234,67 @@ const EmployeeDashboard = ({ data, user }) => {
 
       {/* Bento Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Self Assessments Card */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-          <div className="flex items-center gap-2.5 mb-6">
-            <div className="p-2 bg-sky-50 rounded-lg text-sky-700">
-              <Calendar size={18} />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-800 text-sm">Active Review Tasks</h3>
-              <p className="text-[11px] text-slate-500">Reviews awaiting your self-evaluation</p>
+        {/* Your Journey Checklist Card */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col space-y-6">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-sky-50 rounded-lg text-sky-700">
+                <BookOpen size={18} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">Your EPTS Journey</h3>
+                <p className="text-[11px] text-slate-500">Track and complete your employee lifecycle tasks</p>
+              </div>
             </div>
           </div>
 
+          {/* Progress bar */}
+          <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-150">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-600 uppercase tracking-wider text-[10px]">Setup & Evaluation Progress</span>
+              <span className="font-extrabold text-sky-700 text-[11px]">{progressPercent}% Completed</span>
+            </div>
+            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-sky-600 to-indigo-600 h-full transition-all duration-500"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Checklist list */}
           <div className="flex-1 space-y-3">
-            {pendingSelfAssessments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                <CheckCircle2 size={32} className="text-emerald-500 mb-2" />
-                <p className="text-slate-700 text-xs font-bold">All caught up!</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">No pending self-assessments at this time.</p>
-              </div>
-            ) : (
-              pendingSelfAssessments.map((cycle) => (
-                <div
-                  key={cycle.cycleId}
-                  className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-slate-600">
-                      <Clock size={16} className="text-sky-600 animate-pulse" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800">Month: {cycle.reviewMonth}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">Due date: {new Date(cycle.endDate).toLocaleDateString()}</p>
-                    </div>
+            {checklistItems.map((item, idx) => (
+              <div 
+                key={idx} 
+                className={`flex items-center justify-between p-3.5 border rounded-xl transition-all duration-200 ${
+                  item.status === 'locked' 
+                    ? 'border-slate-100 opacity-60 bg-slate-50/50' 
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-center gap-3.5 overflow-hidden">
+                  <div className={`p-2 rounded-xl border shrink-0 ${item.badgeClass}`}>
+                    {item.icon}
                   </div>
-                  <Link
-                    to={`/assessment/${cycle.cycleId}`}
-                    className="bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm cursor-pointer transition-colors"
-                  >
-                    Start Assessment
-                  </Link>
+                  <div className="overflow-hidden">
+                    <p className={`font-bold text-[12px] truncate ${item.status === 'locked' ? 'text-slate-400' : 'text-slate-700'}`}>
+                      {item.label}
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.desc}</p>
+                  </div>
                 </div>
-              ))
-            )}
+
+                {item.action && (
+                  <Link
+                    to={item.action.link}
+                    className="shrink-0 bg-sky-700 hover:bg-sky-850 text-white font-bold text-[10px] px-3.5 py-2 rounded-xl shadow-sm transition-colors cursor-pointer"
+                  >
+                    {item.action.text}
+                  </Link>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

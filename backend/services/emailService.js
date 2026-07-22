@@ -22,22 +22,66 @@ const getTransporter = () => {
   return transporter;
 };
 
+const getEmailWrapper = (title, contentHtml) => {
+  return `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 32px 16px; margin: 0; min-height: 100%; width: 100%;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02); border: 1px solid #e2e8f0; border-collapse: collapse;">
+        <!-- Header -->
+        <tr>
+          <td style="background-color: #0f172a; padding: 24px; text-align: center; border-bottom: 3px solid #0ea5e9;">
+            <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">EPTS</span>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Employee Performance Tracking System</div>
+          </td>
+        </tr>
+        
+        <!-- Title Banner -->
+        ${title ? `
+        <tr>
+          <td style="padding: 32px 32px 0 32px; text-align: center;">
+            <h2 style="font-size: 20px; font-weight: 700; color: #1e293b; margin: 0;">${title}</h2>
+          </td>
+        </tr>
+        ` : ''}
+
+        <!-- Content Body -->
+        <tr>
+          <td style="padding: 32px; color: #334155; font-size: 14px; line-height: 1.6;">
+            ${contentHtml}
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 11px; line-height: 1.5;">
+            <p style="margin: 0; font-weight: 600; color: #64748b;">EPTS Corporation</p>
+            <p style="margin: 4px 0 0 0;">This is an automated system notification. Please do not reply directly to this email.</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+};
+
 const sendOtpEmail = async (toEmail, otp) => {
   const subject = 'EPTS Password Reset OTP';
   const text = `Your One-Time Password (OTP) to reset your EPTS account password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto;">
-      <h2 style="color: #0369a1;">EPTS Password Reset</h2>
-      <p>Your One-Time Password (OTP) to reset your account password is:</p>
-      <p style="font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #0f172a;">${otp}</p>
-      <p>This OTP is valid for <strong>10 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
-    </div>
-  `;
+  const html = getEmailWrapper(
+    'Password Reset Request',
+    `
+      <p style="margin-top: 0;">Hello,</p>
+      <p>We received a request to reset the password for your EPTS account. Use the One-Time Password (OTP) below to proceed:</p>
+      <div style="text-align: center; margin: 32px 0;">
+        <div style="display: inline-block; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0ea5e9;">
+          ${otp}
+        </div>
+      </div>
+      <p>This code is valid for <strong>10 minutes</strong>. If you did not request a password reset, you can safely ignore this email.</p>
+    `
+  );
 
   const t = getTransporter();
 
   if (!t) {
-    // Dev fallback: SMTP not configured, log the OTP instead of sending an email.
     console.log(`[emailService] SMTP not configured. OTP for ${toEmail}: ${otp}`);
     return { simulated: true };
   }
@@ -57,30 +101,36 @@ const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password
   
   const text = `Hello ${firstName},\n\nWelcome to EPTS (Employee Performance Tracking System)!\nYour account has been created successfully.\n\nAccount Details:\n- Employee Code: ${employeeCode}\n- Registered Email: ${toEmail}\n- Temporary Password: ${password || 'EPTS2026!'}\n- System Role: ${roleTitle}\n\nYou can now log in to the EPTS portal.\n\nBest regards,\nEPTS Team`;
   
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background-color: #ffffff;">
-      <div style="text-align: center; margin-bottom: 20px;">
-        <h2 style="color: #0284c7; margin: 0;">Welcome to EPTS!</h2>
-        <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Employee Performance Tracking System</p>
-      </div>
+  const html = getEmailWrapper(
+    'Welcome to EPTS!',
+    `
+      <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
+      <p>Your account on the EPTS platform has been created successfully. Below are your login and configuration details:</p>
       
-      <p style="color: #334155; font-size: 15px;">Hello <strong>${firstName}</strong>,</p>
-      <p style="color: #334155; font-size: 14px; line-height: 1.5;">Your EPTS account has been created successfully. Below are your login credentials:</p>
-      
-      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin: 20px 0;">
-        <p style="margin: 4px 0; color: #1e293b; font-size: 13px;"><strong>Employee Code:</strong> ${employeeCode}</p>
-        <p style="margin: 4px 0; color: #1e293b; font-size: 13px;"><strong>Registered Email:</strong> ${toEmail}</p>
-        <p style="margin: 4px 0; color: #1e293b; font-size: 13px;"><strong>Temporary Password:</strong> <code style="background-color: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #0369a1;">${password || 'EPTS2026!'}</code></p>
-        <p style="margin: 4px 0; color: #1e293b; font-size: 13px;"><strong>System Role:</strong> ${roleTitle}</p>
+      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Employee Code:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${employeeCode}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Registered Email:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${toEmail}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Temporary Pass:</td>
+            <td style="padding: 4px 0;"><code style="background-color: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #0284c7; font-size: 13px; font-family: monospace;">${password || 'EPTS2026!'}</code></td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">System Role:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${roleTitle}</td>
+          </tr>
+        </table>
       </div>
 
-      <p style="color: #334155; font-size: 14px;">Please log in using these details. For security, we recommend updating your password in the Profile page after your first sign-in.</p>
-
-      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
-        <p style="margin: 0;">EPTS System Notification • Please do not reply directly to this email.</p>
-      </div>
-    </div>
-  `;
+      <p>For security, please log in and update your temporary password in the <strong>Profile</strong> tab immediately.</p>
+    `
+  );
 
   const t = getTransporter();
 
@@ -101,20 +151,20 @@ const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password
 const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endDate) => {
   const subject = `New Performance Review Cycle Started (${reviewMonth})`;
   const text = `Hello ${firstName},\n\nA new performance review cycle for ${reviewMonth} has officially started.\nPlease complete and submit your self-assessment in the EPTS portal before ${new Date(endDate).toLocaleDateString()}.\n\nBest regards,\nEPTS Team`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background-color: #ffffff;">
-      <h2 style="color: #0284c7; margin: 0 0 8px 0;">New Performance Review Cycle Started</h2>
-      <p style="color: #64748b; font-size: 14px; margin-top: 0;">Review Month: <strong>${reviewMonth}</strong></p>
-      <p style="color: #334155; font-size: 14px;">Hello <strong>${firstName}</strong>,</p>
-      <p style="color: #334155; font-size: 14px; line-height: 1.5;">The performance review cycle for <strong>${reviewMonth}</strong> is now active. Please log in to complete your self-assessment before the deadline.</p>
-      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
-        <p style="margin: 0; color: #1e293b; font-size: 13px;"><strong>Self-Assessment Deadline:</strong> ${new Date(endDate).toLocaleDateString()}</p>
+  const html = getEmailWrapper(
+    'Performance Review Cycle Open',
+    `
+      <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
+      <p>The performance review cycle for <strong>${reviewMonth}</strong> has been opened. Please complete your self-assessment as part of the employee journey setup.</p>
+      
+      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 18px; margin: 24px 0; text-align: center;">
+        <span style="color: #1e40af; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Submission Deadline</span>
+        <span style="color: #1d4ed8; font-size: 20px; font-weight: 800; display: block;">${new Date(endDate).toLocaleDateString()}</span>
       </div>
-      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
-        <p style="margin: 0;">EPTS System Notification • Please do not reply directly to this email.</p>
-      </div>
-    </div>
-  `;
+
+      <p>Log in to your EPTS Dashboard and select <strong>Continue Review</strong> to complete your scoring sheet.</p>
+    `
+  );
 
   const t = getTransporter();
   if (!t) {
@@ -134,19 +184,19 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
 const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, employeeName, reviewMonth) => {
   const subject = `Self-Assessment Submitted: ${employeeName} (${reviewMonth})`;
   const text = `Hello ${managerName},\n\n${employeeName} has submitted their self-assessment for the ${reviewMonth} review cycle.\nPlease log in to EPTS to conduct and submit your manager review.\n\nBest regards,\nEPTS Team`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background-color: #ffffff;">
-      <h2 style="color: #d97706; margin: 0 0 8px 0;">Self-Assessment Submitted</h2>
-      <p style="color: #334155; font-size: 14px;">Hello <strong>${managerName}</strong>,</p>
-      <p style="color: #334155; font-size: 14px; line-height: 1.5;"><strong>${employeeName}</strong> has completed and submitted their self-assessment for the <strong>${reviewMonth}</strong> performance review cycle.</p>
-      <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
-        <p style="margin: 0; color: #92400e; font-size: 13px;">Action Required: Please log in to your Reporting Manager Workspace to evaluate ${employeeName}.</p>
+  const html = getEmailWrapper(
+    'Self-Assessment Action Required',
+    `
+      <p style="margin-top: 0;">Hello <strong>${managerName}</strong>,</p>
+      <p>Your team member <strong>${employeeName}</strong> has completed and submitted their self-assessment for the <strong>${reviewMonth}</strong> review cycle.</p>
+      
+      <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 18px; margin: 24px 0; text-align: center; color: #92400e; font-weight: bold; font-size: 13px; line-height: 1.5;">
+        Action Required: Please evaluate and validate their skill ratings & KPI achievements.
       </div>
-      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
-        <p style="margin: 0;">EPTS System Notification • Please do not reply directly to this email.</p>
-      </div>
-    </div>
-  `;
+
+      <p>Log in to your Manager workspace and open the pending evaluations list to submit the official validation.</p>
+    `
+  );
 
   const t = getTransporter();
   if (!t) {
@@ -166,22 +216,21 @@ const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, emplo
 const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, reviewMonth, finalScore, rating) => {
   const subject = `Performance Evaluation Summary Published (${reviewMonth})`;
   const text = `Hello ${employeeName},\n\nYour performance review score for ${reviewMonth} has been computed.\nFinal Rating: ${finalScore} / 5.0 (${rating})\n\nYou can log in to EPTS to view your complete performance report.\n\nBest regards,\nEPTS Team`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background-color: #ffffff;">
-      <h2 style="color: #059669; margin: 0 0 8px 0;">Performance Report Published</h2>
-      <p style="color: #334155; font-size: 14px;">Hello <strong>${employeeName}</strong>,</p>
-      <p style="color: #334155; font-size: 14px; line-height: 1.5;">Your aggregate performance score for <strong>${reviewMonth}</strong> has been computed.</p>
-      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 16px; margin: 16px 0; text-align: center;">
-        <p style="margin: 0; color: #047857; font-size: 12px; font-weight: bold; text-transform: uppercase;">Final Calculated Rating</p>
-        <p style="margin: 4px 0 0 0; color: #065f46; font-size: 24px; font-weight: bold;">${finalScore} / 5.0</p>
-        <p style="margin: 2px 0 0 0; color: #047857; font-size: 13px; font-weight: bold;">${rating}</p>
+  const html = getEmailWrapper(
+    'Evaluation Summary Published',
+    `
+      <p style="margin-top: 0;">Hello <strong>${employeeName}</strong>,</p>
+      <p>Your performance evaluation report for <strong>${reviewMonth}</strong> is finalized and has been published to your workspace.</p>
+      
+      <div style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 24px; margin: 24px 0; text-align: center;">
+        <span style="color: #047857; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Official Performance Rating</span>
+        <span style="color: #065f46; font-size: 32px; font-weight: 800; display: block;">${finalScore} / 5.0</span>
+        <span style="background-color: #d1fae5; color: #065f46; font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 9999px; margin-top: 8px; display: inline-block;">${rating}</span>
       </div>
-      <p style="color: #334155; font-size: 13px;">Log in to the portal to view detailed category breakdowns and AI feedback recommendations.</p>
-      <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
-        <p style="margin: 0;">EPTS System Notification • Please do not reply directly to this email.</p>
-      </div>
-    </div>
-  `;
+
+      <p>You can view your detailed competency breakdown and career development suggestions on your Performance tab.</p>
+    `
+  );
 
   const t = getTransporter();
   if (!t) {

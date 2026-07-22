@@ -175,6 +175,20 @@ const submitSelfAssessment = async (req, res) => {
       return res.status(400).json({ message: 'Self assessment can only be submitted for active review cycles.' });
     }
 
+    if (status === 'submitted') {
+      if (!details || !Array.isArray(details) || details.length === 0) {
+        return res.status(400).json({ message: 'Submission details are required.' });
+      }
+      for (const d of details) {
+        if (!d.score || d.score < 1 || d.score > 5) {
+          return res.status(400).json({ message: 'A score between 1 and 5 is required for all KPIs.' });
+        }
+        if (!d.comment || !d.comment.trim()) {
+          return res.status(400).json({ message: 'A justification comment is required for all KPIs.' });
+        }
+      }
+    }
+
     // Look for existing assessment
     let assessment = await SelfAssessment.findOne({ reviewCycleId, employeeId });
 

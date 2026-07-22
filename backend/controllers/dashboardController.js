@@ -7,6 +7,8 @@ const ManagerReview = require('../models/ManagerReview');
 const ReviewScore = require('../models/ReviewScore');
 const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
+const EmployeeSkill = require('../models/EmployeeSkill');
+const Certification = require('../models/Certification');
 
 const getDashboardData = async (req, res) => {
   try {
@@ -56,12 +58,69 @@ const getDashboardData = async (req, res) => {
         .sort('-createdAt')
         .limit(5);
 
+      // Setup/journey metrics
+      const skillsCount = await EmployeeSkill.countDocuments({ employeeId: userId });
+      const certificationsCount = await Certification.countDocuments({ employeeId: userId });
+
+      let selfAssessmentStatus = 'none'; // 'pending', 'submitted', 'none'
+      let managerReviewStatus = 'none'; // 'waiting', 'complete', 'none'
+      let finalScoreFinalized = false;
+      let finalScore = null;
+      let ratingBand = null;
+      let activeCycleId = null;
+
+      for (const cycle of activeCycles) {
+        // Filter by KPI Template's department
+        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
+        if (template && template.departmentId) {
+          const empDeptId = user.departmentId?._id || user.departmentId;
+          if (empDeptId && template.departmentId.toString() !== empDeptId.toString()) {
+            continue; // Skip this cycle for this employee
+          }
+        }
+        
+        activeCycleId = cycle._id;
+        const assessment = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: userId });
+        if (!assessment) {
+          selfAssessmentStatus = 'pending';
+        } else if (assessment.status === 'draft') {
+          selfAssessmentStatus = 'pending';
+        } else {
+          selfAssessmentStatus = 'submitted';
+        }
+
+        const mgrReview = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: userId });
+        if (selfAssessmentStatus === 'submitted') {
+          if (!mgrReview || mgrReview.status === 'draft') {
+            managerReviewStatus = 'waiting';
+          } else {
+            managerReviewStatus = 'complete';
+          }
+        }
+
+        const score = await ReviewScore.findOne({ reviewCycleId: cycle._id, employeeId: userId });
+        if (score) {
+          finalScoreFinalized = true;
+          finalScore = score.finalScore;
+          ratingBand = score.rating;
+        }
+      }
+
       return res.json({
         role,
         profile: user,
         pendingSelfAssessments,
         reviewScores,
-        notifications
+        notifications,
+        skillsCount,
+        certificationsCount,
+        managerVerified: !!user.managerId,
+        selfAssessmentStatus,
+        managerReviewStatus,
+        finalScoreFinalized,
+        finalScore,
+        ratingBand,
+        activeCycleId
       });
     }
 

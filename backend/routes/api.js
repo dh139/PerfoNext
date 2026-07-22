@@ -132,6 +132,8 @@ router.get('/feedback/summary/:employeeId', verifyToken, feedbackController.getF
 // Skill Matrix Routes
 router.get('/skills', verifyToken, skillController.getSkills);
 router.post('/skills', verifyToken, authorizeRoles('admin', 'hr'), skillController.createSkill);
+router.patch('/skills/:id', verifyToken, authorizeRoles('admin', 'hr'), skillController.updateSkill);
+router.delete('/skills/:id', verifyToken, authorizeRoles('admin', 'hr'), skillController.deleteSkill);
 router.get('/employee-skills', verifyToken, skillController.getEmployeeSkills);
 router.post('/employee-skills', verifyToken, skillController.updateEmployeeSkill);
 

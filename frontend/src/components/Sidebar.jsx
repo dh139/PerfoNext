@@ -130,22 +130,69 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
       )}
 
       {/* Navigation links */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-        <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>
-        
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-1 custom-scrollbar">
         <Link to="/" className={linkClass('/')}>
           <LayoutDashboard size={18} />
           <span>Dashboard</span>
         </Link>
 
+        {/* My Workspace Section */}
+        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
+          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">My Workspace</p>
+        </div>
+
         <Link to="/profile" className={linkClass('/profile')}>
           <UserIcon size={18} />
-          <span>My Profile</span>
+          <span>Profile</span>
         </Link>
 
-        <Link to="/notifications" className={linkClass('/notifications')}>
-          <Bell size={18} />
-          <span>Notifications</span>
+        <Link to="/skills" className={linkClass('/skills')}>
+          <Layers size={18} />
+          <span>Skills</span>
+        </Link>
+
+        <Link to="/certifications" className={linkClass('/certifications')}>
+          <Award size={18} />
+          <span>Certifications</span>
+        </Link>
+
+        <Link to="/recognitions" className={linkClass('/recognitions')}>
+          <Award size={18} />
+          <span>Awards</span>
+        </Link>
+
+        {/* Performance Section */}
+        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
+          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Performance</p>
+        </div>
+
+        {user && (
+          <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)}>
+            <ClipboardList size={18} />
+            <span>Current Review</span>
+          </Link>
+        )}
+
+        {user && (
+          <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)}>
+            <FileText size={18} />
+            <span>Review History</span>
+          </Link>
+        )}
+
+        <Link to="/feedback" className={linkClass('/feedback')}>
+          <MessageSquare size={18} />
+          <span>360° Feedback</span>
+        </Link>
+
+        {/* Development Section */}
+        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
+          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Development</p>
+        </div>
+
+        <Link to="/integrations" className={linkClass('/integrations')}>
+          <Cpu size={18} />
+          <span>Learning</span>
         </Link>
 
         <Link to="/pips" className={linkClass('/pips')}>
@@ -158,43 +205,21 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           <span>Promotions</span>
         </Link>
 
-        <Link to="/recognitions" className={linkClass('/recognitions')}>
-          <Award size={18} />
-          <span>Accolades Wall</span>
-        </Link>
+        {/* Communication Section */}
+        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
+          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Communication</p>
+        </div>
 
-        {user && (
-          <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)}>
-            <UserIcon size={18} />
-            <span>My Performance</span>
-          </Link>
-        )}
-
-        <Link to="/feedback" className={linkClass('/feedback')}>
-          <MessageSquare size={18} />
-          <span>360° Feedback</span>
-        </Link>
-
-        <Link to="/skills" className={linkClass('/skills')}>
-          <Layers size={18} />
-          <span>Skill Matrix</span>
-        </Link>
-
-        <Link to="/certifications" className={linkClass('/certifications')}>
-          <Award size={18} />
-          <span>Certifications</span>
-        </Link>
-
-        <Link to="/integrations" className={linkClass('/integrations')}>
-          <Cpu size={18} />
-          <span>Ecosystem Hub</span>
+        <Link to="/notifications" className={linkClass('/notifications')}>
+          <Bell size={18} />
+          <span>Notifications</span>
         </Link>
 
         {/* Manager & Executive Links */}
         {(user?.role === 'manager' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Management</p>
+              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Management</p>
             </div>
             {user?.role === 'manager' && (
               <Link to="/manager/reviews" className={linkClass('/manager/reviews')}>
@@ -209,11 +234,11 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           </>
         )}
 
-        {/* HR & Executive Links */}
+        {/* HR Desk */}
         {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
+              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
             </div>
             <Link to="/admin/users" className={linkClass('/admin/users')}>
               <Users size={18} />
@@ -234,11 +259,11 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           </>
         )}
 
-        {/* Admin & Executive Links */}
+        {/* Admin & System Administration */}
         {(user?.role === 'admin' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>
+              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>
             </div>
             <Link to="/admin/org" className={linkClass('/admin/org')}>
               <Shield size={18} />

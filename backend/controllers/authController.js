@@ -53,7 +53,9 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         department: user.departmentId ? user.departmentId.departmentName : null,
+        departmentId: user.departmentId ? user.departmentId._id : null,
         designation: user.designationId ? user.designationId.designationName : null,
+        designationId: user.designationId ? user.designationId._id : null,
         managerId: user.managerId
       },
       accessToken,
