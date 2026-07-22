@@ -1,4 +1,10 @@
 require('dotenv').config();
+
+if (!process.env.JWT_SECRET || !process.env.JWT_REFRESH_SECRET || !process.env.JWT_RESET_SECRET) {
+  console.error('FATAL ERROR: JWT_SECRET, JWT_REFRESH_SECRET, and JWT_RESET_SECRET environment variables must be defined!');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');

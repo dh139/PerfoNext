@@ -72,7 +72,7 @@ const Dashboard = () => {
     return <EmployeeDashboard data={data} user={user} />;
   } else if (user?.role === 'manager') {
     return <ManagerDashboard data={data} user={user} />;
-  } else if (user?.role === 'hr' || user?.role === 'admin') {
+  } else if (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') {
     return <HRDashboard data={data} user={user} />;
   }
 

@@ -77,7 +77,7 @@ const refresh = async (req, res) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || 'epts_refresh_token_secret_2026_abc');
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
     } catch (err) {
       return res.status(401).json({ message: 'Invalid or expired refresh token.' });
     }
@@ -116,6 +116,14 @@ const logout = async (req, res) => {
       if (user) {
         user.refreshToken = null;
         await user.save();
+
+        await logAction({
+          userId: user._id,
+          action: 'logout',
+          entityType: 'User',
+          entityId: user._id,
+          ipAddress: req.ip || ''
+        });
       }
     }
     res.json({ message: 'Logged out successfully.' });
@@ -143,6 +151,10 @@ const register = async (req, res) => {
       if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
         return res.status(400).json({ message: 'First name, last name, email, mobile, password, department, and designation are required.' });
       }
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
     }
 
     const existingUser = await User.findOne({ email });
@@ -270,7 +282,7 @@ const verifyOtp = async (req, res) => {
 
     const resetToken = jwt.sign(
       { id: user._id, purpose: 'password_reset' },
-      process.env.JWT_RESET_SECRET || 'epts_reset_token_secret_2026_def',
+      process.env.JWT_RESET_SECRET,
       { expiresIn: '10m' }
     );
 
@@ -294,7 +306,7 @@ const resetPassword = async (req, res) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(resetToken, process.env.JWT_RESET_SECRET || 'epts_reset_token_secret_2026_def');
+      decoded = jwt.verify(resetToken, process.env.JWT_RESET_SECRET);
     } catch (err) {
       return res.status(401).json({ message: 'Invalid or expired reset token. Please restart the password reset process.' });
     }

@@ -87,22 +87,30 @@ function App() {
             <Route path="/review/:cycleId/:employeeId" element={<ManagerReviewForm />} />
           </Route>
 
-          {/* Sub-group: Manager, HR, Admin */}
-          <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin']} />}>
+          {/* Sub-group: Manager, HR, Admin, Executive */}
+          <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/reports/department" element={<DepartmentReports />} />
             <Route path="/reports/completion" element={<CompletionReport />} />
+          </Route>
+
+          {/* Sub-group: HR, Admin, Executive */}
+          <Route element={<ProtectedRoute allowedRoles={['hr', 'admin', 'executive']} />}>
+            <Route path="/admin/users" element={<UserManagement />} />
           </Route>
 
           {/* Sub-group: HR, Admin */}
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin']} />}>
             <Route path="/hr/kpis" element={<KpiTemplates />} />
             <Route path="/hr/cycles" element={<ReviewCycles />} />
-            <Route path="/admin/users" element={<UserManagement />} />
+          </Route>
+
+          {/* Sub-group: Admin, Executive */}
+          <Route element={<ProtectedRoute allowedRoles={['admin', 'executive']} />}>
+            <Route path="/admin/org" element={<OrgStructure />} />
           </Route>
 
           {/* Sub-group: Admin Only */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-            <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
           </Route>
         </Route>

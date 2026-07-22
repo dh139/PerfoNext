@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { AlertCircle, Plus, Edit2, ShieldAlert, Trash2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
+import { toast } from '../store/toastStore';
+import useAuthStore from '../store/authStore';
 
 const UserManagement = () => {
+  const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingDelete, setPendingDelete] = useState(null); // { id, name } or null
 
   // Modal / Form state
   const [showModal, setShowModal] = useState(false);
@@ -127,17 +132,23 @@ const UserManagement = () => {
     }
   };
 
-  const handleDeleteUser = async (id, name) => {
-    if (window.confirm(`Are you absolutely sure you want to delete the employee account for ${name}? This action is permanent and cannot be undone.`)) {
-      try {
-        setError('');
-        await api.delete(`/api/users/${id}`);
-        setShowModal(false);
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        setError(err.response?.data?.message || 'Failed to delete user.');
-      }
+  const handleDeleteUser = (id, name) => {
+    setPendingDelete({ id, name });
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    try {
+      setError('');
+      await api.delete(`/api/users/${id}`);
+      setShowModal(false);
+      toast.success('Employee account deleted successfully.');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to delete user.');
     }
   };
 
@@ -202,13 +213,15 @@ const UserManagement = () => {
           <p className="text-xs text-slate-500 mt-1">Manage employee accounts, directory hierarchies, and system security privileges</p>
         </div>
         
-        <button
-          onClick={handleOpenCreate}
-          className="flex items-center gap-1.5 bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-colors"
-        >
-          <Plus size={16} />
-          <span>Add Employee</span>
-        </button>
+        {currentUser?.role !== 'executive' && (
+          <button
+            onClick={handleOpenCreate}
+            className="flex items-center gap-1.5 bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-colors"
+          >
+            <Plus size={16} />
+            <span>Add Employee</span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -231,7 +244,7 @@ const UserManagement = () => {
                 <th className="py-3 px-4">Department / Designation</th>
                 <th className="py-3 px-4">Manager</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 rounded-r-lg text-right">Actions</th>
+                {currentUser?.role !== 'executive' && <th className="py-3 px-4 rounded-r-lg text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -262,22 +275,24 @@ const UserManagement = () => {
                       {u.employmentStatus}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-right flex justify-end gap-1.5">
-                    <button
-                      onClick={() => handleOpenEdit(u)}
-                      className="text-sky-700 hover:text-sky-850 p-1.5 rounded-lg border border-sky-100 hover:bg-sky-50 transition-colors cursor-pointer"
-                      title="Edit Profile"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(u._id, `${u.firstName} ${u.lastName}`)}
-                      className="text-rose-600 hover:text-rose-800 p-1.5 rounded-lg border border-rose-100 hover:bg-rose-50 transition-colors cursor-pointer"
-                      title="Delete Employee"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </td>
+                  {currentUser?.role !== 'executive' && (
+                    <td className="py-4 px-4 text-right flex justify-end gap-1.5">
+                      <button
+                        onClick={() => handleOpenEdit(u)}
+                        className="text-sky-700 hover:text-sky-850 p-1.5 rounded-lg border border-sky-100 hover:bg-sky-50 transition-colors cursor-pointer"
+                        title="Edit Profile"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u._id, `${u.firstName} ${u.lastName}`)}
+                        className="text-rose-600 hover:text-rose-800 p-1.5 rounded-lg border border-rose-100 hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Delete Employee"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -377,8 +392,12 @@ const UserManagement = () => {
                     <option value="employee">Employee</option>
                     <option value="manager">Reporting Manager</option>
                     <option value="hr">HR Manager</option>
-                    <option value="admin">Administrator</option>
-                    <option value="executive">CEO / Executive Management</option>
+                    {currentUser?.role === 'admin' && (
+                      <>
+                        <option value="admin">Administrator</option>
+                        <option value="executive">CEO / Executive Management</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -411,9 +430,11 @@ const UserManagement = () => {
                     required={role !== 'executive'}
                   >
                     <option value="">{role === 'executive' ? 'Select Department (Optional)' : 'Select Department *'}</option>
-                    {departments.map(d => (
-                      <option key={d._id} value={d._id}>{d.departmentName}</option>
-                    ))}
+                    {departments
+                      .filter(d => currentUser?.role === 'admin' || d.departmentName.toLowerCase() !== 'administration')
+                      .map(d => (
+                        <option key={d._id} value={d._id}>{d.departmentName}</option>
+                      ))}
                   </select>
                 </div>
 
@@ -421,15 +442,17 @@ const UserManagement = () => {
                 <div className={`space-y-1.5 ${editUser ? '' : 'md:col-span-2'}`}>
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Designation</label>
-                    <span className="text-[9px] font-bold text-rose-500">* Required</span>
+                    <span className={`text-[9px] font-bold ${['admin', 'executive'].includes(role) ? 'text-slate-400 font-normal' : 'text-rose-500'}`}>
+                      {['admin', 'executive'].includes(role) ? '(Optional)' : '* Required'}
+                    </span>
                   </div>
                   <select
                     value={designationId}
                     onChange={(e) => setDesignationId(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium"
-                    required
+                    required={!['admin', 'executive'].includes(role)}
                   >
-                    <option value="">Select Designation *</option>
+                    <option value="">{['admin', 'executive'].includes(role) ? 'Select Designation (Optional)' : 'Select Designation *'}</option>
                     {designations.map(d => (
                       <option key={d._id} value={d._id}>{d.designationName}</option>
                     ))}
@@ -510,6 +533,16 @@ const UserManagement = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!pendingDelete}
+        title="Delete employee account?"
+        message={pendingDelete ? `Are you absolutely sure you want to delete the employee account for ${pendingDelete.name}? This action is permanent and cannot be undone.` : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDeleteUser}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 };

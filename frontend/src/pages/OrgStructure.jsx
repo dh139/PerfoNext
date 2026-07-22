@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { AlertCircle, Plus, Edit2, Layers, Trash2 } from 'lucide-react';
 import useAuthStore from '../store/authStore';
+import ConfirmModal from '../components/ConfirmModal';
+import { toast } from '../store/toastStore';
 
 const OrgStructure = () => {
   const { user } = useAuthStore();
@@ -9,18 +11,24 @@ const OrgStructure = () => {
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingDeleteDept, setPendingDeleteDept] = useState(null); // { id, name } or null
 
-  const handleDeleteDept = async (id, name) => {
-    if (window.confirm(`WARNING: Deleting the department '${name}' will also PERMANENTLY DELETE all employees/users associated with this department. Do you wish to proceed?`)) {
-      try {
-        setError('');
-        const res = await api.delete(`/api/departments/${id}`);
-        alert(res.data.message || 'Department deleted successfully.');
-        fetchData();
-      } catch (err) {
-        console.error(err);
-        setError(err.response?.data?.message || 'Failed to delete department.');
-      }
+  const handleDeleteDept = (id, name) => {
+    setPendingDeleteDept({ id, name });
+  };
+
+  const confirmDeleteDept = async () => {
+    if (!pendingDeleteDept) return;
+    const { id } = pendingDeleteDept;
+    setPendingDeleteDept(null);
+    try {
+      setError('');
+      const res = await api.delete(`/api/departments/${id}`);
+      toast.success(res.data.message || 'Department deleted successfully.');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to delete department.');
     }
   };
 
@@ -113,44 +121,46 @@ const OrgStructure = () => {
         {/* Department Panel */}
         <div className="space-y-6">
           {/* Creator Form */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Layers size={16} className="text-sky-700" />
-              <span>Register Department</span>
-            </h3>
-            
-            <form onSubmit={handleCreateDept} className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Department Name</label>
-                <input
-                  type="text"
-                  value={deptName}
-                  onChange={(e) => setDeptName(e.target.value)}
-                  placeholder="e.g. Quality Assurance"
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
-                  required
-                />
-              </div>
+          {user?.role !== 'executive' && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Layers size={16} className="text-sky-700" />
+                <span>Register Department</span>
+              </h3>
+              
+              <form onSubmit={handleCreateDept} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Department Name</label>
+                  <input
+                    type="text"
+                    value={deptName}
+                    onChange={(e) => setDeptName(e.target.value)}
+                    placeholder="e.g. Quality Assurance"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
+                    required
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Description</label>
-                <textarea
-                  rows="2"
-                  value={deptDesc}
-                  onChange={(e) => setDeptDesc(e.target.value)}
-                  placeholder="Summarize functions..."
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-650 resize-none"
-                />
-              </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Description</label>
+                  <textarea
+                    rows="2"
+                    value={deptDesc}
+                    onChange={(e) => setDeptDesc(e.target.value)}
+                    placeholder="Summarize functions..."
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-650 resize-none"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                className="w-full bg-sky-700 hover:bg-sky-850 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
-              >
-                Create Department
-              </button>
-            </form>
-          </div>
+                <button
+                  type="submit"
+                  className="w-full bg-sky-700 hover:bg-sky-850 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
+                >
+                  Create Department
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* List */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -183,49 +193,51 @@ const OrgStructure = () => {
         {/* Designation Panel */}
         <div className="space-y-6">
           {/* Creator Form */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <Layers size={16} className="text-sky-700" />
-              <span>Register Designation Role</span>
-            </h3>
+          {user?.role !== 'executive' && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Layers size={16} className="text-sky-700" />
+                <span>Register Designation Role</span>
+              </h3>
 
-            <form onSubmit={handleCreateDes} className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Designation Title</label>
-                  <input
-                    type="text"
-                    value={desName}
-                    onChange={(e) => setDesName(e.target.value)}
-                    placeholder="e.g. Lead QA Engineer"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
-                    required
-                  />
+              <form onSubmit={handleCreateDes} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Designation Title</label>
+                    <input
+                      type="text"
+                      value={desName}
+                      onChange={(e) => setDesName(e.target.value)}
+                      placeholder="e.g. Lead QA Engineer"
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Link Department</label>
+                    <select
+                      value={desDeptId}
+                      onChange={(e) => setDesDeptId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
+                      required
+                    >
+                      {departments.map(d => (
+                        <option key={d._id} value={d._id}>{d.departmentName}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Link Department</label>
-                  <select
-                    value={desDeptId}
-                    onChange={(e) => setDesDeptId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
-                    required
-                  >
-                    {departments.map(d => (
-                      <option key={d._id} value={d._id}>{d.departmentName}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full bg-sky-700 hover:bg-sky-855 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
-              >
-                Create Designation
-              </button>
-            </form>
-          </div>
+                <button
+                  type="submit"
+                  className="w-full bg-sky-700 hover:bg-sky-855 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
+                >
+                  Create Designation
+                </button>
+              </form>
+            </div>
+          )}
 
           {/* List */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -244,6 +256,16 @@ const OrgStructure = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!pendingDeleteDept}
+        title="Delete department?"
+        message={pendingDeleteDept ? `Delete the department '${pendingDeleteDept.name}'? This is only allowed while no employees are assigned to it — reassign or remove them first if this fails.` : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDeleteDept}
+        onCancel={() => setPendingDeleteDept(null)}
+      />
     </div>
   );
 };

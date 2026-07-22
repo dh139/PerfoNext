@@ -46,7 +46,9 @@ const userSchema = new mongoose.Schema(
     designationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Designation',
-      required: true,
+      required: function() {
+        return !['admin', 'executive'].includes(this.role);
+      },
       index: true
     },
     managerId: {

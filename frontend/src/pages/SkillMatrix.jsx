@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { AlertCircle, CheckCircle2, Star, Layers, Activity, Award, Plus, User, Trash2, Edit } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 
 const SkillMatrix = () => {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [pendingDeleteSkillId, setPendingDeleteSkillId] = useState(null);
 
   const [skills, setSkills] = useState([]);
   const [employeeSkills, setEmployeeSkills] = useState([]);
@@ -136,10 +138,14 @@ const SkillMatrix = () => {
     setNewSkillDesgId('');
   };
 
-  const handleDeleteSkill = async (skillId) => {
-    if (!window.confirm('Are you sure you want to delete this skill? It will also remove all employee ratings associated with it.')) {
-      return;
-    }
+  const handleDeleteSkill = (skillId) => {
+    setPendingDeleteSkillId(skillId);
+  };
+
+  const confirmDeleteSkill = async () => {
+    const skillId = pendingDeleteSkillId;
+    if (!skillId) return;
+    setPendingDeleteSkillId(null);
     setError('');
     setSuccess('');
     try {
@@ -505,6 +511,15 @@ const SkillMatrix = () => {
 
       </div>
 
+      <ConfirmModal
+        open={!!pendingDeleteSkillId}
+        title="Delete skill?"
+        message="Are you sure you want to delete this skill? It will also remove all employee ratings associated with it."
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDeleteSkill}
+        onCancel={() => setPendingDeleteSkillId(null)}
+      />
     </div>
   );
 };

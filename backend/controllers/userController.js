@@ -5,6 +5,27 @@ const bcrypt = require('bcryptjs');
 const { logAction } = require('../utils/logger');
 const { sendWelcomeEmail } = require('../services/emailService');
 
+const validateManagerSelection = async (employeeId, managerId, role, departmentId) => {
+  if (managerId) {
+    if (employeeId && employeeId.toString() === managerId.toString()) {
+      throw new Error('An employee cannot be assigned as their own reporting manager.');
+    }
+    const manager = await User.findById(managerId);
+    if (!manager) {
+      throw new Error('Selected reporting manager not found.');
+    }
+    // Privileged role reports (hr/admin) can report to executive managers across departments
+    const isPrivileged = ['hr', 'admin'].includes(role) && ['executive', 'admin'].includes(manager.role);
+    if (!isPrivileged && departmentId) {
+      const managerDeptId = manager.departmentId?.toString();
+      const empDeptId = departmentId.toString();
+      if (managerDeptId && managerDeptId !== empDeptId) {
+        throw new Error('The selected reporting manager must belong to the same department.');
+      }
+    }
+  }
+};
+
 const determineUserLevel = (role, designationName) => {
   const name = (designationName || '').toLowerCase();
   
@@ -62,7 +83,25 @@ const getUsers = async (req, res) => {
 
 const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id)
+    const targetId = req.params.id;
+
+    // Authorization & Ownership checks to prevent IDOR
+    const isSelf = req.user.id === targetId;
+    const isPrivileged = ['admin', 'hr', 'executive'].includes(req.user.role);
+
+    let isDirectReport = false;
+    if (req.user.role === 'manager') {
+      const targetUser = await User.findById(targetId);
+      if (targetUser && targetUser.managerId && targetUser.managerId.toString() === req.user.id) {
+        isDirectReport = true;
+      }
+    }
+
+    if (!isSelf && !isPrivileged && !isDirectReport) {
+      return res.status(403).json({ message: 'Access denied. You do not have permission to view this profile.' });
+    }
+
+    const user = await User.findById(targetId)
       .populate('departmentId designationId')
       .populate({ path: 'managerId', select: 'firstName lastName employeeCode email' })
       .select('-passwordHash -refreshToken');
@@ -134,6 +173,33 @@ const createUser = async (req, res) => {
     }
     const computedLevel = determineUserLevel(role, designationName);
 
+    // Validate manager selection
+    try {
+      await validateManagerSelection(null, managerId, role, departmentId);
+    } catch (valErr) {
+      return res.status(400).json({ message: valErr.message });
+    }
+
+    // Role-based restrictions on Administration department & System Administrator designation
+    if (req.user.role !== 'admin') {
+      if (departmentId) {
+        const dept = await Department.findById(departmentId);
+        if (dept && dept.departmentName.toLowerCase() === 'administration') {
+          return res.status(403).json({ message: 'Only Administrators can assign employees to the Administration department.' });
+        }
+      }
+      if (designationId) {
+        const desg = await Designation.findById(designationId);
+        if (desg && desg.designationName.toLowerCase() === 'system administrator') {
+          return res.status(403).json({ message: 'Only Administrators can assign the System Administrator designation.' });
+        }
+      }
+    }
+
+    if (password && password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+    }
+
     // Auto-generate safe temporary password if not provided
     const rawPassword = password || Math.random().toString(36).slice(-8) + 'Pass123!';
     const salt = await bcrypt.genSalt(10);
@@ -147,7 +213,7 @@ const createUser = async (req, res) => {
       mobile,
       passwordHash,
       departmentId: departmentId || null,
-      designationId,
+      designationId: designationId || null,
       managerId: managerId || null,
       joiningDate: joiningDate || new Date(),
       employmentStatus: employmentStatus || 'active',
@@ -161,7 +227,7 @@ const createUser = async (req, res) => {
 
     await logAction({
       userId: req.user.id,
-      action: 'user_modification',
+      action: 'user_creation',
       entityType: 'User',
       entityId: newUser._id,
       after: userObj,
@@ -205,14 +271,23 @@ const updateUser = async (req, res) => {
     }
 
     if (updates.password) {
+      if (updates.password.length < 6) {
+        return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+      }
       const salt = await bcrypt.genSalt(10);
       updates.passwordHash = await bcrypt.hash(updates.password, salt);
       delete updates.password;
     }
 
-    // Handle managerId clean format
+    // Handle optional fields clean formats
     if (updates.managerId === '') {
       updates.managerId = null;
+    }
+    if (updates.departmentId === '') {
+      updates.departmentId = null;
+    }
+    if (updates.designationId === '') {
+      updates.designationId = null;
     }
 
     // Auto-calculate level if role or designation changes
@@ -227,13 +302,44 @@ const updateUser = async (req, res) => {
       updates.level = determineUserLevel(targetRole, designationName);
     }
 
+    // Validate manager selection
+    const targetManagerId = updates.managerId !== undefined ? updates.managerId : user.managerId;
+    const targetRole = updates.role || user.role;
+    const targetDeptId = updates.departmentId !== undefined ? updates.departmentId : user.departmentId;
+    try {
+      await validateManagerSelection(userId, targetManagerId, targetRole, targetDeptId);
+    } catch (valErr) {
+      return res.status(400).json({ message: valErr.message });
+    }
+
+    // Role-based restrictions on Administration department & System Administrator designation
+    if (req.user.role !== 'admin') {
+      const checkDeptId = updates.departmentId !== undefined ? updates.departmentId : user.departmentId;
+      const checkDesgId = updates.designationId !== undefined ? updates.designationId : user.designationId;
+
+      if (checkDeptId) {
+        const dept = await Department.findById(checkDeptId);
+        if (dept && dept.departmentName.toLowerCase() === 'administration') {
+          return res.status(403).json({ message: 'Only Administrators can assign employees to the Administration department.' });
+        }
+      }
+      if (checkDesgId) {
+        const desg = await Designation.findById(checkDesgId);
+        if (desg && desg.designationName.toLowerCase() === 'system administrator') {
+          return res.status(403).json({ message: 'Only Administrators can assign the System Administrator designation.' });
+        }
+      }
+    }
+
     const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true })
       .populate('departmentId designationId')
       .select('-passwordHash -refreshToken');
 
+    const roleChanged = updates.role && updates.role !== before.role;
+
     await logAction({
       userId: req.user.id,
-      action: 'user_modification',
+      action: roleChanged ? 'role_change' : 'user_modification',
       entityType: 'User',
       entityId: updatedUser._id,
       before,
@@ -438,7 +544,7 @@ const deleteUser = async (req, res) => {
 
     await logAction({
       userId: req.user.id,
-      action: 'user_modification',
+      action: 'user_deletion',
       entityType: 'User',
       entityId: req.params.id,
       before,
@@ -461,9 +567,13 @@ const deleteDepartment = async (req, res) => {
       return res.status(404).json({ message: 'Department not found.' });
     }
 
-    // Cascade delete: delete all users belonging to this department
-    const deletedEmployees = await User.find({ departmentId });
-    await User.deleteMany({ departmentId });
+    // Block deletion if any users are assigned to this department
+    const assignedUsersCount = await User.countDocuments({ departmentId });
+    if (assignedUsersCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete department '${department.departmentName}'. There are ${assignedUsersCount} employee(s) assigned to this department. Please reassign or remove them first.`
+      });
+    }
 
     // Delete the department
     await Department.findByIdAndDelete(departmentId);
@@ -480,7 +590,7 @@ const deleteDepartment = async (req, res) => {
     });
 
     res.json({
-      message: `Department '${department.departmentName}' and its ${deletedEmployees.length} employee(s) have been deleted successfully.`
+      message: `Department '${department.departmentName}' has been deleted successfully.`
     });
   } catch (error) {
     console.error('deleteDepartment error:', error);

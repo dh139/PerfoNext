@@ -79,6 +79,16 @@ const updateReviewCycle = async (req, res) => {
       await notifyAllEmployeesOfNewCycle(updatedCycle);
     }
 
+    // Notify HR/Admin when a review cycle is closed
+    if (oldCycle.status !== 'closed' && updatedCycle.status === 'closed') {
+      const hrAndAdmins = await User.find({ role: { $in: ['hr', 'admin'] }, employmentStatus: 'active' });
+      await Notification.insertMany(hrAndAdmins.map(u => ({
+        userId: u._id,
+        type: 'review_completed',
+        message: `The review cycle for ${updatedCycle.reviewMonth} has been closed.`
+      })));
+    }
+
     res.json(updatedCycle);
   } catch (error) {
     console.error('updateReviewCycle error:', error);
@@ -183,8 +193,8 @@ const submitSelfAssessment = async (req, res) => {
         if (!d.score || d.score < 1 || d.score > 5) {
           return res.status(400).json({ message: 'A score between 1 and 5 is required for all KPIs.' });
         }
-        if (!d.comment || !d.comment.trim()) {
-          return res.status(400).json({ message: 'A justification comment is required for all KPIs.' });
+        if (d.score < 3 && (!d.comment || !d.comment.trim())) {
+          return res.status(400).json({ message: 'A justification comment is required for scores below 3.' });
         }
       }
     }
@@ -219,7 +229,7 @@ const submitSelfAssessment = async (req, res) => {
       if (user && user.managerId) {
         await Notification.create({
           userId: user.managerId._id,
-          type: 'assessment_pending',
+          type: 'manager_review_pending',
           message: `${user.firstName} ${user.lastName} has submitted their self-assessment for ${cycle.reviewMonth}. Please complete your manager review.`
         });
 
@@ -392,7 +402,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
       // Send notification to Employee
       await Notification.create({
         userId: employeeId,
-        type: 'review_completed',
+        type: 'final_score_ready',
         message: `Your performance review for ${cycle.reviewMonth} is complete. Your final score is ${finalScore} (${rating}).`
       });
 
@@ -545,7 +555,7 @@ const calculateAggregateScores = async (req, res) => {
 
     await Notification.create({
       userId: employeeId,
-      type: 'review_completed',
+      type: 'final_score_ready',
       message: `Your aggregated ${cycleType} performance review for ${reviewMonth} is complete. Final Score: ${finalScore} (${rating}).`
     });
 

@@ -35,6 +35,7 @@ const seedDB = async () => {
     const deptEng = await Department.create({ departmentName: 'Engineering', description: 'Software Development & IT Services' });
     const deptSales = await Department.create({ departmentName: 'Sales', description: 'Enterprise Sales & Business Development' });
     const deptHR = await Department.create({ departmentName: 'Human Resources', description: 'HR Operations, Talent Acquisition & L&D' });
+    const deptAdmin = await Department.create({ departmentName: 'Administration', description: 'IT Infrastructure & Operations' });
 
     console.log('Seeding Designations...');
     const desSE = await Designation.create({ designationName: 'Software Engineer', departmentId: deptEng._id });
@@ -45,7 +46,7 @@ const seedDB = async () => {
     const desSM = await Designation.create({ designationName: 'Sales Manager', departmentId: deptSales._id });
 
     const desHR = await Designation.create({ designationName: 'HR Manager', departmentId: deptHR._id });
-    const desAdmin = await Designation.create({ designationName: 'System Administrator', departmentId: deptHR._id });
+    const desAdmin = await Designation.create({ designationName: 'System Administrator', departmentId: deptAdmin._id });
 
     console.log('Seeding Users...');
     const salt = await bcrypt.genSalt(10);
@@ -59,7 +60,7 @@ const seedDB = async () => {
       email: 'admin@epts.com',
       mobile: '9876543210',
       passwordHash: await getHash('AdminPass123!'),
-      departmentId: deptHR._id,
+      departmentId: deptAdmin._id,
       designationId: desAdmin._id,
       managerId: null,
       joiningDate: new Date('2024-01-10'),
@@ -123,7 +124,7 @@ const seedDB = async () => {
       email: 'ceo@epts.com',
       mobile: '9876543299',
       passwordHash: await getHash('CeoPass123!'),
-      departmentId: deptHR._id,
+      departmentId: deptAdmin._id,
       designationId: desAdmin._id,
       managerId: null,
       joiningDate: new Date('2022-01-01'),

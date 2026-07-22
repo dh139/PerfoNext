@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Calendar, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle2, Clock, Eye, Search, Download, ArrowUpDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTableControls } from '../hooks/useTableControls';
+import TablePagination from '../components/TablePagination';
+import { exportToCsv } from '../utils/csvExport';
 
 const CompletionReport = () => {
   const [cycles, setCycles] = useState([]);
@@ -60,6 +63,35 @@ const CompletionReport = () => {
       default:
         return 'bg-slate-50 text-slate-500 border border-slate-200';
     }
+  };
+
+  const table = useTableControls(report?.completionDetails || [], {
+    searchFn: (d, term) =>
+      `${d.employee.firstName} ${d.employee.lastName} ${d.employee.employeeCode} ${d.employee.departmentId?.departmentName || ''}`
+        .toLowerCase()
+        .includes(term),
+    sortAccessors: {
+      employee: (d) => `${d.employee.firstName} ${d.employee.lastName}`,
+      department: (d) => d.employee.departmentId?.departmentName || '',
+      selfStatus: (d) => d.selfAssessmentStatus,
+      managerStatus: (d) => d.managerReviewStatus,
+      finalScore: (d) => d.finalScore
+    },
+    defaultSortKey: 'employee',
+    pageSize: 10
+  });
+
+  const handleExport = () => {
+    exportToCsv(`completion-report-${report?.reviewCycle?.reviewMonth || 'export'}`, [
+      { key: 'employee.employeeCode', label: 'Employee Code' },
+      { key: 'employee', label: 'Employee', render: (d) => `${d.employee.firstName} ${d.employee.lastName}` },
+      { key: 'employee.departmentId.departmentName', label: 'Department' },
+      { key: 'manager', label: 'Manager', render: (d) => d.employee.managerId ? `${d.employee.managerId.firstName} ${d.employee.managerId.lastName}` : '' },
+      { key: 'selfAssessmentStatus', label: 'Self Assessment' },
+      { key: 'managerReviewStatus', label: 'Manager Review' },
+      { key: 'finalScore', label: 'Final Score' },
+      { key: 'rating', label: 'Rating' }
+    ], table.allFilteredRows);
   };
 
   return (
@@ -132,24 +164,55 @@ const CompletionReport = () => {
 
           {/* Details Table */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-6">Evaluation Status list</h3>
-            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Evaluation Status list</h3>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={table.searchTerm}
+                    onChange={(e) => table.setSearchTerm(e.target.value)}
+                    placeholder="Search employee, department..."
+                    className="bg-slate-50 border border-slate-200 text-slate-700 pl-8 pr-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500 w-full md:w-56"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {table.rows.length === 0 ? (
+              <div className="py-8 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <p className="text-slate-500 text-xs">
+                  {report.completionDetails.length === 0 ? 'No employees found for this cycle.' : `No employees match "${table.searchTerm}".`}
+                </p>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-200 bg-slate-50/50">
                     <th className="py-3 px-4 rounded-l-lg">Code</th>
-                    <th className="py-3 px-4">Employee</th>
-                    <th className="py-3 px-4">Department</th>
+                    <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('employee')}>
+                      <span className="inline-flex items-center gap-1">Employee <ArrowUpDown size={10} /></span>
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('department')}>
+                      <span className="inline-flex items-center gap-1">Department <ArrowUpDown size={10} /></span>
+                    </th>
                     <th className="py-3 px-4">Manager</th>
-                    <th className="py-3 px-4">Self Evaluation</th>
-                    <th className="py-3 px-4">Manager Evaluation</th>
-                    <th className="py-3 px-4">Final Score</th>
+                    <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('selfStatus')}>
+                      <span className="inline-flex items-center gap-1">Self Evaluation <ArrowUpDown size={10} /></span>
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('managerStatus')}>
+                      <span className="inline-flex items-center gap-1">Manager Evaluation <ArrowUpDown size={10} /></span>
+                    </th>
+                    <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('finalScore')}>
+                      <span className="inline-flex items-center gap-1">Final Score <ArrowUpDown size={10} /></span>
+                    </th>
                     <th className="py-3 px-4 rounded-r-lg text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {report.completionDetails.map(item => (
+                  {table.rows.map(item => (
                     <tr key={item.employee._id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4 font-bold text-slate-500">{item.employee.employeeCode}</td>
                       <td className="py-4 px-4 font-bold text-slate-800">
@@ -197,7 +260,15 @@ const CompletionReport = () => {
                   ))}
                 </tbody>
               </table>
+              <TablePagination
+                page={table.page}
+                totalPages={table.totalPages}
+                totalCount={table.totalCount}
+                pageSize={table.pageSize}
+                onPageChange={table.setPage}
+              />
             </div>
+            )}
           </div>
         </div>
       ) : (

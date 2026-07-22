@@ -3,6 +3,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { AlertCircle, Plus, Check, X, ShieldAlert, Award, ArrowUpRight } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import ConfirmModal from '../components/ConfirmModal';
 
 const PromotionsWorkspace = () => {
   const { user } = useAuthStore();
@@ -11,6 +12,7 @@ const PromotionsWorkspace = () => {
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingApproval, setPendingApproval] = useState(null); // { promoId, isApprove } or null
 
   // Form states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -100,17 +102,19 @@ const PromotionsWorkspace = () => {
     }
   };
 
-  const handleApprovePromo = async (promoId, isApprove) => {
-    const confirmMsg = isApprove 
-      ? 'Approving this promotion will immediately update the employee\'s active designation in the database. Proceed?'
-      : 'Reject this promotion recommendation?';
+  const handleApprovePromo = (promoId, isApprove) => {
+    setPendingApproval({ promoId, isApprove });
+  };
 
-    if (!window.confirm(confirmMsg)) return;
-
+  const confirmApprovePromo = async () => {
+    if (!pendingApproval) return;
+    const { promoId, isApprove } = pendingApproval;
+    setPendingApproval(null);
     try {
       await api.patch(`/api/promotions/${promoId}/approve`, {
         status: isApprove ? 'approved' : 'rejected'
       });
+      toast.success(isApprove ? 'Promotion approved.' : 'Promotion rejected.');
       fetchData();
     } catch (err) {
       console.error(err);
@@ -363,6 +367,20 @@ const PromotionsWorkspace = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!pendingApproval}
+        title={pendingApproval?.isApprove ? 'Approve promotion?' : 'Reject promotion?'}
+        message={
+          pendingApproval?.isApprove
+            ? "Approving this promotion will immediately update the employee's active designation in the database. Proceed?"
+            : 'Reject this promotion recommendation?'
+        }
+        confirmLabel={pendingApproval?.isApprove ? 'Approve' : 'Reject'}
+        danger={!pendingApproval?.isApprove}
+        onConfirm={confirmApprovePromo}
+        onCancel={() => setPendingApproval(null)}
+      />
     </div>
   );
 };

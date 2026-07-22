@@ -27,8 +27,13 @@ const AuditLogs = () => {
   const getActionBadgeColor = (action) => {
     switch (action) {
       case 'login': return 'bg-slate-700 text-slate-100';
+      case 'logout': return 'bg-slate-600 text-slate-100';
       case 'score_change': return 'bg-indigo-600 text-white';
       case 'review_update': return 'bg-amber-600 text-white';
+      case 'user_creation': return 'bg-emerald-600 text-white';
+      case 'user_deletion': return 'bg-rose-600 text-white';
+      case 'role_change': return 'bg-purple-600 text-white';
+      case 'department_modification': return 'bg-orange-600 text-white';
       case 'user_modification': return 'bg-sky-600 text-white';
       default: return 'bg-slate-500 text-white';
     }

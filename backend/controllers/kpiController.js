@@ -5,10 +5,13 @@ const getKpiTemplates = async (req, res) => {
     const { departmentId, status } = req.query;
     const filter = {};
 
-    if (departmentId) {
-      // Return both org-wide and specific department template, or just department template
+    if (!['admin', 'hr', 'executive'].includes(req.user.role)) {
+      // Force non-privileged users to only see their department's template or global templates
+      filter.departmentId = { $in: [req.user.departmentId || null, null] };
+    } else if (departmentId) {
       filter.departmentId = departmentId === 'null' ? null : departmentId;
     }
+    
     if (status) {
       filter.status = status;
     }
@@ -33,6 +36,16 @@ const getKpiTemplateById = async (req, res) => {
     if (!template) {
       return res.status(404).json({ message: 'KPI Template not found.' });
     }
+
+    // Ownership / department isolation validation
+    if (!['admin', 'hr', 'executive'].includes(req.user.role)) {
+      const callerDeptId = req.user.departmentId?.toString();
+      const templateDeptId = template.departmentId?._id?.toString() || template.departmentId?.toString();
+      if (templateDeptId && templateDeptId !== callerDeptId) {
+        return res.status(403).json({ message: 'Access denied to this department\'s KPI template.' });
+      }
+    }
+
     res.json(template);
   } catch (error) {
     console.error('getKpiTemplateById error:', error);

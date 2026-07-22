@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import ConfirmModal from '../components/ConfirmModal';
 
 const ReviewCycles = () => {
   const [cycles, setCycles] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pendingStatusChange, setPendingStatusChange] = useState(null); // { id, nextStatus } or null
 
   // Form State
   const [reviewMonth, setReviewMonth] = useState('2026-07');
@@ -66,20 +68,22 @@ const ReviewCycles = () => {
     }
   };
 
-  const handleUpdateStatus = async (id, currentStatus) => {
+  const handleUpdateStatus = (id, currentStatus) => {
     let nextStatus = 'draft';
     if (currentStatus === 'draft') nextStatus = 'active';
     else if (currentStatus === 'active') nextStatus = 'closed';
     else return; // Closed is final
 
-    const confirmMsg = nextStatus === 'active' 
-      ? 'Activating a cycle immediately triggers notifications to all active employees. Proceed?'
-      : 'Closing the cycle stops any submissions. Proceed?';
+    setPendingStatusChange({ id, nextStatus });
+  };
 
-    if (!window.confirm(confirmMsg)) return;
-
+  const confirmUpdateStatus = async () => {
+    if (!pendingStatusChange) return;
+    const { id, nextStatus } = pendingStatusChange;
+    setPendingStatusChange(null);
     try {
       await api.patch(`/api/review-cycles/${id}`, { status: nextStatus });
+      toast.success(`Review cycle ${nextStatus === 'active' ? 'activated' : 'closed'} successfully.`);
       fetchData();
     } catch (err) {
       console.error(err);
@@ -269,6 +273,20 @@ const ReviewCycles = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!pendingStatusChange}
+        title={pendingStatusChange?.nextStatus === 'active' ? 'Activate review cycle?' : 'Close review cycle?'}
+        message={
+          pendingStatusChange?.nextStatus === 'active'
+            ? 'Activating a cycle immediately triggers notifications to all active employees. Proceed?'
+            : 'Closing the cycle stops any submissions. Proceed?'
+        }
+        confirmLabel={pendingStatusChange?.nextStatus === 'active' ? 'Activate' : 'Close'}
+        danger={pendingStatusChange?.nextStatus === 'closed'}
+        onConfirm={confirmUpdateStatus}
+        onCancel={() => setPendingStatusChange(null)}
+      />
     </div>
   );
 };

@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
-import { AlertCircle, Calendar, Layers, Activity, FileText, ArrowUpRight, Sparkles } from 'lucide-react';
+import { AlertCircle, Calendar, Layers, Activity, FileText, ArrowUpRight, Sparkles, Search, Download, ArrowUpDown } from 'lucide-react';
+import { useTableControls } from '../hooks/useTableControls';
+import TablePagination from '../components/TablePagination';
+import { exportToCsv } from '../utils/csvExport';
 
 const DepartmentReports = () => {
   const [departments, setDepartments] = useState([]);
@@ -63,6 +66,27 @@ const DepartmentReports = () => {
       case 'learning': return 'Learning & Growth';
       default: return cat;
     }
+  };
+
+  const table = useTableControls(report?.scores || [], {
+    searchFn: (s, term) =>
+      `${s.employeeId?.firstName} ${s.employeeId?.lastName} ${s.employeeId?.employeeCode}`.toLowerCase().includes(term),
+    sortAccessors: {
+      employee: (s) => `${s.employeeId?.firstName} ${s.employeeId?.lastName}`,
+      finalScore: (s) => s.finalScore,
+      rating: (s) => s.rating
+    },
+    defaultSortKey: 'employee',
+    pageSize: 10
+  });
+
+  const handleExport = () => {
+    exportToCsv(`department-report-${report?.department?.departmentName || 'export'}`, [
+      { key: 'employeeId.employeeCode', label: 'Employee Code' },
+      { key: 'employee', label: 'Employee', render: (s) => `${s.employeeId?.firstName} ${s.employeeId?.lastName}` },
+      { key: 'finalScore', label: 'Final Score' },
+      { key: 'rating', label: 'Rating Band' }
+    ], table.allFilteredRows);
   };
 
   return (
@@ -169,11 +193,29 @@ const DepartmentReports = () => {
 
           {/* Employee Final Scores list */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-6">Employee Final Scores</h3>
-            
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Employee Final Scores</h3>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={table.searchTerm}
+                    onChange={(e) => table.setSearchTerm(e.target.value)}
+                    placeholder="Search employee..."
+                    className="bg-slate-50 border border-slate-200 text-slate-700 pl-8 pr-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500 w-full md:w-52"
+                  />
+                </div>
+              </div>
+            </div>
+
             {report.scores.length === 0 ? (
               <div className="py-8 bg-slate-50 border border-slate-200 rounded-xl text-center">
                 <p className="text-slate-500 text-xs">No performance reports submitted for this cycle yet.</p>
+              </div>
+            ) : table.rows.length === 0 ? (
+              <div className="py-8 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                <p className="text-slate-500 text-xs">No employees match "{table.searchTerm}".</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -181,14 +223,20 @@ const DepartmentReports = () => {
                   <thead>
                     <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-200 bg-slate-50/50">
                       <th className="py-3 px-4 rounded-l-lg">Code</th>
-                      <th className="py-3 px-4">Employee</th>
-                      <th className="py-3 px-4">Final Score</th>
-                      <th className="py-3 px-4">Rating Band</th>
+                      <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('employee')}>
+                        <span className="inline-flex items-center gap-1">Employee <ArrowUpDown size={10} /></span>
+                      </th>
+                      <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('finalScore')}>
+                        <span className="inline-flex items-center gap-1">Final Score <ArrowUpDown size={10} /></span>
+                      </th>
+                      <th className="py-3 px-4 cursor-pointer select-none" onClick={() => table.toggleSort('rating')}>
+                        <span className="inline-flex items-center gap-1">Rating Band <ArrowUpDown size={10} /></span>
+                      </th>
                       <th className="py-3 px-4 text-right rounded-r-lg">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {report.scores.map(s => (
+                    {table.rows.map(s => (
                       <tr key={s._id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="py-4 px-4 font-bold text-slate-500">{s.employeeId?.employeeCode}</td>
                         <td className="py-4 px-4 font-bold text-slate-800">
@@ -223,6 +271,13 @@ const DepartmentReports = () => {
                     ))}
                   </tbody>
                 </table>
+                <TablePagination
+                  page={table.page}
+                  totalPages={table.totalPages}
+                  totalCount={table.totalCount}
+                  pageSize={table.pageSize}
+                  onPageChange={table.setPage}
+                />
               </div>
             )}
           </div>

@@ -11,6 +11,19 @@ const getFeedbackRequests = async (req, res) => {
     // Standard employees can only see feedback requests assigned TO them as a reviewer
     if (req.user.role === 'employee') {
       filter.reviewerId = req.user.id;
+    } else if (req.user.role === 'manager') {
+      // Managers can see requests where they are the reviewer, plus requests about their own direct reports.
+      const reports = await User.find({ managerId: req.user.id }).select('_id');
+      const reportIds = reports.map(r => r._id.toString());
+
+      if (employeeId) {
+        // Only allow filtering by an employeeId that's actually their direct report.
+        filter.$or = reportIds.includes(employeeId)
+          ? [{ employeeId }, { reviewerId: req.user.id }]
+          : [{ reviewerId: req.user.id }];
+      } else {
+        filter.$or = [{ employeeId: { $in: reportIds } }, { reviewerId: req.user.id }];
+      }
     } else {
       if (employeeId) filter.employeeId = employeeId;
       if (req.query.reviewerId) filter.reviewerId = req.query.reviewerId;
@@ -114,6 +127,22 @@ const getFeedbackSummary = async (req, res) => {
 
     if (!employeeId || !cycleId) {
       return res.status(400).json({ message: 'employeeId and cycleId are required.' });
+    }
+
+    // Authorization: only the employee themselves, admin/hr/executive, or their direct manager may view this.
+    const isSelf = req.user.id === employeeId;
+    const isPrivileged = ['admin', 'hr', 'executive'].includes(req.user.role);
+
+    let isDirectManager = false;
+    if (req.user.role === 'manager') {
+      const targetUser = await User.findById(employeeId);
+      if (targetUser && targetUser.managerId && targetUser.managerId.toString() === req.user.id) {
+        isDirectManager = true;
+      }
+    }
+
+    if (!isSelf && !isPrivileged && !isDirectManager) {
+      return res.status(403).json({ message: 'Access denied. You do not have permission to view this feedback summary.' });
     }
 
     // Fetch all submitted responses

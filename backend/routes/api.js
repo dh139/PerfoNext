@@ -38,8 +38,7 @@ router.get('/auth/managers', userController.getPublicManagers);
 
 // ==================== PROTECTED ROUTES ====================
 
-// User Management
-router.get('/users', verifyToken, authorizeRoles('admin', 'hr', 'manager'), userController.getUsers);
+router.get('/users', verifyToken, userController.getUsers);
 router.get('/users/me', verifyToken, userController.getMyProfile);
 router.patch('/users/me', verifyToken, userController.updateMyProfile);
 router.get('/users/:id', verifyToken, userController.getUserById);

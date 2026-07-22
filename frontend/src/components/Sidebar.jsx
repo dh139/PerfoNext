@@ -231,11 +231,27 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
               <FileText size={18} />
               <span>Team Reports</span>
             </Link>
+            {user?.role === 'executive' && (
+              <>
+                <Link to="/reports/completion" className={linkClass('/reports/completion')}>
+                  <ClipboardList size={18} />
+                  <span>Completion Report</span>
+                </Link>
+                <Link to="/admin/users" className={linkClass('/admin/users')}>
+                  <Users size={18} />
+                  <span>Users Database</span>
+                </Link>
+                <Link to="/admin/org" className={linkClass('/admin/org')}>
+                  <Shield size={18} />
+                  <span>Org Structure</span>
+                </Link>
+              </>
+            )}
           </>
         )}
 
         {/* HR Desk */}
-        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
+        {(user?.role === 'hr' || user?.role === 'admin') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
@@ -260,7 +276,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
         )}
 
         {/* Admin & System Administration */}
-        {(user?.role === 'admin' || user?.role === 'executive') && (
+        {user?.role === 'admin' && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>

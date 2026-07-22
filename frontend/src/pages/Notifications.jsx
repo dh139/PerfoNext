@@ -1,6 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { Bell, Check, Clock, AlertCircle } from 'lucide-react';
+import { Bell, Check, Clock, AlertCircle, ClipboardList, Award } from 'lucide-react';
+
+const NOTIFICATION_STYLE = {
+  review_assigned: { color: 'bg-sky-50 text-sky-700', icon: Clock },
+  assessment_pending: { color: 'bg-amber-50 text-amber-700', icon: AlertCircle },
+  manager_review_pending: { color: 'bg-amber-50 text-amber-700', icon: ClipboardList },
+  review_completed: { color: 'bg-emerald-50 text-emerald-700', icon: Check },
+  final_score_ready: { color: 'bg-indigo-50 text-indigo-700', icon: Award }
+};
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -60,13 +68,15 @@ const Notifications = () => {
                 className={`py-4 flex justify-between items-start gap-4 transition-colors ${!n.isRead ? 'bg-sky-50/20 px-3 -mx-3 rounded-lg' : ''}`}
               >
                 <div className="flex gap-3">
-                  <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${
-                    n.type === 'review_assigned' ? 'bg-sky-50 text-sky-700' :
-                    n.type === 'assessment_pending' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    {n.type === 'review_assigned' ? <Clock size={16} /> :
-                     n.type === 'assessment_pending' ? <AlertCircle size={16} /> : <Check size={16} />}
-                  </div>
+                  {(() => {
+                    const style = NOTIFICATION_STYLE[n.type] || NOTIFICATION_STYLE.review_completed;
+                    const Icon = style.icon;
+                    return (
+                      <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${style.color}`}>
+                        <Icon size={16} />
+                      </div>
+                    );
+                  })()}
                   <div>
                     <p className={`text-xs ${!n.isRead ? 'font-semibold text-slate-900' : 'text-slate-600'}`}>{n.message}</p>
                     <span className="text-[10px] text-slate-400 mt-1 block">

@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles } from 'lucide-react';
+import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles, Download } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
+import { exportToCsv } from '../utils/csvExport';
 
 const EmployeeReport = () => {
   const { id: employeeId } = useParams();
@@ -202,12 +203,33 @@ const EmployeeReport = () => {
           </div>
         </div>
 
-        {employee.managerId && (
-          <div className="bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-xs">
-            <p className="text-slate-400 font-medium">Designated Manager</p>
-            <p className="font-bold text-slate-700 mt-0.5">{employee.managerId.firstName} {employee.managerId.lastName}</p>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {employee.managerId && (
+            <div className="bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-xs">
+              <p className="text-slate-400 font-medium">Designated Manager</p>
+              <p className="font-bold text-slate-700 mt-0.5">{employee.managerId.firstName} {employee.managerId.lastName}</p>
+            </div>
+          )}
+          {scores.length > 0 && (
+            <button
+              onClick={() => exportToCsv(`${employee.employeeCode}-score-history`, [
+                { key: 'reviewCycleId.reviewMonth', label: 'Review Month' },
+                { key: 'finalScore', label: 'Final Score' },
+                { key: 'rating', label: 'Rating' },
+                { key: 'categoryScores.workQuality', label: 'Work Quality' },
+                { key: 'categoryScores.productivity', label: 'Productivity' },
+                { key: 'categoryScores.technical', label: 'Technical Skills' },
+                { key: 'categoryScores.communication', label: 'Communication' },
+                { key: 'categoryScores.ownership', label: 'Ownership' },
+                { key: 'categoryScores.learning', label: 'Learning & Growth' }
+              ], scores)}
+              className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-bold shrink-0 cursor-pointer"
+            >
+              <Download size={12} />
+              <span>Export Score History</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {scores.length === 0 ? (

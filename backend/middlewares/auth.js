@@ -36,7 +36,7 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'epts_access_token_secret_2026_xyz');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Fetch user to ensure user exists and is active
     const user = await User.findById(decoded.id).select('-passwordHash');
@@ -48,7 +48,17 @@ const verifyToken = async (req, res, next) => {
       return res.status(403).json({ message: 'User account is inactive or exited.' });
     }
 
-    req.user = decoded;
+    // Use the freshly-loaded user for req.user (not the stale JWT payload) so
+    // department/role changes take effect immediately and departmentId is always present.
+    req.user = {
+      id: user._id.toString(),
+      email: user.email,
+      role: user.role,
+      managerId: user.managerId,
+      departmentId: user.departmentId,
+      firstName: user.firstName,
+      lastName: user.lastName
+    };
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

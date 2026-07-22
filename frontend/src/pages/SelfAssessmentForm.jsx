@@ -94,9 +94,8 @@ const SelfAssessmentForm = () => {
         if (!score) {
           newErrors[item._id] = 'Score is required.';
           isValid = false;
-        }
-        if (!comment.trim()) {
-          newErrors[item._id] = 'Justification comment is required.';
+        } else if (score < 3 && !comment.trim()) {
+          newErrors[item._id] = 'Justification comment is mandatory when score is less than 3.';
           isValid = false;
         }
       }
