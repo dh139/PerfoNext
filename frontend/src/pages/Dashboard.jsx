@@ -469,7 +469,7 @@ const HRDashboard = ({ data, user }) => {
               {activeCycleMetrics.map((item) => (
                 <div key={item.cycleId} className="border-b border-slate-100 pb-5 last:border-0 last:pb-0">
                   <div className="flex justify-between items-center text-xs mb-3">
-                    <span className="font-bold text-slate-800">Month: {item.reviewMonth}</span>
+                    <span className="font-bold text-slate-800">Month: {item.reviewMonth} — Dept: {item.departmentName} ({item.templateName})</span>
                     <span className="text-slate-400 font-medium">{item.totalEmployees} Active Users</span>
                   </div>
                   
@@ -542,6 +542,8 @@ const HRDashboard = ({ data, user }) => {
                                 <td className="py-2.5 font-bold text-slate-800">
                                   {sub.firstName} {sub.lastName}
                                   <span className="text-[9px] text-slate-400 block font-normal">{sub.employeeCode}</span>
+                                  <span className="text-[9px] text-sky-700 block font-bold mt-0.5">Dept: {sub.departmentName} | Desg: {sub.designationName}</span>
+                                  <span className="text-[9px] text-slate-500 block font-normal mt-0.5">Manager: {sub.managerName}</span>
                                 </td>
                                 <td className="py-2.5">
                                   {sub.selfSubmitted ? (

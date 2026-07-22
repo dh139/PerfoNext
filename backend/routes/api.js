@@ -45,11 +45,13 @@ router.patch('/users/me', verifyToken, userController.updateMyProfile);
 router.get('/users/:id', verifyToken, userController.getUserById);
 router.post('/users', verifyToken, authorizeRoles('admin', 'hr'), userController.createUser);
 router.patch('/users/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateUser);
+router.delete('/users/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.deleteUser);
 
 // Department Management
 router.get('/departments', verifyToken, userController.getDepartments);
 router.post('/departments', verifyToken, authorizeRoles('admin', 'hr'), userController.createDepartment);
 router.patch('/departments/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateDepartment);
+router.delete('/departments/:id', verifyToken, authorizeRoles('admin'), userController.deleteDepartment);
 
 // Designation Management
 router.get('/designations', verifyToken, userController.getDesignations);

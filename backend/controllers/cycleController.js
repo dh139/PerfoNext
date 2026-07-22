@@ -17,7 +17,10 @@ const {
 
 const getReviewCycles = async (req, res) => {
   try {
-    const cycles = await ReviewCycle.find().populate('kpiTemplateId');
+    const cycles = await ReviewCycle.find().populate({
+      path: 'kpiTemplateId',
+      populate: { path: 'departmentId' }
+    });
     res.json(cycles);
   } catch (error) {
     console.error('getReviewCycles error:', error);
@@ -86,8 +89,17 @@ const updateReviewCycle = async (req, res) => {
 // Helper: notify all active employees of new cycle
 const notifyAllEmployeesOfNewCycle = async (cycle) => {
   try {
-    // Only send self-assessment prompts to active employees with role 'employee'
-    const targetEmployees = await User.find({ role: 'employee', employmentStatus: 'active' });
+    // Resolve KPI Template department
+    const template = await KpiTemplate.findById(cycle.kpiTemplateId);
+    const targetDeptId = template?.departmentId || null;
+
+    const employeeFilter = { role: 'employee', employmentStatus: 'active' };
+    if (targetDeptId) {
+      employeeFilter.departmentId = targetDeptId;
+    }
+
+    // Only send self-assessment prompts to active employees in the targeted department
+    const targetEmployees = await User.find(employeeFilter);
     const allUsers = await User.find({ employmentStatus: 'active' });
 
     // In-app notifications for all active users
@@ -98,7 +110,7 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     }));
     await Notification.insertMany(notifications);
 
-    // Email notifications specifically to employees eligible for self-assessment
+    // Email notifications specifically to employees eligible for self-assessment in this department
     for (const emp of targetEmployees) {
       if (emp.email) {
         sendReviewCycleStartedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.endDate)

@@ -128,7 +128,7 @@ const Login = () => {
         </form>
 
         <div className="text-center text-slate-400 mt-4 text-xs">
-          Don't have an account? <Link to="/register" className="text-sky-500 hover:underline font-semibold">Register here</Link>
+          Need access? Please contact your System Administrator or HR Manager.
         </div>
 
      

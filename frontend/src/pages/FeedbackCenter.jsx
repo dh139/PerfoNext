@@ -417,9 +417,14 @@ const FeedbackCenter = () => {
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
                 required
               >
-                {cycles.map(c => (
-                  <option key={c._id} value={c._id}>Month: {c.reviewMonth} ({c.cycleType})</option>
-                ))}
+                {cycles.map(c => {
+                  const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                  return (
+                    <option key={c._id} value={c._id}>
+                      Month: {c.reviewMonth} — Dept: {deptName} ({c.cycleType})
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
@@ -459,9 +464,14 @@ const FeedbackCenter = () => {
                 onChange={(e) => setSummaryCycleId(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none"
               >
-                {cycles.map(c => (
-                  <option key={c._id} value={c._id}>{c.reviewMonth} ({c.cycleType})</option>
-                ))}
+                {cycles.map(c => {
+                  const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                  return (
+                    <option key={c._id} value={c._id}>
+                      Month: {c.reviewMonth} — Dept: {deptName} ({c.cycleType})
+                    </option>
+                  );
+                })}
               </select>
             </div>
 

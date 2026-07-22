@@ -1,12 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, Layers } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Layers, Trash2 } from 'lucide-react';
+import useAuthStore from '../store/authStore';
 
 const OrgStructure = () => {
+  const { user } = useAuthStore();
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const handleDeleteDept = async (id, name) => {
+    if (window.confirm(`WARNING: Deleting the department '${name}' will also PERMANENTLY DELETE all employees/users associated with this department. Do you wish to proceed?`)) {
+      try {
+        setError('');
+        const res = await api.delete(`/api/departments/${id}`);
+        alert(res.data.message || 'Department deleted successfully.');
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        setError(err.response?.data?.message || 'Failed to delete department.');
+      }
+    }
+  };
 
   // Department creation state
   const [deptName, setDeptName] = useState('');
@@ -143,8 +159,19 @@ const OrgStructure = () => {
               {departments.map(d => (
                 <div key={d._id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-800">{d.departmentName}</span>
-                    <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{d.status}</span>
+                    <div>
+                      <span className="font-bold text-slate-800">{d.departmentName}</span>
+                      <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 ml-2">{d.status}</span>
+                    </div>
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => handleDeleteDept(d._id, d.departmentName)}
+                        className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100"
+                        title="Delete Department & Cascade Employees"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </div>
                   {d.description && <p className="text-[10px] text-slate-500 mt-1">{d.description}</p>}
                 </div>

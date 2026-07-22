@@ -130,13 +130,19 @@ const getReviewCompletionReport = async (req, res) => {
       return res.status(400).json({ message: 'reviewCycleId query param is required.' });
     }
 
-    const cycle = await ReviewCycle.findById(reviewCycleId);
+    const cycle = await ReviewCycle.findById(reviewCycleId).populate('kpiTemplateId');
     if (!cycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
     }
 
-    // Get all active employees
-    const employees = await User.find({ employmentStatus: 'active' })
+    const template = cycle.kpiTemplateId;
+    const filter = { employmentStatus: 'active', role: { $ne: 'admin' } };
+    if (template && template.departmentId) {
+      filter.departmentId = template.departmentId;
+    }
+
+    // Get all active employees in target department (excluding admins)
+    const employees = await User.find(filter)
       .populate('departmentId designationId')
       .populate({ path: 'managerId', select: 'firstName lastName email' })
       .select('-passwordHash -refreshToken');

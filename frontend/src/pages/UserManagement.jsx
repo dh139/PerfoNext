@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, ShieldAlert, Trash2 } from 'lucide-react';
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
-  const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,9 +34,6 @@ const UserManagement = () => {
       const deptRes = await api.get('/api/departments');
       setDepartments(deptRes.data.filter(d => d.status === 'active'));
       if (deptRes.data.length > 0) setDepartmentId(deptRes.data[0]._id);
-
-      const managerRes = await api.get('/api/users?role=manager');
-      setManagers(managerRes.data);
     } catch (err) {
       console.error(err);
       setError('Failed to fetch user database.');
@@ -66,6 +62,7 @@ const UserManagement = () => {
   }, [departmentId]);
 
   const handleOpenCreate = () => {
+    setError('');
     setEditUser(null);
     setEmployeeCode('');
     setFirstName('');
@@ -81,6 +78,7 @@ const UserManagement = () => {
   };
 
   const handleOpenEdit = (user) => {
+    setError('');
     setEditUser(user);
     setEmployeeCode(user.employeeCode);
     setFirstName(user.firstName);
@@ -128,6 +126,64 @@ const UserManagement = () => {
       setError(err.response?.data?.message || 'Failed to save user profiles.');
     }
   };
+
+  const handleDeleteUser = async (id, name) => {
+    if (window.confirm(`Are you absolutely sure you want to delete the employee account for ${name}? This action is permanent and cannot be undone.`)) {
+      try {
+        setError('');
+        await api.delete(`/api/users/${id}`);
+        setShowModal(false);
+        fetchData();
+      } catch (err) {
+        console.error(err);
+        setError(err.response?.data?.message || 'Failed to delete user.');
+      }
+    }
+  };
+
+  // Resolve designation name for the selected designationId
+  const selectedDesignationName = designations.find(d => d._id === designationId)?.designationName || '';
+
+  const determineLevel = (targetRole, desName) => {
+    const name = (desName || '').toLowerCase();
+    if (targetRole === 'executive') return 1;
+    if (targetRole === 'hr') return 2;
+    if (targetRole === 'manager') {
+      if (name.includes('manager') || name.includes('head') || name.includes('director')) return 2;
+      return 3;
+    }
+    if (targetRole === 'employee') {
+      if (name.includes('senior') || name.includes('lead')) return 4;
+      if (name.includes('associate') || name.includes('junior') || name.includes('trainee') || name.includes('writer')) return 6;
+      return 5;
+    }
+    if (targetRole === 'admin') return 3;
+    return 5;
+  };
+
+  const userLevel = determineLevel(role, selectedDesignationName);
+
+  // Eligible direct managers based on level & department
+  const eligibleManagers = users.filter(u => {
+    if (editUser && u._id === editUser._id) return false;
+    if (u.employmentStatus !== 'active') return false;
+
+    // HR and Admin report to CEO (executive)
+    if (role === 'hr' || role === 'admin') {
+      return u.role === 'executive';
+    }
+
+    // Others must report to someone with a higher rank (numerically lower level)
+    const uLevel = u.level || 5;
+    if (uLevel >= userLevel && u.role !== 'executive') {
+      return false;
+    }
+
+    // Must be from same department or be the CEO
+    if (u.role === 'executive') return true;
+    const uDeptId = u.departmentId?._id || u.departmentId;
+    return uDeptId && departmentId && uDeptId.toString() === departmentId.toString();
+  });
 
   if (loading) {
     return (
@@ -185,8 +241,11 @@ const UserManagement = () => {
                   <td className="py-4 px-4 font-bold text-slate-800">{u.firstName} {u.lastName}</td>
                   <td className="py-4 px-4 text-slate-650">{u.email}</td>
                   <td className="py-4 px-4">
-                    <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-200 bg-slate-100 text-slate-600">
+                    <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-200 bg-slate-100 text-slate-600 block w-max">
                       {u.role}
+                    </span>
+                    <span className="text-[9px] font-bold text-sky-700 mt-1 block">
+                      Level {u.level || 5}
                     </span>
                   </td>
                   <td className="py-4 px-4">
@@ -203,12 +262,20 @@ const UserManagement = () => {
                       {u.employmentStatus}
                     </span>
                   </td>
-                  <td className="py-4 px-4 text-right">
+                  <td className="py-4 px-4 text-right flex justify-end gap-1.5">
                     <button
                       onClick={() => handleOpenEdit(u)}
                       className="text-sky-700 hover:text-sky-850 p-1.5 rounded-lg border border-sky-100 hover:bg-sky-50 transition-colors cursor-pointer"
+                      title="Edit Profile"
                     >
                       <Edit2 size={12} />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(u._id, `${u.firstName} ${u.lastName}`)}
+                      className="text-rose-600 hover:text-rose-800 p-1.5 rounded-lg border border-rose-100 hover:bg-rose-50 transition-colors cursor-pointer"
+                      title="Delete Employee"
+                    >
+                      <Trash2 size={12} />
                     </button>
                   </td>
                 </tr>
@@ -229,38 +296,16 @@ const UserManagement = () => {
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold font-sans">Close</button>
             </div>
 
+            {error && (
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-center gap-2">
+                <AlertCircle size={14} className="text-rose-600 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {editUser && (
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Employee Code</label>
-                    <input
-                      type="text"
-                      value={employeeCode}
-                      disabled
-                      className="w-full bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-slate-500 cursor-not-allowed font-semibold"
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-1.5 md:col-span-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Access Privilege (Role)</label>
-                  <select
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value);
-                      if (e.target.value === 'executive') setManagerId('');
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="manager">Reporting Manager</option>
-                    <option value="hr">HR Manager</option>
-                    <option value="admin">Administrator</option>
-                    <option value="executive">CEO / Executive Management</option>
-                  </select>
-                </div>
-
+                {/* 1. Name Info */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">First Name</label>
                   <input
@@ -283,6 +328,7 @@ const UserManagement = () => {
                   />
                 </div>
 
+                {/* 2. Contact Info */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Email Address</label>
                   <input
@@ -305,6 +351,38 @@ const UserManagement = () => {
                   />
                 </div>
 
+                {/* 3. Code & Role */}
+                {editUser && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Employee Code</label>
+                    <input
+                      type="text"
+                      value={employeeCode}
+                      disabled
+                      className="w-full bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-slate-500 cursor-not-allowed font-semibold"
+                    />
+                  </div>
+                )}
+
+                <div className={`space-y-1.5 ${editUser ? '' : 'md:col-span-2'}`}>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Access Privilege (Role)</label>
+                  <select
+                    value={role}
+                    onChange={(e) => {
+                      setRole(e.target.value);
+                      if (e.target.value === 'executive') setManagerId('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                  >
+                    <option value="employee">Employee</option>
+                    <option value="manager">Reporting Manager</option>
+                    <option value="hr">HR Manager</option>
+                    <option value="admin">Administrator</option>
+                    <option value="executive">CEO / Executive Management</option>
+                  </select>
+                </div>
+
+                {/* 4. Password & Department */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">
                     Password {editUser && '(Leave blank to keep unchanged)'}
@@ -339,7 +417,8 @@ const UserManagement = () => {
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
+                {/* 5. Designation & Status */}
+                <div className={`space-y-1.5 ${editUser ? '' : 'md:col-span-2'}`}>
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Designation</label>
                     <span className="text-[9px] font-bold text-rose-500">* Required</span>
@@ -357,28 +436,6 @@ const UserManagement = () => {
                   </select>
                 </div>
 
-                {role !== 'executive' && (
-                  <div className="space-y-1.5 md:col-span-2">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
-                      <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-500' : 'text-slate-400 font-normal'}`}>
-                        {role === 'employee' ? '* Required for Employees' : '(Optional)'}
-                      </span>
-                    </div>
-                    <select
-                      value={managerId}
-                      onChange={(e) => setManagerId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
-                      required={role === 'employee'}
-                    >
-                      <option value="">{role === 'employee' ? 'Select Direct Manager *' : 'No reporting manager (Optional)'}</option>
-                      {managers.filter(m => m._id !== editUser?._id).map(m => (
-                        <option key={m._id} value={m._id}>{m.firstName} {m.lastName}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
                 {editUser && (
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-500 uppercase">Employment Status</label>
@@ -393,23 +450,61 @@ const UserManagement = () => {
                     </select>
                   </div>
                 )}
+
+                {/* 6. Direct Manager */}
+                {role !== 'executive' && (
+                  <div className="space-y-1.5 md:col-span-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
+                      <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-500' : 'text-slate-400 font-normal'}`}>
+                        {role === 'employee' ? '* Required for Employees' : '(Optional)'}
+                      </span>
+                    </div>
+                    <select
+                      value={managerId}
+                      onChange={(e) => setManagerId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium"
+                      required={role === 'employee'}
+                    >
+                      <option value="">{role === 'employee' ? 'Select Direct Manager *' : 'No reporting manager (Optional)'}</option>
+                      {eligibleManagers.map(m => (
+                        <option key={m._id} value={m._id}>
+                          {m.firstName} {m.lastName} ({m.role === 'executive' ? 'CEO' : m.designationId?.designationName || 'Manager'}) - Level {m.level}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-colors"
-                >
-                  Save Profile
-                </button>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                {editUser ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteUser(editUser._id, `${firstName} ${lastName}`)}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-rose-200 transition-colors cursor-pointer"
+                  >
+                    Delete Account
+                  </button>
+                ) : (
+                  <div></div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-colors"
+                  >
+                    Save Profile
+                  </button>
+                </div>
               </div>
             </form>
           </div>

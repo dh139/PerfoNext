@@ -5,6 +5,36 @@ const bcrypt = require('bcryptjs');
 const { logAction } = require('../utils/logger');
 const { sendWelcomeEmail } = require('../services/emailService');
 
+const determineUserLevel = (role, designationName) => {
+  const name = (designationName || '').toLowerCase();
+  
+  if (role === 'executive') return 1;
+  if (role === 'hr') return 2;
+  
+  if (role === 'manager') {
+    if (name.includes('manager') || name.includes('head') || name.includes('director')) {
+      return 2; // Department Manager / Head
+    }
+    return 3; // Team Lead / Reporting Manager
+  }
+  
+  if (role === 'employee') {
+    if (name.includes('senior') || name.includes('lead')) {
+      return 4; // Senior Employee
+    }
+    if (name.includes('associate') || name.includes('junior') || name.includes('trainee') || name.includes('writer')) {
+      return 6; // Junior Employee / Trainee
+    }
+    return 5; // Standard Employee
+  }
+  
+  if (role === 'admin') {
+    return 3; // Admins usually manage application
+  }
+  
+  return 5; // Default fallback
+};
+
 // ==================== USER CONTROLLERS ====================
 
 const getUsers = async (req, res) => {
@@ -96,8 +126,18 @@ const createUser = async (req, res) => {
       }
     }
 
+    // Resolve designation name to determine level
+    let designationName = '';
+    if (designationId) {
+      const desDoc = await Designation.findById(designationId);
+      if (desDoc) designationName = desDoc.designationName;
+    }
+    const computedLevel = determineUserLevel(role, designationName);
+
+    // Auto-generate safe temporary password if not provided
+    const rawPassword = password || Math.random().toString(36).slice(-8) + 'Pass123!';
     const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password || 'EPTS2026!', salt);
+    const passwordHash = await bcrypt.hash(rawPassword, salt);
 
     const newUser = await User.create({
       employeeCode: finalCode,
@@ -111,7 +151,8 @@ const createUser = async (req, res) => {
       managerId: managerId || null,
       joiningDate: joiningDate || new Date(),
       employmentStatus: employmentStatus || 'active',
-      role
+      role,
+      level: computedLevel
     });
 
     const userObj = newUser.toObject();
@@ -127,9 +168,9 @@ const createUser = async (req, res) => {
       ipAddress: req.ip || ''
     });
 
-    // Send welcome confirmation email
+    // Send welcome confirmation email with credentials
     try {
-      await sendWelcomeEmail(newUser.email, newUser.firstName, newUser.employeeCode, newUser.role);
+      await sendWelcomeEmail(newUser.email, newUser.firstName, newUser.employeeCode, newUser.role, rawPassword);
     } catch (emailErr) {
       console.error('Welcome email error:', emailErr);
     }
@@ -172,6 +213,18 @@ const updateUser = async (req, res) => {
     // Handle managerId clean format
     if (updates.managerId === '') {
       updates.managerId = null;
+    }
+
+    // Auto-calculate level if role or designation changes
+    if (updates.role || updates.designationId) {
+      const targetRole = updates.role || user.role;
+      const targetDesignationId = updates.designationId || user.designationId;
+      let designationName = '';
+      if (targetDesignationId) {
+        const desDoc = await Designation.findById(targetDesignationId);
+        if (desDoc) designationName = desDoc.designationName;
+      }
+      updates.level = determineUserLevel(targetRole, designationName);
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true })
@@ -371,11 +424,77 @@ const getPublicManagers = async (req, res) => {
   }
 };
 
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+    const before = user.toObject();
+    delete before.passwordHash;
+    delete before.refreshToken;
+
+    await User.findByIdAndDelete(req.params.id);
+
+    await logAction({
+      userId: req.user.id,
+      action: 'user_modification',
+      entityType: 'User',
+      entityId: req.params.id,
+      before,
+      after: null,
+      ipAddress: req.ip || ''
+    });
+
+    res.json({ message: 'User deleted successfully.' });
+  } catch (error) {
+    console.error('deleteUser error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
+const deleteDepartment = async (req, res) => {
+  try {
+    const departmentId = req.params.id;
+    const department = await Department.findById(departmentId);
+    if (!department) {
+      return res.status(404).json({ message: 'Department not found.' });
+    }
+
+    // Cascade delete: delete all users belonging to this department
+    const deletedEmployees = await User.find({ departmentId });
+    await User.deleteMany({ departmentId });
+
+    // Delete the department
+    await Department.findByIdAndDelete(departmentId);
+
+    // Log action
+    await logAction({
+      userId: req.user.id,
+      action: 'department_modification',
+      entityType: 'Department',
+      entityId: departmentId,
+      before: department.toObject(),
+      after: null,
+      ipAddress: req.ip || ''
+    });
+
+    res.json({
+      message: `Department '${department.departmentName}' and its ${deletedEmployees.length} employee(s) have been deleted successfully.`
+    });
+  } catch (error) {
+    console.error('deleteDepartment error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
   createUser,
   updateUser,
+  deleteUser,
+  deleteDepartment,
   getMyProfile,
   updateMyProfile,
   getDepartments,

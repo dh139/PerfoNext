@@ -194,9 +194,14 @@ const RecognitionsWorkspace = () => {
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-700"
                   >
                     <option value="">No cycle linked (Org level)</option>
-                    {cycles.map(c => (
-                      <option key={c._id} value={c._id}>Month: {c.reviewMonth}</option>
-                    ))}
+                    {cycles.map(c => {
+                      const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                      return (
+                        <option key={c._id} value={c._id}>
+                          Month: {c.reviewMonth} — Dept: {deptName}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>

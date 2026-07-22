@@ -92,9 +92,15 @@ const DepartmentReports = () => {
               onChange={(e) => setSelectedCycleId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-semibold p-3 rounded-xl text-xs outline-none focus:border-sky-500"
             >
-              {cycles.map(c => (
-                <option key={c._id} value={c._id}>Month: {c.reviewMonth} ({c.status})</option>
-              ))}
+              {cycles.map(c => {
+                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                const tempName = c.kpiTemplateId?.templateName || 'General Template';
+                return (
+                  <option key={c._id} value={c._id}>
+                    Month: {c.reviewMonth} — Dept: {deptName} ({tempName}) ({c.status})
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>

@@ -10,12 +10,36 @@ const KpiTemplates = () => {
   const [error, setError] = useState('');
 
   // Form State
+  const [editTemplate, setEditTemplate] = useState(null);
   const [templateName, setTemplateName] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [items, setItems] = useState([
     { kpiName: '', category: 'quality', weight: 1, description: '' }
   ]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  const handleOpenCreate = () => {
+    setError('');
+    setEditTemplate(null);
+    setTemplateName('');
+    setDepartmentId('');
+    setItems([{ kpiName: '', category: 'quality', weight: 1, description: '' }]);
+    setShowCreateModal(true);
+  };
+
+  const handleOpenEdit = (t) => {
+    setError('');
+    setEditTemplate(t);
+    setTemplateName(t.templateName);
+    setDepartmentId(t.departmentId?._id || t.departmentId || '');
+    setItems(t.items.map(item => ({
+      kpiName: item.kpiName,
+      category: item.category,
+      weight: item.weight,
+      description: item.description || ''
+    })));
+    setShowCreateModal(true);
+  };
 
   const fetchData = async () => {
     try {
@@ -56,7 +80,7 @@ const KpiTemplates = () => {
     setItems(updated);
   };
 
-  const handleCreate = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -72,22 +96,30 @@ const KpiTemplates = () => {
     }
 
     try {
-      await api.post('/api/kpi-templates', {
+      const payload = {
         templateName,
         departmentId: departmentId || null,
         items
-      });
+      };
+
+      if (editTemplate) {
+        await api.patch(`/api/kpi-templates/${editTemplate._id}`, payload);
+        toast.success('KPI Template updated successfully!');
+      } else {
+        await api.post('/api/kpi-templates', payload);
+        toast.success('KPI Template created successfully!');
+      }
 
       // Reset Form
       setTemplateName('');
       setDepartmentId('');
       setItems([{ kpiName: '', category: 'quality', weight: 1, description: '' }]);
+      setEditTemplate(null);
       setShowCreateModal(false);
       fetchData();
-      toast.success('KPI Template created successfully!');
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to create template.');
+      setError(err.response?.data?.message || 'Failed to save template.');
     }
   };
 
@@ -109,7 +141,7 @@ const KpiTemplates = () => {
         </div>
         
         <button
-          onClick={() => setShowCreateModal(!showCreateModal)}
+          onClick={handleOpenCreate}
           className="flex items-center gap-1.5 bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-colors"
         >
           <Plus size={16} />
@@ -162,8 +194,16 @@ const KpiTemplates = () => {
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center text-[10px] text-slate-400">
-              <span>Author: {t.createdBy?.firstName} {t.createdBy?.lastName}</span>
-              <span>Updated: {new Date(t.updatedAt).toLocaleDateString()}</span>
+              <div>
+                <span>Author: {t.createdBy?.firstName} {t.createdBy?.lastName}</span>
+                <span className="block mt-0.5">Updated: {new Date(t.updatedAt).toLocaleDateString()}</span>
+              </div>
+              <button
+                onClick={() => handleOpenEdit(t)}
+                className="text-sky-700 hover:text-sky-850 font-bold border border-sky-100 hover:bg-sky-50 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-[10px]"
+              >
+                Edit Template
+              </button>
             </div>
           </div>
         ))}
@@ -174,11 +214,13 @@ const KpiTemplates = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-6 shadow-2xl space-y-6">
             <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="font-bold text-slate-800 text-sm">Design Evaluation Template</h3>
+              <h3 className="font-bold text-slate-800 text-sm">
+                {editTemplate ? 'Modify KPI Template' : 'Design Evaluation Template'}
+              </h3>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold">Close</button>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Template Name</label>
@@ -305,7 +347,7 @@ const KpiTemplates = () => {
                   type="submit"
                   className="bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-colors"
                 >
-                  Create Template
+                  {editTemplate ? 'Save Template Changes' : 'Create Template'}
                 </button>
               </div>
             </form>

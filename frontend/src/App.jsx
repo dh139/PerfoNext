@@ -39,9 +39,9 @@ function App() {
       <ToastContainer />
       <Routes>
       {/* Public Routes */}
-      <Route path="/landing" element={<LandingPage />} />
+      <Route path="/landing" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/register" element={<Navigate to="/login" replace />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
 
       {/* Protected Routes (All Roles) */}
@@ -97,11 +97,11 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin']} />}>
             <Route path="/hr/kpis" element={<KpiTemplates />} />
             <Route path="/hr/cycles" element={<ReviewCycles />} />
+            <Route path="/admin/users" element={<UserManagement />} />
           </Route>
 
           {/* Sub-group: Admin Only */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-            <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
           </Route>

@@ -18,6 +18,7 @@ const EmployeeReport = () => {
   const [recognitions, setRecognitions] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   // Phase 3 states
   const { user } = useAuthStore();
@@ -226,8 +227,8 @@ const EmployeeReport = () => {
                     <Sparkles size={18} className="animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm tracking-tight text-slate-100">Groq AI Performance Insights</h3>
-                    <p className="text-[9px] text-sky-400 font-semibold uppercase tracking-wider mt-0.5">Llama-3.3-70b HR Advisor Narrative</p>
+                    <h3 className="font-bold text-sm tracking-tight text-slate-100">AI Performance Insights</h3>
+
                   </div>
                 </div>
                 {loadingInsights && (
@@ -513,20 +514,54 @@ const EmployeeReport = () => {
                             Uploaded: {new Date(doc.createdAt).toLocaleDateString()} | By: {doc.uploadedBy?.firstName || 'HR'}
                           </p>
                         </div>
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-bold text-indigo-600 hover:text-indigo-800 shrink-0 select-none cursor-pointer"
-                          download
+                        <button
+                          onClick={() => setPreviewDoc(doc)}
+                          className="font-bold text-indigo-600 hover:text-indigo-800 shrink-0 select-none cursor-pointer bg-transparent border-0 outline-none"
                         >
-                          Download
-                        </a>
+                          Preview
+                        </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Document Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-sm truncate pr-4">
+                {previewDoc.fileName}
+              </h3>
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 bg-slate-50 border border-slate-150 rounded-xl overflow-hidden relative">
+              {previewDoc.fileUrl.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                  className="w-full h-full border-0"
+                  title={previewDoc.fileName}
+                />
+              ) : (
+                <div className="w-full h-full flex justify-center items-center overflow-auto p-4">
+                  <img
+                    src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                    alt={previewDoc.fileName}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

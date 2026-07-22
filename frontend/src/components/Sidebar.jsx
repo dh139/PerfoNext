@@ -215,6 +215,10 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
             </div>
+            <Link to="/admin/users" className={linkClass('/admin/users')}>
+              <Users size={18} />
+              <span>Users Database</span>
+            </Link>
             <Link to="/hr/kpis" className={linkClass('/hr/kpis')}>
               <Briefcase size={18} />
               <span>KPI Templates</span>
@@ -236,10 +240,6 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
               <p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>
             </div>
-            <Link to="/admin/users" className={linkClass('/admin/users')}>
-              <Users size={18} />
-              <span>Users Database</span>
-            </Link>
             <Link to="/admin/org" className={linkClass('/admin/org')}>
               <Shield size={18} />
               <span>Org Structure</span>

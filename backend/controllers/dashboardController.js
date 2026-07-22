@@ -18,9 +18,22 @@ const getDashboardData = async (req, res) => {
 
     if (role === 'employee') {
       // 1. Employee Dashboard Data
+      const user = await User.findById(userId)
+        .populate('departmentId designationId')
+        .populate({ path: 'managerId', select: 'firstName lastName email' });
+
       const pendingSelfAssessments = [];
       
       for (const cycle of activeCycles) {
+        // Filter by KPI Template's department
+        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
+        if (template && template.departmentId) {
+          const empDeptId = user.departmentId?._id || user.departmentId;
+          if (empDeptId && template.departmentId.toString() !== empDeptId.toString()) {
+            continue; // Skip this cycle for this employee
+          }
+        }
+
         const assessment = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: userId });
         if (!assessment || assessment.status === 'draft') {
           pendingSelfAssessments.push({
@@ -43,11 +56,6 @@ const getDashboardData = async (req, res) => {
         .sort('-createdAt')
         .limit(5);
 
-      // Team / Manager Profile
-      const user = await User.findById(userId)
-        .populate('departmentId designationId')
-        .populate({ path: 'managerId', select: 'firstName lastName email' });
-
       return res.json({
         role,
         profile: user,
@@ -68,7 +76,19 @@ const getDashboardData = async (req, res) => {
       const pendingSelfAssessmentsFromSubordinates = [];
 
       for (const cycle of activeCycles) {
+        // Resolve KPI Template department
+        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
+        const targetDeptId = template?.departmentId || null;
+
         for (const sub of subordinates) {
+          // Subordinate's department must match cycle template's department (if template has one)
+          if (targetDeptId) {
+            const subDeptId = sub.departmentId?._id || sub.departmentId;
+            if (subDeptId && targetDeptId.toString() !== subDeptId.toString()) {
+              continue; // Subordinate does not belong to this cycle's department
+            }
+          }
+
           // Check if employee submitted self assessment
           const selfAss = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: sub._id });
           
@@ -119,8 +139,17 @@ const getDashboardData = async (req, res) => {
       // Completion metrics for active cycles
       const activeCycleMetrics = [];
       for (const cycle of activeCycles) {
-        // Count active employees eligible for self-assessments (role: 'employee')
-        const eligibleEmployees = await User.countDocuments({ role: 'employee', employmentStatus: 'active' });
+        // Resolve department eligibility from KPI Template
+        const template = await KpiTemplate.findById(cycle.kpiTemplateId).populate('departmentId');
+        const targetDeptId = template?.departmentId?._id || template?.departmentId || null;
+
+        const employeeFilter = { role: 'employee', employmentStatus: 'active' };
+        if (targetDeptId) {
+          employeeFilter.departmentId = targetDeptId;
+        }
+
+        // Count active employees eligible for self-assessments (role: 'employee') in this department
+        const eligibleEmployees = await User.countDocuments(employeeFilter);
         const totalEmployees = eligibleEmployees > 0 
           ? eligibleEmployees 
           : await User.countDocuments({ role: { $ne: 'admin' }, employmentStatus: 'active' });
@@ -130,8 +159,9 @@ const getDashboardData = async (req, res) => {
         const bothCompleted = await ReviewScore.countDocuments({ reviewCycleId: cycle._id });
 
         // Detailed employee submission status & timestamps
-        const eligibleUserList = await User.find({ role: 'employee', employmentStatus: 'active' })
-          .select('firstName lastName employeeCode');
+        const eligibleUserList = await User.find(employeeFilter)
+          .populate('departmentId designationId')
+          .populate({ path: 'managerId', select: 'firstName lastName' });
 
         const submissions = await Promise.all(eligibleUserList.map(async (emp) => {
           const selfDoc = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
@@ -141,6 +171,9 @@ const getDashboardData = async (req, res) => {
             firstName: emp.firstName,
             lastName: emp.lastName,
             employeeCode: emp.employeeCode,
+            departmentName: emp.departmentId?.departmentName || '-',
+            designationName: emp.designationId?.designationName || '-',
+            managerName: emp.managerId ? `${emp.managerId.firstName} ${emp.managerId.lastName}` : 'No Manager',
             selfSubmitted: selfDoc?.status === 'submitted',
             selfSubmittedAt: selfDoc?.submittedAt || null,
             managerSubmitted: mgrDoc?.status === 'submitted',
@@ -151,6 +184,8 @@ const getDashboardData = async (req, res) => {
         activeCycleMetrics.push({
           cycleId: cycle._id,
           reviewMonth: cycle.reviewMonth,
+          templateName: template?.templateName || 'General Template',
+          departmentName: template?.departmentId?.departmentName || 'All Departments',
           totalEmployees,
           selfSubmittedPercent: totalEmployees > 0 ? Math.round((selfSubmitted / totalEmployees) * 100) : 0,
           managerSubmittedPercent: totalEmployees > 0 ? Math.round((managerSubmitted / totalEmployees) * 100) : 0,

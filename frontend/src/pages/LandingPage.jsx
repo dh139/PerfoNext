@@ -208,21 +208,13 @@ const LandingPage = () => {
                 <ArrowRight size={13} />
               </Link>
             ) : (
-              <>
-                <Link
-                  to="/login"
-                  className="hidden sm:inline-block text-slate-300 hover:text-white font-semibold text-xs px-3.5 py-1.5 rounded-full hover:bg-slate-800 transition-all"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="bg-sky-600 hover:bg-sky-500 text-white font-bold px-3.5 sm:px-4 py-2 rounded-full text-xs shadow-lg shadow-sky-600/25 transition-all flex items-center gap-1 hover:scale-105 cursor-pointer"
-                >
-                  <span>Register</span>
-                  <ChevronRight size={13} />
-                </Link>
-              </>
+              <Link
+                to="/login"
+                className="bg-sky-600 hover:bg-sky-500 text-white font-bold px-4 py-2 rounded-full text-xs shadow-lg shadow-sky-600/25 transition-all flex items-center gap-1.5 hover:scale-105 cursor-pointer"
+              >
+                <span>Sign In</span>
+                <ArrowRight size={13} />
+              </Link>
             )}
 
             {/* Animated Mobile Hamburger Button */}
@@ -258,9 +250,8 @@ const LandingPage = () => {
             <a href="#roles" onClick={(e) => handleNavJump(e, 'roles')} className="px-3 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-sky-400">System Roles</a>
             <a href="#ai-analytics" onClick={(e) => handleNavJump(e, 'ai-analytics')} className="px-3 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-sky-400">AI Intelligence</a>
             <a href="#ecosystem" onClick={(e) => handleNavJump(e, 'ecosystem')} className="px-3 py-2 rounded-xl text-slate-300 hover:bg-slate-800 hover:text-sky-400">Ecosystem Hub</a>
-            <div className="pt-2 border-t border-slate-800 flex items-center gap-2">
-              <Link to="/login" onClick={() => setMobileNavOpen(false)} className="flex-1 text-center py-2 bg-slate-800 text-slate-200 rounded-xl">Sign In</Link>
-              <Link to="/register" onClick={() => setMobileNavOpen(false)} className="flex-1 text-center py-2 bg-sky-600 text-white rounded-xl">Register Account</Link>
+            <div className="pt-2 border-t border-slate-800">
+              <Link to="/login" onClick={() => setMobileNavOpen(false)} className="block text-center py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl">Sign In to Portal</Link>
             </div>
           </div>
         )}
@@ -286,19 +277,20 @@ const LandingPage = () => {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
           <Link
-            to="/register"
+            to="/login"
             className="w-full sm:w-auto bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold px-8 py-4 rounded-full text-sm shadow-xl shadow-sky-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer transform hover:scale-105"
           >
-            <span>Start Free Registration</span>
+            <span>Sign In to Portal Workspace</span>
             <ArrowRight size={16} />
           </Link>
-          <Link
-            to="/login"
+          <a
+            href="#roles"
+            onClick={(e) => handleNavJump(e, 'roles')}
             className="w-full sm:w-auto bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-200 font-bold px-8 py-4 rounded-full text-sm transition-all flex items-center justify-center gap-2 hover:scale-105"
           >
-            <Key size={16} className="text-sky-400" />
-            <span>Sign In to Portal</span>
-          </Link>
+            <Compass size={16} className="text-sky-400" />
+            <span>Explore System Roles</span>
+          </a>
         </div>
 
         {/* Live Metrics Grid */}

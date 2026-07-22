@@ -6,7 +6,8 @@ const certificationSchema = new mongoose.Schema({
   issuer: { type: String, required: true, trim: true },
   issueDate: { type: Date, required: true },
   expiryDate: { type: Date },
-  fileUrl: { type: String, required: true } // Multer local uploads file path
+  fileUrl: { type: String, required: true }, // Multer local uploads file path
+  extractedText: { type: String, default: '' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Certification', certificationSchema);

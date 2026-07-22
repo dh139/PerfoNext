@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye } from 'lucide-react';
 
 const Certifications = () => {
   const { user } = useAuthStore();
@@ -10,6 +10,7 @@ const Certifications = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [previewDoc, setPreviewDoc] = useState(null);
   // Form State
   const [name, setName] = useState('');
   const [issuer, setIssuer] = useState('');
@@ -228,16 +229,25 @@ const Certifications = () => {
                       <span className="p-2 bg-sky-50 text-sky-600 rounded-xl">
                         <Award size={18} />
                       </span>
-                      <a
-                        href={cert.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 bg-slate-50 text-slate-500 hover:text-slate-800 rounded-lg border border-slate-100 cursor-pointer"
-                        title="Download Certificate"
-                        download
-                      >
-                        <Download size={14} />
-                      </a>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setPreviewDoc({ fileName: cert.name, fileUrl: cert.fileUrl })}
+                          className="p-1.5 bg-sky-50 text-sky-600 hover:text-sky-850 rounded-lg border border-sky-100 cursor-pointer"
+                          title="Preview Certificate"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <a
+                          href={cert.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 bg-slate-50 text-slate-500 hover:text-slate-800 rounded-lg border border-slate-100 cursor-pointer"
+                          title="Download Certificate"
+                          download
+                        >
+                          <Download size={14} />
+                        </a>
+                      </div>
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-800 text-[12px]">{cert.name}</h4>
@@ -264,6 +274,42 @@ const Certifications = () => {
 
       </div>
 
+      {/* Premium Document Preview Modal */}
+      {previewDoc && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-sm truncate pr-4">
+                {previewDoc.fileName}
+              </h3>
+              <button
+                onClick={() => setPreviewDoc(null)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-xs cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 bg-slate-50 border border-slate-150 rounded-xl overflow-hidden relative">
+              {previewDoc.fileUrl.toLowerCase().endsWith('.pdf') ? (
+                <iframe
+                  src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                  className="w-full h-full border-0"
+                  title={previewDoc.fileName}
+                />
+              ) : (
+                <div className="w-full h-full flex justify-center items-center overflow-auto p-4">
+                  <img
+                    src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                    alt={previewDoc.fileName}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
