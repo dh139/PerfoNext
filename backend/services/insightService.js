@@ -5,6 +5,7 @@ const ManagerReview = require('../models/ManagerReview');
 const Certification = require('../models/Certification');
 const Attendance = require('../models/Attendance');
 const Recognition = require('../models/Recognition');
+const AIReport = require('../models/AIReport');
 const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
@@ -12,9 +13,70 @@ const pdf = require('pdf-parse');
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
+// Invalidation helper to track record counts and latest updates
+const getEmployeeDataState = async (employeeId) => {
+  const [
+    scoreCount, latestScore,
+    mgrReviewCount, latestMgrReview,
+    selfCount, latestSelf,
+    certCount, latestCert,
+    attCount, latestAtt,
+    awardCount, latestAward
+  ] = await Promise.all([
+    ReviewScore.countDocuments({ employeeId }),
+    ReviewScore.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt'),
+    ManagerReview.countDocuments({ employeeId }),
+    ManagerReview.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt'),
+    SelfAssessment.countDocuments({ employeeId }),
+    SelfAssessment.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt'),
+    Certification.countDocuments({ employeeId }),
+    Certification.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt'),
+    Attendance.countDocuments({ employeeId }),
+    Attendance.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt'),
+    Recognition.countDocuments({ employeeId }),
+    Recognition.findOne({ employeeId }).sort({ updatedAt: -1 }).select('updatedAt')
+  ]);
+
+  const maxTime = Math.max(
+    latestScore?.updatedAt ? new Date(latestScore.updatedAt).getTime() : 0,
+    latestMgrReview?.updatedAt ? new Date(latestMgrReview.updatedAt).getTime() : 0,
+    latestSelf?.updatedAt ? new Date(latestSelf.updatedAt).getTime() : 0,
+    latestCert?.updatedAt ? new Date(latestCert.updatedAt).getTime() : 0,
+    latestAtt?.updatedAt ? new Date(latestAtt.updatedAt).getTime() : 0,
+    latestAward?.updatedAt ? new Date(latestAward.updatedAt).getTime() : 0
+  );
+
+  const totalCount = scoreCount + mgrReviewCount + selfCount + certCount + attCount + awardCount;
+
+  return { maxTime, totalCount };
+};
+
 const getAiInsights = async (employeeId) => {
   try {
-    // 1. Gather employee details
+    // 1. Check current data state of employee records
+    const dataState = await getEmployeeDataState(employeeId);
+
+    // 2. Fetch existing cached AI report
+    const cachedReport = await AIReport.findOne({ employeeId });
+    if (
+      cachedReport &&
+      cachedReport.metadataMaxTime === dataState.maxTime &&
+      cachedReport.metadataCount === dataState.totalCount
+    ) {
+      // Cache HIT: Return immediately without calling Groq API
+      return {
+        summary: cachedReport.summary,
+        strengths: cachedReport.strengths,
+        improvements: cachedReport.improvements,
+        sentiment: cachedReport.sentiment,
+        turnoverRisk: cachedReport.turnoverRisk,
+        actionItems: cachedReport.actionItems,
+        _cached: true,
+        generatedAt: cachedReport.generatedAt
+      };
+    }
+
+    // Cache MISS / STALE: Fetch details to build the AI prompt context
     const employee = await User.findById(employeeId)
       .populate('departmentId designationId')
       .select('firstName lastName employeeCode role departmentId designationId');
@@ -23,7 +85,7 @@ const getAiInsights = async (employeeId) => {
       throw new Error('Employee not found');
     }
 
-    // 2. Gather performance, attendance, certification, and awards history
+    // Gather performance, attendance, certification, and awards history
     const scores = await ReviewScore.find({ employeeId }).populate('reviewCycleId').sort('createdAt');
     const selfAssessments = await SelfAssessment.find({ employeeId }).sort('createdAt');
     const managerReviews = await ManagerReview.find({ employeeId }).sort('createdAt');
@@ -49,7 +111,7 @@ const getAiInsights = async (employeeId) => {
       }
     }
 
-    // 3. Construct analysis context
+    // Construct analysis context
     let historyContext = `Employee: ${employee.firstName} ${employee.lastName} (Code: ${employee.employeeCode})
 Designation: ${employee.designationId?.designationName || 'N/A'}
 Department: ${employee.departmentId?.departmentName || 'N/A'}
@@ -113,7 +175,7 @@ Performance Review Cycles:
       });
     }
 
-    // 4. Send query to Groq LLM API
+    // Call Groq LLM API
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -146,17 +208,65 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
       })
     });
 
+    const latestScore = scores[scores.length - 1];
+    const latestCycleId = latestScore ? latestScore.reviewCycleId?._id || latestScore.reviewCycleId : null;
+
     if (!response.ok) {
       const errText = await response.text();
       console.warn('Groq API responded with error, utilizing local analytics engine:', errText);
-      return generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards);
+      const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards);
+
+      await AIReport.findOneAndUpdate(
+        { employeeId },
+        {
+          employeeId,
+          reviewCycleId: latestCycleId,
+          summary: fallbackParsed.summary,
+          strengths: fallbackParsed.strengths || [],
+          improvements: fallbackParsed.improvements || [],
+          sentiment: fallbackParsed.sentiment || 'Neutral',
+          turnoverRisk: fallbackParsed.turnoverRisk || 'Low',
+          actionItems: fallbackParsed.actionItems || [],
+          prompt: historyContext,
+          responseRaw: 'LOCAL_FALLBACK_ENGINED_GENERATION: ' + errText,
+          modelUsed: 'local-analytics-fallback',
+          metadataMaxTime: dataState.maxTime,
+          metadataCount: dataState.totalCount,
+          generatedAt: new Date()
+        },
+        { upsert: true }
+      );
+
+      return fallbackParsed;
     }
 
     const resData = await response.json();
     const contentText = resData.choices[0]?.message?.content;
-    
-    // Parse JSON
-    return JSON.parse(contentText);
+    const parsed = JSON.parse(contentText);
+
+    // Save newly generated AI insights to database
+    await AIReport.findOneAndUpdate(
+      { employeeId },
+      {
+        employeeId,
+        reviewCycleId: latestCycleId,
+        summary: parsed.summary,
+        strengths: parsed.strengths || [],
+        improvements: parsed.improvements || [],
+        sentiment: parsed.sentiment || 'Neutral',
+        turnoverRisk: parsed.turnoverRisk || 'Low',
+        actionItems: parsed.actionItems || [],
+        prompt: historyContext,
+        responseRaw: contentText,
+        modelUsed: GROQ_MODEL,
+        metadataMaxTime: dataState.maxTime,
+        metadataCount: dataState.totalCount,
+        generatedAt: new Date()
+      },
+      { upsert: true }
+    );
+
+    return parsed;
 
   } catch (error) {
     console.error('getAiInsights error:', error);

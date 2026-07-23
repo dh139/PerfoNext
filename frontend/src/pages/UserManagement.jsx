@@ -1,12 +1,49 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, ShieldAlert, Trash2 } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, ShieldAlert, Trash2, Shield, Crown, Users, User, Briefcase } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
 
 const UserManagement = () => {
   const { user: currentUser } = useAuthStore();
+  
+  const renderRoleBadge = (role) => {
+    switch (role) {
+      case 'admin':
+        return (
+          <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-rose-250 bg-rose-50 text-rose-700 w-max">
+            Admin
+          </span>
+        );
+      case 'executive':
+        return (
+          <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-amber-250 bg-amber-50 text-amber-700 w-max">
+            Executive
+          </span>
+        );
+      case 'hr':
+        return (
+          <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-teal-250 bg-teal-50 text-teal-700 w-max">
+            HR Manager
+          </span>
+        );
+      case 'manager':
+        return (
+          <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-indigo-250 bg-indigo-50 text-indigo-700 w-max">
+            Manager
+          </span>
+        );
+      case 'employee':
+      default:
+        return (
+          <span className="inline-block text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-250 bg-slate-100 text-slate-650 w-max">
+            Employee
+          </span>
+        );
+    }
+  };
+
   const [users, setUsers] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -29,6 +66,7 @@ const UserManagement = () => {
   const [designationId, setDesignationId] = useState('');
   const [managerId, setManagerId] = useState('');
   const [employmentStatus, setEmploymentStatus] = useState('active');
+  const [joiningDate, setJoiningDate] = useState('');
 
   const fetchData = async () => {
     try {
@@ -78,6 +116,7 @@ const UserManagement = () => {
     setRole('employee');
     setManagerId('');
     setEmploymentStatus('active');
+    setJoiningDate(new Date().toISOString().split('T')[0]);
     if (departments.length > 0) setDepartmentId(departments[0]._id);
     setShowModal(true);
   };
@@ -96,6 +135,7 @@ const UserManagement = () => {
     setDesignationId(user.designationId?._id || '');
     setManagerId(user.managerId?._id || '');
     setEmploymentStatus(user.employmentStatus);
+    setJoiningDate(user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : '');
     setShowModal(true);
   };
 
@@ -113,6 +153,7 @@ const UserManagement = () => {
       departmentId,
       designationId,
       managerId: managerId || '',
+      joiningDate,
       employmentStatus
     };
 
@@ -248,16 +289,21 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.map(u => (
-                <tr key={u._id} className="hover:bg-slate-50/50 transition-colors">
+               {users.map(u => (
+                <tr 
+                  key={u._id} 
+                  className={`transition-colors ${
+                    u.role === 'manager' 
+                      ? 'bg-emerald-100/60 hover:bg-emerald-200/60' 
+                      : 'hover:bg-slate-50/50'
+                  }`}
+                >
                   <td className="py-4 px-4 font-bold text-slate-500">{u.employeeCode}</td>
                   <td className="py-4 px-4 font-bold text-slate-800">{u.firstName} {u.lastName}</td>
                   <td className="py-4 px-4 text-slate-650">{u.email}</td>
                   <td className="py-4 px-4">
-                    <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border border-slate-200 bg-slate-100 text-slate-600 block w-max">
-                      {u.role}
-                    </span>
-                    <span className="text-[9px] font-bold text-sky-700 mt-1 block">
+                    {renderRoleBadge(u.role)}
+                    <span className="text-[9px] font-bold text-slate-400 mt-1 block">
                       Level {u.level || 5}
                     </span>
                   </td>
@@ -476,7 +522,7 @@ const UserManagement = () => {
 
                 {/* 6. Direct Manager */}
                 {role !== 'executive' && (
-                  <div className="space-y-1.5 md:col-span-2">
+                  <div className="space-y-1.5">
                     <div className="flex justify-between items-center">
                       <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
                       <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-500' : 'text-slate-400 font-normal'}`}>
@@ -498,6 +544,18 @@ const UserManagement = () => {
                     </select>
                   </div>
                 )}
+
+                {/* 7. Joining Date */}
+                <div className={`space-y-1.5 ${role === 'executive' ? 'md:col-span-2' : ''}`}>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Joining Date *</label>
+                  <input
+                    type="date"
+                    value={joiningDate}
+                    onChange={(e) => setJoiningDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Actions */}

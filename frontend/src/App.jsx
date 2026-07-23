@@ -77,13 +77,13 @@ function App() {
           {/* Employee Report (Self check) */}
           <Route path="/reports/employee/:id" element={<EmployeeReport />} />
           
-          {/* Sub-group: Employee Only */}
-          <Route element={<ProtectedRoute allowedRoles={['employee']} />}>
+          {/* Self Assessment Form */}
+          <Route element={<ProtectedRoute allowedRoles={['employee', 'manager', 'hr', 'executive']} />}>
             <Route path="/assessment/:cycleId" element={<SelfAssessmentForm />} />
           </Route>
 
-          {/* Sub-group: Manager Only */}
-          <Route element={<ProtectedRoute allowedRoles={['manager']} />}>
+          {/* Manager Review Form */}
+          <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/review/:cycleId/:employeeId" element={<ManagerReviewForm />} />
           </Route>
 
@@ -96,12 +96,12 @@ function App() {
           {/* Sub-group: HR, Admin, Executive */}
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin', 'executive']} />}>
             <Route path="/admin/users" element={<UserManagement />} />
+            <Route path="/hr/cycles" element={<ReviewCycles />} />
           </Route>
 
           {/* Sub-group: HR, Admin */}
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin']} />}>
             <Route path="/hr/kpis" element={<KpiTemplates />} />
-            <Route path="/hr/cycles" element={<ReviewCycles />} />
           </Route>
 
           {/* Sub-group: Admin, Executive */}

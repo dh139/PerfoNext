@@ -94,8 +94,9 @@ const SelfAssessmentForm = () => {
         if (!score) {
           newErrors[item._id] = 'Score is required.';
           isValid = false;
-        } else if (score < 3 && !comment.trim()) {
-          newErrors[item._id] = 'Justification comment is mandatory when score is less than 3.';
+        }
+        if (!comment.trim()) {
+          newErrors[item._id] = 'Justification comment is mandatory.';
           isValid = false;
         }
       }
@@ -255,11 +256,9 @@ const SelfAssessmentForm = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                      Justification Comment
+                      Justification Comment <span className="text-rose-500 font-bold">*</span>
                     </label>
-                    {score > 0 && score < 3 && (
-                      <span className="text-[9px] font-extrabold text-rose-600 uppercase">Comment Mandatory</span>
-                    )}
+                    <span className="text-[9px] font-extrabold text-rose-600 uppercase">Comment Mandatory</span>
                   </div>
                   <textarea
                     rows="2"
@@ -268,11 +267,13 @@ const SelfAssessmentForm = () => {
                     placeholder="Provide details about your achievements or challenges..."
                     disabled={assessmentStatus === 'submitted'}
                     className={`w-full text-xs p-3 border rounded-xl outline-none focus:border-sky-500 bg-slate-50/50 resize-none ${
-                      errorMsg && score < 3 ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200'
+                      errorMsg && !comment.trim() ? 'border-rose-300 focus:border-rose-500 bg-rose-50/20' : 'border-slate-200'
                     }`}
                   />
-                  {errorMsg && score > 0 && score < 3 && (
-                    <p className="text-[10px] font-semibold text-rose-600">{errorMsg}</p>
+                  {errorMsg && !comment.trim() && (
+                    <p className="text-[10px] font-semibold text-rose-600">
+                      {errorMsg === 'Score is required.' ? 'Comment is required.' : errorMsg}
+                    </p>
                   )}
                 </div>
               </div>

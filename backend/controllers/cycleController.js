@@ -13,6 +13,36 @@ const {
   sendFinalReportGeneratedEmail
 } = require('../services/emailService');
 
+const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDate) => {
+  if (!joiningDate) return false;
+  
+  const jd = new Date(joiningDate);
+  const cycleStart = startDate ? new Date(startDate) : new Date();
+  const diffTime = cycleStart - jd;
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+  if (cycleType === 'quarterly') {
+    // Must have at least 90 days of experience
+    return diffDays >= 90;
+  }
+
+  if (cycleType === 'annual') {
+    // Must have at least 365 days of experience
+    return diffDays >= 365;
+  }
+
+  // default 'monthly'
+  const yearMatch = reviewMonth.match(/^(\d{4})/);
+  if (!yearMatch) return true;
+  const year = parseInt(yearMatch[1], 10);
+
+  const monthMatch = reviewMonth.match(/-(\d{2})/);
+  if (!monthMatch) return true;
+  const month = parseInt(monthMatch[1], 10);
+  const startOfMonth = new Date(year, month - 1, 1);
+  return jd <= startOfMonth;
+};
+
 // ==================== REVIEW CYCLE CONTROLLERS ====================
 
 const getReviewCycles = async (req, res) => {
@@ -43,14 +73,15 @@ const getReviewCycleById = async (req, res) => {
 
 const createReviewCycle = async (req, res) => {
   try {
-    const { reviewMonth, startDate, endDate, status, kpiTemplateId } = req.body;
+    const { reviewMonth, startDate, endDate, status, kpiTemplateId, cycleType } = req.body;
 
     const cycle = await ReviewCycle.create({
       reviewMonth,
       startDate,
       endDate,
       status: status || 'draft',
-      kpiTemplateId
+      kpiTemplateId,
+      cycleType
     });
 
     if (cycle.status === 'active') {
@@ -144,7 +175,19 @@ const getSelfAssessments = async (req, res) => {
     } else if (employeeId) {
       filter.employeeId = employeeId;
     }
-    if (reviewCycleId) filter.reviewCycleId = reviewCycleId;
+    if (reviewCycleId) {
+      const cycle = await ReviewCycle.findById(reviewCycleId);
+      if (cycle) {
+        const empId = req.user.role === 'employee' ? req.user.id : employeeId;
+        if (empId) {
+          const emp = await User.findById(empId);
+          if (emp && !isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+            return res.status(403).json({ message: 'Employee is not eligible for this review cycle.' });
+          }
+        }
+      }
+      filter.reviewCycleId = reviewCycleId;
+    }
     if (status) filter.status = status;
 
     const assessments = await SelfAssessment.find(filter)
@@ -185,6 +228,12 @@ const submitSelfAssessment = async (req, res) => {
       return res.status(400).json({ message: 'Self assessment can only be submitted for active review cycles.' });
     }
 
+    // Verify user eligibility based on joining date
+    const emp = await User.findById(employeeId);
+    if (emp && !isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+      return res.status(403).json({ message: 'You are not eligible for this review cycle due to joining date constraints.' });
+    }
+
     if (status === 'submitted') {
       if (!details || !Array.isArray(details) || details.length === 0) {
         return res.status(400).json({ message: 'Submission details are required.' });
@@ -193,8 +242,8 @@ const submitSelfAssessment = async (req, res) => {
         if (!d.score || d.score < 1 || d.score > 5) {
           return res.status(400).json({ message: 'A score between 1 and 5 is required for all KPIs.' });
         }
-        if (d.score < 3 && (!d.comment || !d.comment.trim())) {
-          return res.status(400).json({ message: 'A justification comment is required for scores below 3.' });
+        if (!d.comment || !d.comment.trim()) {
+          return res.status(400).json({ message: 'A justification comment is required for all evaluated items.' });
         }
       }
     }
@@ -310,10 +359,15 @@ const submitManagerReview = async (req, res) => {
       return res.status(400).json({ message: 'Manager review can only be submitted for active review cycles.' });
     }
 
-    // Verify manager assignment or HR/Admin access
+    // Verify manager assignment or HR/Admin/Executive access
     const employee = await User.findById(employeeId);
-    if (!employee || (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin'].includes(req.user.role))) {
+    if (!employee || (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin', 'executive'].includes(req.user.role))) {
       return res.status(403).json({ message: 'You are not the designated manager for this employee.' });
+    }
+
+    // Verify employee eligibility based on joining date
+    if (!isEmployeeEligibleForCycle(employee.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+      return res.status(403).json({ message: 'Employee is not eligible for this review cycle due to joining date constraints.' });
     }
 
     let review = await ManagerReview.findOne({ reviewCycleId, employeeId });

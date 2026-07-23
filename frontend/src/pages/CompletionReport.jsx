@@ -9,6 +9,8 @@ import { exportToCsv } from '../utils/csvExport';
 const CompletionReport = () => {
   const [cycles, setCycles] = useState([]);
   const [selectedCycleId, setSelectedCycleId] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -101,21 +103,167 @@ const CompletionReport = () => {
         <div className="flex-1 space-y-2">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Cycle</label>
           <div className="relative">
-            <select
-              value={selectedCycleId}
-              onChange={(e) => setSelectedCycleId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-semibold p-3 rounded-xl text-xs outline-none focus:border-sky-500"
+            <button
+              type="button"
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-3.5 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs cursor-pointer text-left"
             >
-              {cycles.map(c => {
-                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                const tempName = c.kpiTemplateId?.templateName || 'General Template';
+              {(() => {
+                const selected = cycles.find(c => c._id === selectedCycleId);
+                if (!selected) return 'Select a Review Cycle...';
+                const deptName = selected.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                const tempName = selected.kpiTemplateId?.templateName || 'General Template';
                 return (
-                  <option key={c._id} value={c._id}>
-                    Month: {c.reviewMonth} — Dept: {deptName} ({tempName}) ({c.status})
-                  </option>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
+                      {selected.reviewMonth}
+                    </span>
+                    <span className="text-slate-800">
+                      Dept: <span className="font-extrabold">{deptName}</span> <span className="font-normal text-slate-500">({tempName})</span>
+                    </span>
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                      selected.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-650'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${selected.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      {selected.status}
+                    </span>
+                  </div>
                 );
-              })}
-            </select>
+              })()}
+              <span className="text-slate-400 ml-2">▼</span>
+            </button>
+
+            {dropdownOpen && (
+              <>
+                {/* Backdrop overlay to close dropdown */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    setSearchQuery('');
+                  }}
+                />
+                
+                {/* Dropdown panel */}
+                <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-96 flex flex-col overflow-hidden animate-fade-in">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs shrink-0">
+                    <Search size={14} className="text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search cycles by month, department, template..."
+                      className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  
+                  <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                    {(() => {
+                      const filtered = cycles.filter(c => {
+                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                        const tempName = c.kpiTemplateId?.templateName || 'General Template';
+                        return `${c.reviewMonth} ${deptName} ${tempName} ${c.status}`.toLowerCase().includes(searchQuery.toLowerCase());
+                      });
+
+                      if (filtered.length === 0) {
+                        return <p className="text-slate-400 text-center py-6 text-xs">No matching cycles found.</p>;
+                      }
+
+                      // Split into Active and Closed
+                      const active = filtered.filter(c => c.status === 'active');
+                      const closed = filtered.filter(c => c.status !== 'active');
+
+                      return (
+                        <>
+                          {active.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="px-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Active Cycles</p>
+                              {active.map(c => {
+                                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                                const tempName = c.kpiTemplateId?.templateName || 'General Template';
+                                return (
+                                  <button
+                                    key={c._id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCycleId(c._id);
+                                      setDropdownOpen(false);
+                                      setSearchQuery('');
+                                    }}
+                                    className={`w-full text-left p-2.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                                      selectedCycleId === c._id
+                                        ? 'bg-sky-50 text-sky-850 font-bold'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded">
+                                          {c.reviewMonth}
+                                        </span>
+                                        <span className="font-extrabold">Dept: {deptName}</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-400 font-medium pl-1">
+                                        Template: {tempName}
+                                      </p>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                                      Active
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {closed.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="px-2 pt-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Closed Cycles</p>
+                              {closed.map(c => {
+                                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                                const tempName = c.kpiTemplateId?.templateName || 'General Template';
+                                return (
+                                  <button
+                                    key={c._id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCycleId(c._id);
+                                      setDropdownOpen(false);
+                                      setSearchQuery('');
+                                    }}
+                                    className={`w-full text-left p-2.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                                      selectedCycleId === c._id
+                                        ? 'bg-sky-50 text-sky-850 font-bold'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                                          {c.reviewMonth}
+                                        </span>
+                                        <span className="font-semibold text-slate-600">Dept: {deptName}</span>
+                                      </div>
+                                      <p className="text-[10px] text-slate-400 font-medium pl-1">
+                                        Template: {tempName}
+                                      </p>
+                                    </div>
+                                    <span className="inline-flex items-center gap-1 text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
+                                      Closed
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

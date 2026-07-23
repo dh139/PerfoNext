@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Calendar, MessageSquare, Send, CheckCircle2, User, Users, Star, ArrowUpRight } from 'lucide-react';
+import { AlertCircle, Calendar, MessageSquare, Send, CheckCircle2, User, Users, Star, ArrowUpRight, Search } from 'lucide-react';
 
 const FeedbackCenter = () => {
   const { user } = useAuthStore();
@@ -41,6 +41,14 @@ const FeedbackCenter = () => {
   const [summaryEmployeeId, setSummaryEmployeeId] = useState('');
   const [summaryCycleId, setSummaryCycleId] = useState('');
   const [summaryData, setSummaryData] = useState(null);
+
+  // Searchable dropdown states
+  const [subjDropdownOpen, setSubjDropdownOpen] = useState(false);
+  const [subjSearchQuery, setSubjSearchQuery] = useState('');
+  const [revDropdownOpen, setRevDropdownOpen] = useState(false);
+  const [revSearchQuery, setRevSearchQuery] = useState('');
+  const [sumDropdownOpen, setSumDropdownOpen] = useState(false);
+  const [sumSearchQuery, setSumSearchQuery] = useState('');
 
   useEffect(() => {
     fetchPendingRequests();
@@ -364,33 +372,115 @@ const FeedbackCenter = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             
             {/* Subject employee */}
-            <div className="space-y-1">
+            <div className="space-y-1 relative">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Subject Employee</label>
-              <select
-                value={requestForm.employeeId}
-                onChange={(e) => setRequestForm({ ...requestForm, employeeId: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-                required
+              <button
+                type="button"
+                onClick={() => setSubjDropdownOpen(!subjDropdownOpen)}
+                className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-700 text-left transition-colors cursor-pointer"
               >
-                {users.map(u => (
-                  <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.role})</option>
-                ))}
-              </select>
+                <span>
+                  {(() => {
+                    const selected = users.find(u => u._id === requestForm.employeeId);
+                    return selected ? `${selected.firstName} ${selected.lastName} (${selected.role.toUpperCase()})` : 'Select Subject...';
+                  })()}
+                </span>
+                <span className="text-slate-400 text-[10px]">▼</span>
+              </button>
+
+              {subjDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => { setSubjDropdownOpen(false); setSubjSearchQuery(''); }} />
+                  <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-60 overflow-y-auto animate-fade-in">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                      <Search size={14} className="text-slate-400" />
+                      <input
+                        type="text"
+                        value={subjSearchQuery}
+                        onChange={(e) => setSubjSearchQuery(e.target.value)}
+                        placeholder="Search employee..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      {users.filter(u => `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(subjSearchQuery.toLowerCase())).map(u => (
+                        <button
+                          key={u._id}
+                          type="button"
+                          onClick={() => {
+                            setRequestForm(prev => ({ ...prev, employeeId: u._id }));
+                            setSubjDropdownOpen(false);
+                            setSubjSearchQuery('');
+                          }}
+                          className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
+                            requestForm.employeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <span>{u.firstName} {u.lastName}</span>
+                          <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Colleague Reviewer */}
-            <div className="space-y-1">
+            <div className="space-y-1 relative">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Assigned Peer/Subordinate Reviewer</label>
-              <select
-                value={requestForm.reviewerId}
-                onChange={(e) => setRequestForm({ ...requestForm, reviewerId: e.target.value })}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-                required
+              <button
+                type="button"
+                onClick={() => setRevDropdownOpen(!revDropdownOpen)}
+                className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-700 text-left transition-colors cursor-pointer"
               >
-                {users.map(u => (
-                  <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.role})</option>
-                ))}
-              </select>
+                <span>
+                  {(() => {
+                    const selected = users.find(u => u._id === requestForm.reviewerId);
+                    return selected ? `${selected.firstName} ${selected.lastName} (${selected.role.toUpperCase()})` : 'Select Reviewer...';
+                  })()}
+                </span>
+                <span className="text-slate-400 text-[10px]">▼</span>
+              </button>
+
+              {revDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => { setRevDropdownOpen(false); setRevSearchQuery(''); }} />
+                  <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-60 overflow-y-auto animate-fade-in">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                      <Search size={14} className="text-slate-400" />
+                      <input
+                        type="text"
+                        value={revSearchQuery}
+                        onChange={(e) => setRevSearchQuery(e.target.value)}
+                        placeholder="Search reviewer..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      {users.filter(u => `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(revSearchQuery.toLowerCase())).map(u => (
+                        <button
+                          key={u._id}
+                          type="button"
+                          onClick={() => {
+                            setRequestForm(prev => ({ ...prev, reviewerId: u._id }));
+                            setRevDropdownOpen(false);
+                            setRevSearchQuery('');
+                          }}
+                          className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
+                            requestForm.reviewerId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <span>{u.firstName} {u.lastName}</span>
+                          <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Relationship Category */}
@@ -444,17 +534,58 @@ const FeedbackCenter = () => {
         <div className="space-y-6">
           {/* Selector Card */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-end">
-            <div className="space-y-1 flex-1">
+            <div className="space-y-1 flex-1 relative">
               <label className="text-[10px] font-bold text-slate-500 uppercase">Employee</label>
-              <select
-                value={summaryEmployeeId}
-                onChange={(e) => setSummaryEmployeeId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none"
+              <button
+                type="button"
+                onClick={() => setSumDropdownOpen(!sumDropdownOpen)}
+                className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-700 text-left transition-colors cursor-pointer"
               >
-                {users.map(u => (
-                  <option key={u._id} value={u._id}>{u.firstName} {u.lastName}</option>
-                ))}
-              </select>
+                <span>
+                  {(() => {
+                    const selected = users.find(u => u._id === summaryEmployeeId);
+                    return selected ? `${selected.firstName} ${selected.lastName}` : 'Select Employee...';
+                  })()}
+                </span>
+                <span className="text-slate-400 text-[10px]">▼</span>
+              </button>
+
+              {sumDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => { setSumDropdownOpen(false); setSumSearchQuery(''); }} />
+                  <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-60 overflow-y-auto animate-fade-in">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                      <Search size={14} className="text-slate-400" />
+                      <input
+                        type="text"
+                        value={sumSearchQuery}
+                        onChange={(e) => setSumSearchQuery(e.target.value)}
+                        placeholder="Search employee..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      {users.filter(u => `${u.firstName} ${u.lastName}`.toLowerCase().includes(sumSearchQuery.toLowerCase())).map(u => (
+                        <button
+                          key={u._id}
+                          type="button"
+                          onClick={() => {
+                            setSummaryEmployeeId(u._id);
+                            setSumDropdownOpen(false);
+                            setSumSearchQuery('');
+                          }}
+                          className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
+                            summaryEmployeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <span>{u.firstName} {u.lastName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="space-y-1 flex-1">

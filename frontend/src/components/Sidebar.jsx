@@ -251,27 +251,33 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
         )}
 
         {/* HR Desk */}
-        {(user?.role === 'hr' || user?.role === 'admin') && (
+        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
           <>
             <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">HR Desk</p>
+              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Management & HR Desk</p>
             </div>
-            <Link to="/admin/users" className={linkClass('/admin/users')}>
-              <Users size={18} />
-              <span>Users Database</span>
-            </Link>
-            <Link to="/hr/kpis" className={linkClass('/hr/kpis')}>
-              <Briefcase size={18} />
-              <span>KPI Templates</span>
-            </Link>
+            {user?.role !== 'executive' && (
+              <Link to="/admin/users" className={linkClass('/admin/users')}>
+                <Users size={18} />
+                <span>Users Database</span>
+              </Link>
+            )}
+            {user?.role !== 'executive' && (
+              <Link to="/hr/kpis" className={linkClass('/hr/kpis')}>
+                <Briefcase size={18} />
+                <span>KPI Templates</span>
+              </Link>
+            )}
             <Link to="/hr/cycles" className={linkClass('/hr/cycles')}>
               <Calendar size={18} />
               <span>Review Cycles</span>
             </Link>
-            <Link to="/reports/completion" className={linkClass('/reports/completion')}>
-              <ClipboardList size={18} />
-              <span>Completion Report</span>
-            </Link>
+            {user?.role !== 'executive' && (
+              <Link to="/reports/completion" className={linkClass('/reports/completion')}>
+                <ClipboardList size={18} />
+                <span>Completion Report</span>
+              </Link>
+            )}
           </>
         )}
 

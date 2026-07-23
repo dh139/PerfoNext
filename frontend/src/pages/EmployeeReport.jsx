@@ -18,6 +18,8 @@ const EmployeeReport = () => {
   // Phase 2 states
   const [recognitions, setRecognitions] = useState([]);
   const [documents, setDocuments] = useState([]);
+  const [certifications, setCertifications] = useState([]);
+  const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
 
@@ -46,6 +48,12 @@ const EmployeeReport = () => {
 
       const docRes = await api.get(`/api/documents?employeeId=${employeeId}`);
       setDocuments(docRes.data);
+
+      const certRes = await api.get(`/api/certifications?employeeId=${employeeId}`);
+      setCertifications(certRes.data);
+
+      const attRes = await api.get(`/api/integrations/attendance?employeeId=${employeeId}`);
+      setAttendanceRecords(attRes.data);
     } catch (err) {
       console.error('Failed to load addons:', err);
     }
@@ -210,25 +218,6 @@ const EmployeeReport = () => {
               <p className="font-bold text-slate-700 mt-0.5">{employee.managerId.firstName} {employee.managerId.lastName}</p>
             </div>
           )}
-          {scores.length > 0 && (
-            <button
-              onClick={() => exportToCsv(`${employee.employeeCode}-score-history`, [
-                { key: 'reviewCycleId.reviewMonth', label: 'Review Month' },
-                { key: 'finalScore', label: 'Final Score' },
-                { key: 'rating', label: 'Rating' },
-                { key: 'categoryScores.workQuality', label: 'Work Quality' },
-                { key: 'categoryScores.productivity', label: 'Productivity' },
-                { key: 'categoryScores.technical', label: 'Technical Skills' },
-                { key: 'categoryScores.communication', label: 'Communication' },
-                { key: 'categoryScores.ownership', label: 'Ownership' },
-                { key: 'categoryScores.learning', label: 'Learning & Growth' }
-              ], scores)}
-              className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] font-bold shrink-0 cursor-pointer"
-            >
-              <Download size={12} />
-              <span>Export Score History</span>
-            </button>
-          )}
         </div>
       </div>
 
@@ -334,7 +323,7 @@ const EmployeeReport = () => {
             </div>
           )}
 
-          {/* Cycle Selector & Main Rating Card */}
+          {/* Cycle Selector & Main Rating Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Cycle Selector */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
@@ -366,24 +355,73 @@ const EmployeeReport = () => {
 
             {/* Overall final rating summary card */}
             {selectedScore && (
-              <div className="lg:col-span-2 bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-sky-500/5 rounded-full blur-2xl pointer-events-none"></div>
+              <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-xl pointer-events-none"></div>
                 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <span className="text-[9px] uppercase font-extrabold text-sky-400 tracking-wider">Evaluation Result</span>
-                  <h3 className="text-2xl font-extrabold tracking-tight">{selectedScore.rating}</h3>
-                  <p className="text-slate-400 text-xs leading-normal">
+                  <h3 className="text-lg font-extrabold tracking-tight">{selectedScore.rating}</h3>
+                  <p className="text-slate-400 text-[10px] leading-relaxed">
                     Aggregated rating based on the core weighting formula across 6 categories.
                   </p>
                 </div>
 
-                <div className="bg-slate-800/80 border border-slate-800 p-6 rounded-2xl text-center shrink-0 min-w-36">
+                <div className="bg-slate-800/80 border border-slate-800/60 p-3 rounded-xl text-center shrink-0 w-full mt-4 flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Final Score</span>
-                  <h2 className="text-4xl font-black text-white mt-1">{selectedScore.finalScore}</h2>
-                  <span className="text-[10px] text-slate-500 mt-1 block">out of 5.0</span>
+                  <div className="flex items-baseline gap-0.5">
+                    <h2 className="text-xl font-black text-white">{selectedScore.finalScore.toFixed(2)}</h2>
+                    <span className="text-[9px] text-slate-500">/ 5.0</span>
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* External Activities Rating Card */}
+            {selectedScore && (() => {
+              const avgAttendance = attendanceRecords.length > 0
+                ? attendanceRecords.reduce((sum, r) => sum + r.attendancePercentage, 0) / attendanceRecords.length
+                : 100;
+              const attScore = Math.round((avgAttendance / 100) * 5 * 100) / 100;
+
+              const certCount = certifications.length;
+              const certScore = certCount === 0 ? 1.0 : certCount === 1 ? 3.0 : certCount === 2 ? 4.0 : 5.0;
+
+              const awardsCount = recognitions.length;
+              const awdScore = awardsCount === 0 ? 1.0 : awardsCount === 1 ? 4.0 : 5.0;
+
+              const combinedExternalScore = Math.round(((attScore + certScore + awdScore) / 3) * 100) / 100;
+              
+              const getExternalRatingBand = (score) => {
+                if (score >= 4.5) return 'Outstanding';
+                if (score >= 4.0) return 'Exceeds Expectations';
+                if (score >= 3.0) return 'Meets Expectations';
+                if (score >= 2.0) return 'Needs Improvement';
+                return 'Unsatisfactory';
+              };
+              const externalRating = getExternalRatingBand(combinedExternalScore);
+
+              return (
+                <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
+                  
+                  <div className="space-y-1">
+                    <span className="text-[9px] uppercase font-extrabold text-emerald-400 tracking-wider">External Activities</span>
+                    <h3 className="text-lg font-extrabold tracking-tight">{externalRating}</h3>
+                    <p className="text-slate-400 text-[10px] leading-relaxed">
+                      Combined score of Attendance, Certifications, and Awards & Recognitions.
+                    </p>
+                  </div>
+
+                  <div className="bg-slate-800/80 border border-slate-800/60 p-3 rounded-xl text-center shrink-0 w-full mt-4 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">External Score</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <h2 className="text-xl font-black text-white">{combinedExternalScore.toFixed(2)}</h2>
+                      <span className="text-[9px] text-slate-500">/ 5.0</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Category Scores Progress Grid */}

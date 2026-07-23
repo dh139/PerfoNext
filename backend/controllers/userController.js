@@ -26,33 +26,36 @@ const validateManagerSelection = async (employeeId, managerId, role, departmentI
   }
 };
 
-const determineUserLevel = (role, designationName) => {
-  const name = (designationName || '').toLowerCase();
-  
+const determineUserLevel = (role, joiningDate) => {
   if (role === 'executive') return 1;
   if (role === 'hr') return 2;
-  
+  if (role === 'admin') return 3;
+
+  // Calculate years of experience from joiningDate to now
+  const jd = joiningDate ? new Date(joiningDate) : new Date();
+  const diffTime = Math.abs(new Date() - jd);
+  const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+
   if (role === 'manager') {
-    if (name.includes('manager') || name.includes('head') || name.includes('director')) {
-      return 2; // Department Manager / Head
+    if (diffYears >= 5) {
+      return 2; // Department Head / Senior Manager
     }
-    return 3; // Team Lead / Reporting Manager
+    return 3; // Team Lead / Manager
   }
-  
+
   if (role === 'employee') {
-    if (name.includes('senior') || name.includes('lead')) {
+    if (diffYears >= 5) {
+      return 3; // Principal / Lead Employee
+    }
+    if (diffYears >= 2) {
       return 4; // Senior Employee
     }
-    if (name.includes('associate') || name.includes('junior') || name.includes('trainee') || name.includes('writer')) {
-      return 6; // Junior Employee / Trainee
+    if (diffYears >= 1) {
+      return 5; // Standard Employee
     }
-    return 5; // Standard Employee
+    return 6; // Junior Employee / Trainee
   }
-  
-  if (role === 'admin') {
-    return 3; // Admins usually manage application
-  }
-  
+
   return 5; // Default fallback
 };
 
@@ -165,13 +168,7 @@ const createUser = async (req, res) => {
       }
     }
 
-    // Resolve designation name to determine level
-    let designationName = '';
-    if (designationId) {
-      const desDoc = await Designation.findById(designationId);
-      if (desDoc) designationName = desDoc.designationName;
-    }
-    const computedLevel = determineUserLevel(role, designationName);
+    const computedLevel = determineUserLevel(role, joiningDate);
 
     // Validate manager selection
     try {
@@ -290,16 +287,11 @@ const updateUser = async (req, res) => {
       updates.designationId = null;
     }
 
-    // Auto-calculate level if role or designation changes
-    if (updates.role || updates.designationId) {
+    // Auto-calculate level if role or joiningDate changes
+    if (updates.role || updates.joiningDate !== undefined) {
       const targetRole = updates.role || user.role;
-      const targetDesignationId = updates.designationId || user.designationId;
-      let designationName = '';
-      if (targetDesignationId) {
-        const desDoc = await Designation.findById(targetDesignationId);
-        if (desDoc) designationName = desDoc.designationName;
-      }
-      updates.level = determineUserLevel(targetRole, designationName);
+      const targetJoiningDate = updates.joiningDate !== undefined ? updates.joiningDate : user.joiningDate;
+      updates.level = determineUserLevel(targetRole, targetJoiningDate);
     }
 
     // Validate manager selection

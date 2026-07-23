@@ -66,17 +66,17 @@ router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr'), k
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);
 router.get('/review-cycles/:id', verifyToken, cycleController.getReviewCycleById);
-router.post('/review-cycles', verifyToken, authorizeRoles('admin', 'hr'), cycleController.createReviewCycle);
-router.patch('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr'), cycleController.updateReviewCycle);
+router.post('/review-cycles', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.createReviewCycle);
+router.patch('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.updateReviewCycle);
 
 // Assessments & Reviews
 router.get('/self-assessments', verifyToken, cycleController.getSelfAssessments);
 router.get('/self-assessments/:id', verifyToken, cycleController.getSelfAssessmentById);
-router.post('/self-assessments', verifyToken, authorizeRoles('employee'), cycleController.submitSelfAssessment);
+router.post('/self-assessments', verifyToken, authorizeRoles('employee', 'manager', 'hr', 'executive'), cycleController.submitSelfAssessment);
 
 router.get('/manager-reviews', verifyToken, cycleController.getManagerReviews);
 router.get('/manager-reviews/:id', verifyToken, cycleController.getManagerReviewById);
-router.post('/manager-reviews', verifyToken, authorizeRoles('manager'), cycleController.submitManagerReview);
+router.post('/manager-reviews', verifyToken, authorizeRoles('manager', 'hr', 'admin', 'executive'), cycleController.submitManagerReview);
 
 // Scores
 router.get('/review-scores', verifyToken, cycleController.getReviewScores);

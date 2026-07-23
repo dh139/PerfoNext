@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, CheckCircle2, Star, Layers, Activity, Award, Plus, User, Trash2, Edit } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Star, Layers, Activity, Award, Plus, User, Trash2, Edit, Search } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
 const SkillMatrix = () => {
@@ -22,11 +22,14 @@ const SkillMatrix = () => {
   const [newSkillDeptId, setNewSkillDeptId] = useState('');
   const [newSkillDesgId, setNewSkillDesgId] = useState('');
   const [editingSkillId, setEditingSkillId] = useState(null);
+  const [showSkillModal, setShowSkillModal] = useState(false);
 
   // Employee Selection (for Manager/HR viewing others)
   const [users, setUsers] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(user?.id);
   const [employeeProfile, setEmployeeProfile] = useState(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchMetadata();
@@ -128,6 +131,7 @@ const SkillMatrix = () => {
     setNewSkillCategory(sk.category);
     setNewSkillDeptId(sk.departmentId?._id || sk.departmentId || '');
     setNewSkillDesgId(sk.designationId?._id || sk.designationId || '');
+    setShowSkillModal(true);
   };
 
   const handleCancelEdit = () => {
@@ -136,6 +140,7 @@ const SkillMatrix = () => {
     setNewSkillCategory('Frontend');
     setNewSkillDeptId('');
     setNewSkillDesgId('');
+    setShowSkillModal(false);
   };
 
   const handleDeleteSkill = (skillId) => {
@@ -195,6 +200,7 @@ const SkillMatrix = () => {
         });
         setSuccess('New skill added to master catalog!');
         setNewSkillName('');
+        setShowSkillModal(false);
       }
       
       const selectedUser = users.find(u => u._id === selectedEmployeeId) || (selectedEmployeeId === user?.id ? user : null);
@@ -291,22 +297,116 @@ const SkillMatrix = () => {
           <p className="text-slate-400 mt-0.5">Evaluate capability benchmarks and technical proficiency ratings</p>
         </div>
 
-        {/* Employee selector for managers / HR */}
-        {user?.role !== 'employee' && (
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs">
-            <User size={14} className="text-slate-400" />
-            <span className="font-bold text-slate-500 uppercase tracking-wide text-[9px]">Select Staff:</span>
-            <select
-              value={selectedEmployeeId}
-              onChange={(e) => setSelectedEmployeeId(e.target.value)}
-              className="bg-transparent font-bold text-slate-700 outline-none cursor-pointer"
+        <div className="flex items-center gap-3">
+          {/* Employee selector for managers / HR */}
+          {user?.role !== 'employee' && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex items-center gap-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 px-3.5 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs cursor-pointer"
+              >
+                <User size={14} className="text-slate-500" />
+                <div className="text-left">
+                  <span className="text-[8px] text-slate-400 block uppercase tracking-wider leading-none">Select Staff</span>
+                  <span className="mt-0.5 block">
+                    {(() => {
+                      const selected = users.find(u => u._id === selectedEmployeeId);
+                      return selected ? `${selected.firstName} ${selected.lastName} (${selected.role.toUpperCase()})` : 'Select Staff Member';
+                    })()}
+                  </span>
+                </div>
+                <span className="ml-1 text-slate-400 text-[10px]">▼</span>
+              </button>
+
+              {dropdownOpen && (
+                <>
+                  {/* Backdrop overlay to close dropdown */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => {
+                      setDropdownOpen(false);
+                      setSearchQuery('');
+                    }}
+                  />
+                  
+                  {/* Dropdown panel */}
+                  <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 animate-fade-in">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
+                      <Search size={14} className="text-slate-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by name, department, role..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto space-y-0.5">
+                      {(() => {
+                        const filtered = users.filter(u =>
+                          `${u.firstName} ${u.lastName} ${u.role} ${u.departmentId?.departmentName || ''}`.toLowerCase().includes(searchQuery.toLowerCase())
+                        );
+                        if (filtered.length === 0) {
+                          return <p className="text-slate-400 text-center py-4 text-[10px]">No staff members found.</p>;
+                        }
+                        return filtered.map(u => (
+                          <button
+                            key={u._id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmployeeId(u._id);
+                              setDropdownOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition-colors ${
+                              selectedEmployeeId === u._id
+                                ? 'bg-sky-50 text-sky-850 font-bold'
+                                : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div>
+                              <p className="font-bold">{u.firstName} {u.lastName}</p>
+                              <span className="text-[9px] text-slate-400 font-medium block">
+                                Dept: {u.departmentId?.departmentName || 'Global'}
+                              </span>
+                            </div>
+                            <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
+                              u.role === 'admin' ? 'bg-slate-200 text-slate-800' :
+                              u.role === 'manager' ? 'bg-emerald-100 text-emerald-800' :
+                              u.role === 'hr' ? 'bg-indigo-100 text-indigo-800' : 'bg-sky-100 text-sky-800'
+                            }`}>
+                              {u.role}
+                            </span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Catalog manage button */}
+          {user?.role !== 'employee' && (
+            <button
+              onClick={() => {
+                setEditingSkillId(null);
+                setNewSkillName('');
+                setNewSkillCategory('Frontend');
+                setNewSkillDeptId('');
+                setNewSkillDesgId('');
+                setShowSkillModal(true);
+              }}
+              className="bg-sky-700 hover:bg-sky-855 text-white font-bold text-xs p-2.5 px-4 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
             >
-              {users.map(u => (
-                <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.role})</option>
-              ))}
-            </select>
-          </div>
-        )}
+              <Plus size={14} />
+              <span>Add Skill</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -329,179 +429,154 @@ const SkillMatrix = () => {
         {/* Skills Lists (Left 2 cols) */}
         <div className="lg:col-span-2 space-y-6">
           
-          {Object.keys(skillsByCategory).map(catName => (
-            <div key={catName} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Layers size={16} className="text-slate-400" />
-                <h3 className="font-bold text-sm text-slate-800 uppercase tracking-wider text-[11px]">{catName} Skills</h3>
-              </div>
-
-              {skillsByCategory[catName].length === 0 ? (
-                <p className="text-slate-400 italic text-[11px]">No active skills in this category catalog.</p>
-              ) : (
-                <div className="space-y-4">
-                  {skillsByCategory[catName].map(sk => {
-                    const record = getEmployeeSkillRecord(sk._id);
-                    return (
-                      <div key={sk._id} className="flex flex-col md:flex-row justify-between md:items-center bg-slate-50/60 p-4 rounded-xl border border-slate-100/80 hover:bg-slate-50 transition-colors gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-slate-755 text-[12px]">{sk.skillName}</p>
-                            {user?.role !== 'employee' && (
-                              <div className="flex items-center gap-1.5 ml-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEditSkill(sk)}
-                                  className="text-slate-400 hover:text-sky-600 cursor-pointer"
-                                  title="Edit Skill Details"
-                                >
-                                  <Edit size={12} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSkill(sk._id)}
-                                  className="text-slate-400 hover:text-rose-600 cursor-pointer"
-                                  title="Delete Skill"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-400">
-                            Status: <span className="font-extrabold text-sky-700 uppercase tracking-wider text-[9px]">{getProficiencyLabel(record.proficiencyLevel)}</span>
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap gap-4 items-center">
-                          <div className="bg-white border border-slate-150 p-2 rounded-xl text-center flex flex-col items-center justify-center min-w-[110px] shadow-sm">
-                            <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-1">Self Rating</span>
-                            {renderRatingStars(sk._id, record.selfRating, 'self', selectedEmployeeId === user.id)}
-                          </div>
-                          <div className="bg-white border border-slate-150 p-2 rounded-xl text-center flex flex-col items-center justify-center min-w-[110px] shadow-sm">
-                            <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-1">Manager Validated</span>
-                            {renderRatingStars(sk._id, record.managerRating, 'manager', user.role !== 'employee')}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          {Object.keys(skillsByCategory).length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center shadow-sm">
+              <Layers size={36} className="text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-400 font-medium">No skills registered in the catalog for this department/designation.</p>
             </div>
-          ))}
+          ) : (
+            Object.keys(skillsByCategory).map(catName => (
+              <div key={catName} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <Layers size={16} className="text-slate-400" />
+                  <h3 className="font-bold text-sm text-slate-800 uppercase tracking-wider text-[11px]">{catName} Skills</h3>
+                </div>
+
+                {skillsByCategory[catName].length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px]">No active skills in this category catalog.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {skillsByCategory[catName].map(sk => {
+                      const record = getEmployeeSkillRecord(sk._id);
+                      return (
+                        <div key={sk._id} className="flex flex-col md:flex-row justify-between md:items-center bg-slate-50/60 p-4 rounded-xl border border-slate-100/80 hover:bg-slate-50 transition-colors gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-bold text-slate-850 text-[12px]">{sk.skillName}</p>
+                              
+                              {/* Target context badge */}
+                              {(() => {
+                                const deptName = sk.departmentId?.departmentName || (departments.find(d => d._id === (sk.departmentId?._id || sk.departmentId))?.departmentName);
+                                const desgName = sk.designationId?.designationName || (designations.find(ds => ds._id === (sk.designationId?._id || sk.designationId))?.designationName);
+                                if (!deptName && !desgName) return null;
+                                return (
+                                  <span className="text-[8px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 bg-slate-200/80 text-slate-655 rounded border border-slate-300/40">
+                                    {deptName ? `${deptName}` : ''} {desgName ? `| ${desgName}` : ''}
+                                  </span>
+                                );
+                              })()}
+
+                              {user?.role !== 'employee' && (
+                                <div className="flex items-center gap-1.5 ml-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditSkill(sk)}
+                                    className="text-slate-400 hover:text-sky-600 cursor-pointer transition-colors"
+                                    title="Edit Skill Details"
+                                  >
+                                    <Edit size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSkill(sk._id)}
+                                    className="text-slate-400 hover:text-rose-600 cursor-pointer transition-colors"
+                                    title="Delete Skill"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9px] text-slate-400">Validated Status:</span>
+                              <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${
+                                record.proficiencyLevel === 5 ? 'bg-amber-100 text-amber-800 border border-amber-250' :
+                                record.proficiencyLevel === 4 ? 'bg-emerald-100 text-emerald-800 border border-emerald-250' :
+                                record.proficiencyLevel === 3 ? 'bg-sky-100 text-sky-850 border border-sky-250' :
+                                record.proficiencyLevel === 2 ? 'bg-indigo-100 text-indigo-800 border border-indigo-250' :
+                                record.proficiencyLevel === 1 ? 'bg-slate-100 text-slate-700 border border-slate-250' :
+                                'bg-slate-100 text-slate-400 border border-slate-200'
+                              }`}>
+                                {getProficiencyLabel(record.proficiencyLevel)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3 items-center">
+                            <div className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-center min-w-[120px] border shadow-3xs transition-all ${
+                              selectedEmployeeId === user.id ? 'bg-slate-50 border-slate-200 hover:border-slate-350' : 'bg-slate-100/60 border-slate-150'
+                            }`}>
+                              <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                Self Rating
+                                {selectedEmployeeId === user.id && <span className="w-1 h-1 rounded-full bg-sky-500 animate-pulse" />}
+                              </span>
+                              {renderRatingStars(sk._id, record.selfRating, 'self', selectedEmployeeId === user.id)}
+                            </div>
+
+                            <div className={`p-2.5 rounded-xl text-center flex flex-col items-center justify-center min-w-[120px] border shadow-3xs transition-all ${
+                              user.role !== 'employee' ? 'bg-slate-50 border-slate-200 hover:border-slate-350' : 'bg-slate-100/60 border-slate-150'
+                            }`}>
+                              <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                                Manager Validated
+                                {user.role !== 'employee' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                              </span>
+                              {renderRatingStars(sk._id, record.managerRating, 'manager', user.role !== 'employee')}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
 
         </div>
 
-        {/* Master Catalog Control (Right Column) */}
+        {/* Info Column (Right Column) */}
         <div className="space-y-6">
           
-          {/* Add Skill form for admin / HR */}
-          {user?.role !== 'employee' && (
-            <form onSubmit={handleAddSkill} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <Plus size={16} className={`text-slate-400 transition-transform ${editingSkillId ? 'rotate-45 text-sky-600' : ''}`} />
-                <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">
-                  {editingSkillId ? 'Edit Catalog Skill' : 'Register Catalog Skill'}
-                </h3>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Skill Name</label>
-                <input
-                  type="text"
-                  value={newSkillName}
-                  onChange={(e) => setNewSkillName(e.target.value)}
-                  placeholder="e.g. React.js, Docker, Negotiation"
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500"
-                  required
-                />
-              </div>
-
-               <div className="space-y-1">
-                 <label className="text-[10px] font-bold text-slate-500 uppercase">Category Group</label>
-                 <input
-                   type="text"
-                   value={newSkillCategory}
-                   onChange={(e) => setNewSkillCategory(e.target.value)}
-                   placeholder="e.g. Frontend, Sales Skills, Onboarding"
-                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500"
-                   required
-                 />
-               </div>
-
-               <div className="space-y-1">
-                 <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department (Optional)</label>
-                 <select
-                   value={newSkillDeptId}
-                   onChange={(e) => {
-                     setNewSkillDeptId(e.target.value);
-                     setNewSkillDesgId('');
-                   }}
-                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700 text-xs"
-                 >
-                   <option value="">Global / All Departments</option>
-                   {departments.map(d => (
-                     <option key={d._id} value={d._id}>{d.departmentName}</option>
-                   ))}
-                 </select>
-               </div>
-
-               <div className="space-y-1">
-                 <label className="text-[10px] font-bold text-slate-500 uppercase">Target Designation (Optional)</label>
-                 <select
-                   value={newSkillDesgId}
-                   onChange={(e) => setNewSkillDesgId(e.target.value)}
-                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700 text-xs"
-                 >
-                   <option value="">All Designations</option>
-                   {designations
-                     .filter(ds => !newSkillDeptId || ds.departmentId === newSkillDeptId || ds.departmentId?._id === newSkillDeptId)
-                     .map(ds => (
-                       <option key={ds._id} value={ds._id}>{ds.designationName}</option>
-                     ))
-                   }
-                 </select>
-               </div>
-
-              <div className="flex gap-2 pt-2">
-                {editingSkillId && (
-                  <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="w-1/3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={`flex-1 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer transition-colors ${editingSkillId ? 'bg-sky-600 hover:bg-sky-700' : 'bg-sky-700 hover:bg-sky-850'}`}
-                >
-                  {editingSkillId ? 'Update Skill' : 'Add to Catalog'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Quick reference metrics */}
+          {/* Skill Coverage Stats Card */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
             <div className="flex items-center gap-2 border-b pb-2">
-              <Award size={16} className="text-sky-600" />
+              <Activity size={16} className="text-sky-700" />
+              <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Competency Overview</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[9px] uppercase font-bold text-slate-400">Total Skills</span>
+                <p className="text-lg font-black text-slate-700 mt-0.5">{skills.length}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[9px] uppercase font-bold text-slate-400">Rated Skills</span>
+                <p className="text-lg font-black text-slate-700 mt-0.5">
+                  {employeeSkills.filter(es => es.selfRating > 0 || es.managerRating > 0).length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Proficiency guidelines */}
+          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center gap-2 border-b pb-2">
+              <Award size={16} className="text-sky-605" />
               <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Proficiency Guidelines</h3>
             </div>
             
             <div className="space-y-3 leading-relaxed text-slate-500">
               <div>
-                <p className="font-bold text-slate-700">★☆☆☆☆ (1) - Novice</p>
+                <p className="font-bold text-slate-705">★☆☆☆☆ (1) - Novice</p>
                 <p className="pl-4">Basic knowledge of the core tool/skill with no production implementation experience.</p>
               </div>
               <div>
-                <p className="font-bold text-slate-700">★★★☆☆ (3) - Competent</p>
+                <p className="font-bold text-slate-705">★★★☆☆ (3) - Competent</p>
                 <p className="pl-4">Can execute typical production sprint tasks independently using best practice methods.</p>
               </div>
               <div>
-                <p className="font-bold text-slate-700">★★★★★ (5) - Expert</p>
+                <p className="font-bold text-slate-705">★★★★★ (5) - Expert</p>
                 <p className="pl-4">Capable of architecting robust systems, leading codebase redesigns, and mentoring others.</p>
               </div>
             </div>
@@ -510,6 +585,107 @@ const SkillMatrix = () => {
         </div>
 
       </div>
+
+      {/* Catalog Management Modal */}
+      {showSkillModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col overflow-hidden animate-fade-in">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 p-5 shrink-0">
+              <h3 className="font-bold text-slate-800 text-sm">
+                {editingSkillId ? 'Modify Catalog Skill' : 'Register Catalog Skill'}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer text-xs font-bold transition-colors"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddSkill} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 space-y-4 overflow-y-auto">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Skill Name</label>
+                  <input
+                    type="text"
+                    value={newSkillName}
+                    onChange={(e) => setNewSkillName(e.target.value)}
+                    placeholder="e.g. React.js, Docker, Negotiation"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs p-3 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Category Group</label>
+                  <input
+                    type="text"
+                    value={newSkillCategory}
+                    onChange={(e) => setNewSkillCategory(e.target.value)}
+                    placeholder="e.g. Frontend, Sales Skills, Onboarding"
+                    className="w-full bg-slate-50 border border-slate-200 text-xs p-3 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Target Department (Optional)</label>
+                  <select
+                    value={newSkillDeptId}
+                    onChange={(e) => {
+                      setNewSkillDeptId(e.target.value);
+                      setNewSkillDesgId('');
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 text-xs p-3 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-bold"
+                  >
+                    <option value="">Global / All Departments</option>
+                    {departments.map(d => (
+                      <option key={d._id} value={d._id}>{d.departmentName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Target Designation (Optional)</label>
+                  <select
+                    value={newSkillDesgId}
+                    onChange={(e) => setNewSkillDesgId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-xs p-3 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-bold"
+                  >
+                    <option value="">All Designations</option>
+                    {designations
+                      .filter(ds => !newSkillDeptId || ds.departmentId === newSkillDeptId || ds.departmentId?._id === newSkillDeptId)
+                      .map(ds => (
+                        <option key={ds._id} value={ds._id}>{ds.designationName}</option>
+                      ))
+                    }
+                  </select>
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex justify-end gap-3 p-5 border-t border-slate-100 bg-slate-50 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-3xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-colors"
+                >
+                  {editingSkillId ? 'Update Skill' : 'Add to Catalog'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal
         open={!!pendingDeleteSkillId}
