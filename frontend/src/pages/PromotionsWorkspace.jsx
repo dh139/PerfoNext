@@ -31,8 +31,18 @@ const PromotionsWorkspace = () => {
 
       if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') {
         const empRes = await api.get('/api/users?role=employee');
-        setEmployees(empRes.data);
-        if (empRes.data.length > 0) handleEmployeeChange(empRes.data[0]._id, empRes.data);
+        let empData = empRes.data || [];
+
+        if (user?.role === 'manager') {
+          const mgrDeptId = user?.departmentId?._id || user?.departmentId;
+          empData = empData.filter(u => {
+            const uDeptId = u.departmentId?._id || u.departmentId;
+            return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
+          });
+        }
+
+        setEmployees(empData);
+        if (empData.length > 0) handleEmployeeChange(empData[0]._id, empData);
 
         const desRes = await api.get('/api/designations');
         setDesignations(desRes.data.filter(d => d.status === 'active'));
@@ -149,96 +159,177 @@ const PromotionsWorkspace = () => {
     );
   }
 
+  const totalPromos = promotions.length;
+  const pendingCount = promotions.filter(p => p.status === 'proposed').length;
+  const approvedCount = promotions.filter(p => p.status === 'approved').length;
+  const avgIncrement = totalPromos > 0
+    ? (promotions.reduce((acc, p) => acc + (p.salaryIncrementPercent || 0), 0) / totalPromos).toFixed(1)
+    : 0;
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 text-xs">
-      {/* Top Banner */}
-      <div className="flex justify-between items-center bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 tracking-tight">Promotions & Salary recommendations</h2>
-          <p className="text-xs text-slate-500 mt-1">Manage career upgrades, designation changes and salary increases</p>
-        </div>
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      
+      {/* Hallmark Hero Header */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         
-        {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') && (
-          <button
-            onClick={() => {
-              if (employees.length > 0) handleEmployeeChange(employees[0]._id);
-              setShowCreateModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-sky-700 hover:bg-sky-850 text-white font-semibold px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-colors"
-          >
-            <Plus size={16} />
-            <span>Recommend Promotion</span>
-          </button>
-        )}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-400/30 tracking-wider">
+                Career Advancement Hub
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Compensation & Leveling Engine
+              </span>
+            </div>
+            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+              <Award className="text-emerald-400" size={24} />
+              <span>Promotions & Salary Recommendations</span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Manage career upgrades, designation changes, salary increments, & formal HR board approvals.
+            </p>
+          </div>
+
+          {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') && (
+            <button
+              onClick={() => {
+                if (employees.length > 0) handleEmployeeChange(employees[0]._id);
+                setShowCreateModal(true);
+              }}
+              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
+            >
+              <Plus size={18} />
+              <span>Recommend Promotion</span>
+            </button>
+          )}
+        </div>
+
+        {/* Summary Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Proposals</p>
+              <h2 className="text-xl font-extrabold text-white mt-0.5">{totalPromos}</h2>
+              <span className="text-[9px] text-sky-400 font-medium">Recorded recommendations</span>
+            </div>
+            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+              <Award size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Pending HR Review</p>
+              <h2 className="text-xl font-extrabold text-amber-400 mt-0.5">{pendingCount}</h2>
+              <span className="text-[9px] text-amber-400 font-medium">Awaiting decision</span>
+            </div>
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+              <ShieldAlert size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Approved Upgrades</p>
+              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">{approvedCount}</h2>
+              <span className="text-[9px] text-emerald-400 font-medium">Promotions granted</span>
+            </div>
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+              <Check size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Avg Increment %</p>
+              <h2 className="text-xl font-extrabold text-indigo-300 mt-0.5">+{avgIncrement}%</h2>
+              <span className="text-[9px] text-indigo-400 font-bold uppercase">Salary adjustment</span>
+            </div>
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+              <ArrowUpRight size={20} />
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 flex items-center gap-2">
-          <AlertCircle size={16} className="text-rose-600" />
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2 font-bold text-xs">
+          <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Promotions List */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      {/* Promotions List Workbench */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+        <div className="flex justify-between items-center pb-4 border-b border-slate-100">
+          <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+            <span>Promotion & Increment Registry</span>
+            <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
+              {promotions.length} Records Listed
+            </span>
+          </h3>
+        </div>
+
         {promotions.length === 0 ? (
-          <div className="text-center py-12 bg-slate-50 border border-slate-200 rounded-xl">
-            <Award size={32} className="text-slate-400 mx-auto mb-2 animate-bounce" />
-            <p className="text-slate-500 font-semibold">No promotions history or pending recommendations.</p>
+          <div className="text-center py-16 bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
+            <Award size={36} className="text-slate-300 mx-auto" />
+            <p className="text-slate-500 font-bold text-xs">No promotions history or pending recommendations found.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-200 bg-slate-50/50">
-                  <th className="py-3 px-4 rounded-l-lg">Employee</th>
+                <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200 bg-slate-50/80">
+                  <th className="py-3 px-4 rounded-l-xl">Employee</th>
                   <th className="py-3 px-4">Current Designation</th>
                   <th className="py-3 px-4">Proposed Designation</th>
                   <th className="py-3 px-4">Salary Increase</th>
                   <th className="py-3 px-4">Recommended By</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 rounded-r-lg text-right">Actions</th>
+                  <th className="py-3 px-4 rounded-r-xl text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {promotions.map(promo => (
-                  <tr key={promo._id} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="py-4 px-4 font-bold text-slate-800">
+                  <tr key={promo._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-4 px-4 font-black text-slate-900 text-xs">
                       {promo.employeeId?.firstName} {promo.employeeId?.lastName}
-                      <span className="text-[9px] text-slate-400 block font-normal">Code: {promo.employeeId?.employeeCode}</span>
+                      <span className="text-[9px] text-slate-400 block font-normal mt-0.5">Code: {promo.employeeId?.employeeCode}</span>
                     </td>
-                    <td className="py-4 px-4 text-slate-600">{promo.currentDesignationId?.designationName}</td>
-                    <td className="py-4 px-4 font-bold text-slate-700">{promo.proposedDesignationId?.designationName}</td>
-                    <td className="py-4 px-4 font-extrabold text-emerald-700">+{promo.salaryIncrementPercent}%</td>
-                    <td className="py-4 px-4 text-slate-500">
+                    <td className="py-4 px-4 text-slate-600 font-medium">{promo.currentDesignationId?.designationName || 'Staff Member'}</td>
+                    <td className="py-4 px-4 font-extrabold text-sky-800">{promo.proposedDesignationId?.designationName}</td>
+                    <td className="py-4 px-4 font-black text-emerald-600 text-xs">+{promo.salaryIncrementPercent}%</td>
+                    <td className="py-4 px-4 text-slate-600 font-medium">
                       {promo.recommendedBy?.firstName} {promo.recommendedBy?.lastName}
-                      <span className="text-[9px] text-slate-400 block mt-0.5">Role: {getRoleLabel(promo.recommendedBy?.role)}</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">{getRoleLabel(promo.recommendedBy?.role)}</span>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`inline-block font-semibold px-2 py-0.5 rounded-full text-[9px] uppercase border ${getStatusBadge(promo.status)}`}>
-                        {promo.status}
+                      <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${getStatusBadge(promo.status)}`}>
+                        {promo.status?.toUpperCase()}
                       </span>
                     </td>
                     <td className="py-4 px-4 text-right">
                       {promo.status === 'proposed' && (user?.role === 'hr' || user?.role === 'admin') ? (
-                        <div className="flex justify-end gap-1.5">
+                        <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleApprovePromo(promo._id, true)}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-1 rounded cursor-pointer shadow-sm"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-xl cursor-pointer shadow-3xs transition-colors"
                             title="Approve Recommendation"
                           >
                             <Check size={14} />
                           </button>
                           <button
                             onClick={() => handleApprovePromo(promo._id, false)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white p-1 rounded cursor-pointer shadow-sm"
+                            className="bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-xl cursor-pointer shadow-3xs transition-colors"
                             title="Reject Recommendation"
                           >
                             <X size={14} />
                           </button>
                         </div>
                       ) : (
-                        <span className="text-slate-400 italic text-[10px]">
+                        <span className="text-slate-400 italic text-[10px] font-bold">
                           {promo.status !== 'proposed' ? `Finalized by ${promo.approvedBy?.firstName || 'HR'}` : '-'}
                         </span>
                       )}

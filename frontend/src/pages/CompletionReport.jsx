@@ -97,180 +97,174 @@ const CompletionReport = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Dropdown Card */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row gap-6 items-end">
-        <div className="flex-1 space-y-2">
-          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Cycle</label>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-3.5 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs cursor-pointer text-left"
-            >
-              {(() => {
-                const selected = cycles.find(c => c._id === selectedCycleId);
-                if (!selected) return 'Select a Review Cycle...';
-                const deptName = selected.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                const tempName = selected.kpiTemplateId?.templateName || 'General Template';
-                return (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
-                      {selected.reviewMonth}
-                    </span>
-                    <span className="text-slate-800">
-                      Dept: <span className="font-extrabold">{deptName}</span> <span className="font-normal text-slate-500">({tempName})</span>
-                    </span>
-                    <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded ${
-                      selected.status === 'active' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-650'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${selected.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                      {selected.status}
-                    </span>
-                  </div>
-                );
-              })()}
-              <span className="text-slate-400 ml-2">▼</span>
-            </button>
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      
+      {/* Hallmark Hero Header */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-400/30 tracking-wider">
+                Audit Command Desk
+              </span>
+              {report?.reviewCycle && (
+                <span className="text-[10px] text-slate-300 font-bold bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-700">
+                  Cycle: {report.reviewCycle.reviewMonth} ({report.reviewCycle.status?.toUpperCase()})
+                </span>
+              )}
+            </div>
+            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
+              Assessment Completion Status Audit
+            </h1>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Real-time evaluation tracking, submission status verification, & exportable appraisal audit reports.
+            </p>
+          </div>
 
-            {dropdownOpen && (
-              <>
-                {/* Backdrop overlay to close dropdown */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    setSearchQuery('');
-                  }}
-                />
-                
-                {/* Dropdown panel */}
-                <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-96 flex flex-col overflow-hidden animate-fade-in">
-                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs shrink-0">
-                    <Search size={14} className="text-slate-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search cycles by month, department, template..."
-                      className="w-full bg-transparent text-xs text-slate-800 outline-none"
-                      autoFocus
-                    />
-                  </div>
-                  
-                  <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Cycle Selector Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setDropdownOpen(!dropdownOpen)}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2.5 px-3.5 rounded-2xl text-xs font-bold text-white transition-colors cursor-pointer shadow-md"
+              >
+                <Calendar size={16} className="text-sky-400" />
+                <div className="text-left">
+                  <span className="text-[8px] text-slate-400 block uppercase tracking-wider leading-none">Review Cycle</span>
+                  <span className="mt-0.5 block font-extrabold text-sky-200">
                     {(() => {
-                      const filtered = cycles.filter(c => {
-                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                        const tempName = c.kpiTemplateId?.templateName || 'General Template';
-                        return `${c.reviewMonth} ${deptName} ${tempName} ${c.status}`.toLowerCase().includes(searchQuery.toLowerCase());
-                      });
-
-                      if (filtered.length === 0) {
-                        return <p className="text-slate-400 text-center py-6 text-xs">No matching cycles found.</p>;
-                      }
-
-                      // Split into Active and Closed
-                      const active = filtered.filter(c => c.status === 'active');
-                      const closed = filtered.filter(c => c.status !== 'active');
-
-                      return (
-                        <>
-                          {active.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="px-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Active Cycles</p>
-                              {active.map(c => {
-                                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                                const tempName = c.kpiTemplateId?.templateName || 'General Template';
-                                return (
-                                  <button
-                                    key={c._id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedCycleId(c._id);
-                                      setDropdownOpen(false);
-                                      setSearchQuery('');
-                                    }}
-                                    className={`w-full text-left p-2.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                                      selectedCycleId === c._id
-                                        ? 'bg-sky-50 text-sky-850 font-bold'
-                                        : 'hover:bg-slate-50 text-slate-700'
-                                    }`}
-                                  >
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded">
-                                          {c.reviewMonth}
-                                        </span>
-                                        <span className="font-extrabold">Dept: {deptName}</span>
-                                      </div>
-                                      <p className="text-[10px] text-slate-400 font-medium pl-1">
-                                        Template: {tempName}
-                                      </p>
-                                    </div>
-                                    <span className="inline-flex items-center gap-1 text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded">
-                                      Active
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {closed.length > 0 && (
-                            <div className="space-y-1">
-                              <p className="px-2 pt-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">Closed Cycles</p>
-                              {closed.map(c => {
-                                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                                const tempName = c.kpiTemplateId?.templateName || 'General Template';
-                                return (
-                                  <button
-                                    key={c._id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedCycleId(c._id);
-                                      setDropdownOpen(false);
-                                      setSearchQuery('');
-                                    }}
-                                    className={`w-full text-left p-2.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                                      selectedCycleId === c._id
-                                        ? 'bg-sky-50 text-sky-850 font-bold'
-                                        : 'hover:bg-slate-50 text-slate-700'
-                                    }`}
-                                  >
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[9px] uppercase font-extrabold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
-                                          {c.reviewMonth}
-                                        </span>
-                                        <span className="font-semibold text-slate-600">Dept: {deptName}</span>
-                                      </div>
-                                      <p className="text-[10px] text-slate-400 font-medium pl-1">
-                                        Template: {tempName}
-                                      </p>
-                                    </div>
-                                    <span className="inline-flex items-center gap-1 text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
-                                      Closed
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </>
-                      );
+                      const selected = cycles.find(c => c._id === selectedCycleId);
+                      return selected ? `${selected.reviewMonth} (${selected.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'})` : 'Select Cycle';
                     })()}
-                  </div>
+                  </span>
                 </div>
-              </>
+                <span className="ml-1 text-slate-400 text-[10px]">▼</span>
+              </button>
+
+              {dropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => { setDropdownOpen(false); setSearchQuery(''); }} />
+                  <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
+                      <Search size={14} className="text-slate-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search cycle month, dept..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-60 overflow-y-auto space-y-1">
+                      {cycles
+                        .filter(c => `${c.reviewMonth} ${c.kpiTemplateId?.departmentId?.departmentName || ''}`.toLowerCase().includes(searchQuery.toLowerCase()))
+                        .map(c => (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCycleId(c._id);
+                              setDropdownOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                              selectedCycleId === c._id ? 'bg-sky-50 text-sky-800 font-bold border border-sky-100' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <div>
+                              <p className="font-bold">{c.reviewMonth}</p>
+                              <span className="text-[9px] text-slate-400">{c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide Core'}</span>
+                            </div>
+                            <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
+                              {c.status}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {report && (
+              <button
+                onClick={handleExport}
+                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
+              >
+                <Download size={16} />
+                <span>Export CSV Report</span>
+              </button>
             )}
           </div>
         </div>
+
+        {/* Summary Metric Cards (4 Cards Grid) */}
+        {report && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Target Staff</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{report.completionDetails.length}</h2>
+                <span className="text-[9px] text-sky-400 font-medium">Assigned employees</span>
+              </div>
+              <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+                <Calendar size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Self Submitted</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">
+                  {report.completionDetails.filter(d => d.selfAssessmentStatus === 'submitted').length}
+                </h2>
+                <span className="text-[9px] text-amber-400 font-medium">Self evaluations</span>
+              </div>
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+                <Clock size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Manager Graded</p>
+                <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">
+                  {report.completionDetails.filter(d => d.managerReviewStatus === 'submitted').length}
+                </h2>
+                <span className="text-[9px] text-emerald-400 font-medium">Leadership reviews</span>
+              </div>
+              <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Overall Complete</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">
+                  {(() => {
+                    const total = report.completionDetails.length;
+                    const done = report.completionDetails.filter(d => d.managerReviewStatus === 'submitted').length;
+                    return total > 0 ? `${Math.round((done / total) * 100)}%` : '0%';
+                  })()}
+                </h2>
+                <span className="text-[9px] text-indigo-400 font-bold uppercase">Appraisal Rate</span>
+              </div>
+              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+                <CheckCircle2 size={20} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-center gap-2">
-          <AlertCircle size={16} className="text-rose-600" />
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2 font-bold text-xs">
+          <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
@@ -364,7 +358,14 @@ const CompletionReport = () => {
                     <tr key={item.employee._id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4 font-bold text-slate-500">{item.employee.employeeCode}</td>
                       <td className="py-4 px-4 font-bold text-slate-800">
-                        {item.employee.firstName} {item.employee.lastName}
+                        <span className={item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive' ? 'text-emerald-700 font-extrabold' : 'text-slate-800'}>
+                          {item.employee.firstName} {item.employee.lastName}
+                        </span>
+                        {(item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive') && (
+                          <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[9px] font-black uppercase tracking-wider">
+                            Reporting Manager
+                          </span>
+                        )}
                       </td>
                       <td className="py-4 px-4 text-slate-600">{item.employee.departmentId?.departmentName}</td>
                       <td className="py-4 px-4 text-slate-600">

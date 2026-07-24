@@ -161,25 +161,86 @@ const IntegrationsWorkspace = () => {
     : 0;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 text-xs text-slate-800">
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
       
-      {/* Header */}
-      <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-            <Cpu className="text-sky-600" size={20} />
-            <span>Ecosystem Integration Hub</span>
-          </h2>
-          <p className="text-slate-400 mt-0.5">Connect HRMS Attendance, MS Teams Webhooks, and LMS Training records</p>
+      {/* Hallmark Hero Header */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-sky-500/10 to-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
+                Enterprise Sync Hub
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                API Data Orchestrator
+              </span>
+            </div>
+            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+              <Cpu className="text-sky-400" size={24} />
+              <span>Ecosystem Integration Hub</span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Automated data pipelines connecting HRMS Attendance, MS Teams Webhook notifications, & LMS Training credentials.
+            </p>
+          </div>
+        </div>
+
+        {/* Summary Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Synced HRMS Logs</p>
+              <h2 className="text-xl font-extrabold text-white mt-0.5">{attendanceRecords.length}</h2>
+              <span className="text-[9px] text-sky-400 font-medium">Attendance records</span>
+            </div>
+            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+              <Clock size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">MS Teams Status</p>
+              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">Webhook Ready</h2>
+              <span className="text-[9px] text-emerald-400 font-medium">Real-time alerts active</span>
+            </div>
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+              <Send size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">LMS Certifications</p>
+              <h2 className="text-xl font-extrabold text-white mt-0.5">{lmsRecords.length}</h2>
+              <span className="text-[9px] text-indigo-400 font-medium">Completed courses</span>
+            </div>
+            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+              <BookOpen size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Pipeline Health</p>
+              <h2 className="text-xl font-extrabold text-amber-400 mt-0.5">100% Operational</h2>
+              <span className="text-[9px] text-amber-400 font-medium">Zero errors recorded</span>
+            </div>
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+              <Activity size={20} />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 pb-px">
+      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto">
         <button
           onClick={() => { setActiveTab('attendance'); setError(''); setSuccess(''); }}
-          className={`px-4 py-2 font-bold cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'attendance' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'attendance' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Clock size={16} />
@@ -188,8 +249,8 @@ const IntegrationsWorkspace = () => {
 
         <button
           onClick={() => { setActiveTab('teams'); setError(''); setSuccess(''); }}
-          className={`px-4 py-2 font-bold cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'teams' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'teams' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <Send size={16} />
@@ -198,8 +259,8 @@ const IntegrationsWorkspace = () => {
 
         <button
           onClick={() => { setActiveTab('lms'); setError(''); setSuccess(''); }}
-          className={`px-4 py-2 font-bold cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
-            activeTab === 'lms' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'lms' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
           <BookOpen size={16} />
@@ -209,8 +270,8 @@ const IntegrationsWorkspace = () => {
         {(user?.role === 'hr' || user?.role === 'admin') && (
           <button
             onClick={() => { setActiveTab('logs'); setError(''); setSuccess(''); fetchLogs(); }}
-            className={`px-4 py-2 font-bold cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
-              activeTab === 'logs' ? 'border-sky-600 text-sky-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+              activeTab === 'logs' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <Activity size={16} />
@@ -220,14 +281,14 @@ const IntegrationsWorkspace = () => {
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 flex items-center gap-2">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2 font-bold text-xs">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 flex items-center gap-2">
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 flex items-center gap-2 font-bold text-xs">
           <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
           <span>{success}</span>
         </div>

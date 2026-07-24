@@ -33,7 +33,17 @@ const PipWorkspace = () => {
         setSuggestions(sugRes.data);
 
         const usersRes = await api.get('/api/users');
-        const employees = usersRes.data.filter(u => u.role === 'employee');
+        let employees = usersRes.data.filter(u => u.role === 'employee');
+
+        // Scope to manager department if logged in as a Reporting Manager
+        if (user?.role === 'manager') {
+          const mgrDeptId = user?.departmentId?._id || user?.departmentId;
+          employees = employees.filter(u => {
+            const uDeptId = u.departmentId?._id || u.departmentId;
+            return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
+          });
+        }
+
         setAllUsers(employees);
         if (employees.length > 0) setSelectedEmployeeId(employees[0]._id);
 
@@ -171,10 +181,97 @@ const PipWorkspace = () => {
     );
   }
 
+  const activeCount = pips.filter(p => p.status === 'active').length;
+  const closedCount = pips.filter(p => p.status === 'closed').length;
+  const escalatedCount = pips.filter(p => p.status === 'escalated').length;
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 text-xs text-slate-800">
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      
+      {/* Hallmark Hero Header */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-amber-500/10 to-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+          <div>
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-amber-500/20 text-amber-300 rounded-full border border-amber-400/30 tracking-wider">
+                Performance Intervention Desk
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Structured Remediation Engine
+              </span>
+            </div>
+            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+              <ShieldAlert className="text-amber-400" size={24} />
+              <span>Performance Improvement Plans (PIP) Workspace</span>
+            </h1>
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              Track structured action goals, target windows, milestone progress, auto-flagged suggestions, & PIP closures.
+            </p>
+          </div>
+
+          {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && (
+            <button
+              onClick={() => handleInitiatePip(null)}
+              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
+            >
+              <Plus size={18} />
+              <span>Initiate New PIP</span>
+            </button>
+          )}
+        </div>
+
+        {/* Summary Metric Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Auto-Flagged Candidates</p>
+              <h2 className="text-xl font-extrabold text-amber-400 mt-0.5">{suggestions.length}</h2>
+              <span className="text-[9px] text-amber-400 font-medium">Needs improvement</span>
+            </div>
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+              <ShieldAlert size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active PIP Plans</p>
+              <h2 className="text-xl font-extrabold text-sky-400 mt-0.5">{activeCount}</h2>
+              <span className="text-[9px] text-sky-400 font-medium">Under active coaching</span>
+            </div>
+            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+              <Clock size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Successful Closures</p>
+              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">{closedCount}</h2>
+              <span className="text-[9px] text-emerald-400 font-medium">Goals met & resolved</span>
+            </div>
+            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+              <CheckCircle2 size={20} />
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+            <div>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Escalated Plans</p>
+              <h2 className="text-xl font-extrabold text-rose-400 mt-0.5">{escalatedCount}</h2>
+              <span className="text-[9px] text-rose-400 font-medium">Formal HR review</span>
+            </div>
+            <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 border border-rose-500/20">
+              <XCircle size={20} />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 flex items-center gap-2">
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2 font-bold text-xs">
           <AlertCircle size={16} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
@@ -182,29 +279,29 @@ const PipWorkspace = () => {
 
       {/* Auto Suggestions Panel (HR/Admin Only) */}
       {(user?.role === 'hr' || user?.role === 'admin') && suggestions.length > 0 && (
-        <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="text-amber-700 shrink-0" size={18} />
-            <h3 className="font-bold text-slate-800 text-sm">Performance Flagged Auto-Suggestions</h3>
+            <ShieldAlert className="text-amber-700 shrink-0" size={20} />
+            <h3 className="font-extrabold text-slate-900 text-sm">Performance Flagged Auto-Suggestions</h3>
           </div>
-          <p className="text-slate-500 font-medium leading-relaxed">
-            The system auto-flagged the following employees due to `Needs Improvement` or `Unsatisfactory` ratings in consecutive cycles.
+          <p className="text-slate-600 font-medium leading-relaxed text-xs">
+            The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in consecutive appraisal cycles.
           </p>
 
           <div className="space-y-3">
             {suggestions.map(sug => (
-              <div key={sug.employee._id} className="flex justify-between items-center bg-white border border-amber-200/80 p-4 rounded-xl shadow-sm">
+              <div key={sug.employee._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-amber-200/80 p-4 rounded-2xl shadow-3xs">
                 <div>
-                  <span className="font-bold text-slate-800 text-sm">
+                  <span className="font-extrabold text-slate-900 text-sm">
                     {sug.employee.firstName} {sug.employee.lastName}
                   </span>
-                  <p className="text-[10px] text-slate-500 mt-1">{sug.reason}</p>
+                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{sug.reason}</p>
                 </div>
                 <button
                   onClick={() => handleInitiatePip(sug)}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] px-3.5 py-2 rounded-lg cursor-pointer shadow-sm transition-colors"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4 py-2 rounded-xl cursor-pointer shadow-3xs transition-colors shrink-0"
                 >
-                  Initiate PIP
+                  Initiate PIP Plan
                 </button>
               </div>
             ))}
@@ -348,9 +445,14 @@ const PipWorkspace = () => {
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700"
                     required
                   >
-                    {allUsers.map(u => (
-                      <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.employeeCode})</option>
-                    ))}
+                    {allUsers.map(u => {
+                      const deptName = u.departmentId?.departmentName || '';
+                      return (
+                        <option key={u._id} value={u._id}>
+                          {u.firstName} {u.lastName} ({u.employeeCode}){deptName ? ` — ${deptName}` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               )}

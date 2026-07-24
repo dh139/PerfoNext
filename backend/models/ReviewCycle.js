@@ -32,9 +32,29 @@ const reviewCycleSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'KpiTemplate',
       required: true
+    },
+    targetRole: {
+      type: String,
+      enum: ['employee', 'manager', 'all'],
+      default: 'all',
+      required: true
     }
   },
   { timestamps: true }
 );
+
+// Auto-close active cycles whose end dates have passed
+reviewCycleSchema.statics.autoCloseExpiredCycles = async function() {
+  const now = new Date();
+  const activeCycles = await this.find({ status: 'active' });
+  for (const cycle of activeCycles) {
+    const endOfDay = new Date(cycle.endDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    if (endOfDay < now) {
+      cycle.status = 'closed';
+      await cycle.save();
+    }
+  }
+};
 
 module.exports = mongoose.model('ReviewCycle', reviewCycleSchema);

@@ -1,6 +1,7 @@
 const Skill = require('../models/Skill');
 const EmployeeSkill = require('../models/EmployeeSkill');
 const Department = require('../models/Department');
+const User = require('../models/User');
 
 // Drop legacy global unique index on skillName to allow duplicate names across different departments
 Skill.collection.dropIndex('skillName_1').catch(() => {});
@@ -81,6 +82,17 @@ const getEmployeeSkills = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
+    // Reporting Managers can only view skill matrices for employees in their own department
+    if (req.user.role === 'manager') {
+      const targetEmp = await User.findById(employeeId);
+      if (!targetEmp) return res.status(404).json({ message: 'Target employee not found.' });
+      const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only view skill matrices for employees in your assigned department.' });
+      }
+    }
+
     const employeeSkills = await EmployeeSkill.find({ employeeId }).populate({
       path: 'skillId',
       populate: { path: 'departmentId designationId' }
@@ -104,6 +116,17 @@ const updateEmployeeSkill = async (req, res) => {
       }
       if (managerRating !== undefined && managerRating !== null) {
         return res.status(403).json({ message: 'Employees cannot assign manager ratings.' });
+      }
+    }
+
+    // Reporting Managers can only assign skill ratings for employees in their assigned department
+    if (req.user.role === 'manager') {
+      const targetEmp = await User.findById(targetEmployeeId);
+      if (!targetEmp) return res.status(404).json({ message: 'Target employee not found.' });
+      const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only assign manager skill ratings for employees in your assigned department.' });
       }
     }
 

@@ -1,5 +1,6 @@
 const Certification = require('../models/Certification');
 const Document = require('../models/Document');
+const ReviewCycle = require('../models/ReviewCycle');
 const fs = require('fs');
 const pdf = require('pdf-parse');
 
@@ -32,6 +33,16 @@ const uploadCertification = async (req, res) => {
     // Role check: employees can only upload for themselves
     if (req.user.role === 'employee' && targetEmployeeId !== req.user.id) {
       return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    // Check if there is an active review cycle
+    await ReviewCycle.autoCloseExpiredCycles();
+    const activeCycle = await ReviewCycle.findOne({ status: 'active' });
+    if (!activeCycle) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      return res.status(400).json({ message: 'Cannot add certification when there is no active review cycle.' });
     }
 
     if (!req.file) {

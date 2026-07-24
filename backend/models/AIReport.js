@@ -4,11 +4,14 @@ const aiReportSchema = new mongoose.Schema({
   employeeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true
   },
   reviewCycleId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'ReviewCycle'
+    ref: 'ReviewCycle',
+    required: true,
+    index: true
   },
   summary: {
     type: String,
@@ -43,12 +46,10 @@ const aiReportSchema = new mongoose.Schema({
   modelUsed: {
     type: String
   },
-  metadataMaxTime: {
-    type: Number,
-    required: true
-  },
-  metadataCount: {
-    type: Number,
+  status: {
+    type: String,
+    enum: ['PROCESSING', 'COMPLETED', 'FAILED'],
+    default: 'COMPLETED',
     required: true
   },
   generatedAt: {
@@ -58,5 +59,8 @@ const aiReportSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Ensure a single unique AI report per employee per review cycle
+aiReportSchema.index({ employeeId: 1, reviewCycleId: 1 }, { unique: true });
 
 module.exports = mongoose.model('AIReport', aiReportSchema);

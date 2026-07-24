@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
+import useAuthStore from '../store/authStore';
 import { AlertCircle, Calendar, Layers, Activity, FileText, ArrowUpRight, Sparkles, Search, Download, ArrowUpDown } from 'lucide-react';
 import { useTableControls } from '../hooks/useTableControls';
 import TablePagination from '../components/TablePagination';
 import { exportToCsv } from '../utils/csvExport';
 
 const DepartmentReports = () => {
+  const { user } = useAuthStore();
   const [departments, setDepartments] = useState([]);
   const [cycles, setCycles] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('');
@@ -20,8 +22,18 @@ const DepartmentReports = () => {
     const fetchMetadata = async () => {
       try {
         const deptRes = await api.get('/api/departments');
-        setDepartments(deptRes.data.filter(d => d.status === 'active'));
-        if (deptRes.data.length > 0) setSelectedDeptId(deptRes.data[0]._id);
+        const activeDepts = deptRes.data.filter(d => d.status === 'active');
+
+        let filteredDepts = activeDepts;
+        if (user?.role === 'manager') {
+          const empDeptId = user?.departmentId?._id || user?.departmentId;
+          if (empDeptId) {
+            filteredDepts = activeDepts.filter(d => d._id.toString() === empDeptId.toString());
+          }
+        }
+
+        setDepartments(filteredDepts);
+        if (filteredDepts.length > 0) setSelectedDeptId(filteredDepts[0]._id);
 
         const cycleRes = await api.get('/api/review-cycles');
         setCycles(cycleRes.data);
@@ -33,7 +45,7 @@ const DepartmentReports = () => {
     };
 
     fetchMetadata();
-  }, []);
+  }, [user]);
 
   const handleFetchReport = async () => {
     if (!selectedDeptId || !selectedCycleId) return;
@@ -119,9 +131,10 @@ const DepartmentReports = () => {
               {cycles.map(c => {
                 const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
                 const tempName = c.kpiTemplateId?.templateName || 'General Template';
+                const targetText = c.targetRole === 'manager' ? 'Managers Evaluation' : 'Employees Evaluation';
                 return (
                   <option key={c._id} value={c._id}>
-                    Month: {c.reviewMonth} — Dept: {deptName} ({tempName}) ({c.status})
+                    Month: {c.reviewMonth} — [{targetText}] — Dept: {deptName} ({tempName}) ({c.status})
                   </option>
                 );
               })}
@@ -242,9 +255,16 @@ const DepartmentReports = () => {
                         <td className="py-4 px-4 font-bold text-slate-800">
                           <Link
                             to={`/reports/employee/${s.employeeId?._id}`}
-                            className="text-sky-700 hover:underline inline-flex items-center gap-1 font-bold"
+                            className="hover:underline inline-flex items-center gap-1.5 font-bold"
                           >
-                            <span>{s.employeeId?.firstName} {s.employeeId?.lastName}</span>
+                            <span className={s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive' ? 'text-emerald-700 font-extrabold' : 'text-sky-700'}>
+                              {s.employeeId?.firstName} {s.employeeId?.lastName}
+                            </span>
+                            {(s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive') && (
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[9px] font-black uppercase tracking-wider">
+                                Reporting Manager
+                              </span>
+                            )}
                             <ArrowUpRight size={12} className="text-sky-600 shrink-0" />
                           </Link>
                         </td>

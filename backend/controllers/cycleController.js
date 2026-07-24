@@ -47,6 +47,7 @@ const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDa
 
 const getReviewCycles = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const cycles = await ReviewCycle.find().populate({
       path: 'kpiTemplateId',
       populate: { path: 'departmentId' }
@@ -60,6 +61,7 @@ const getReviewCycles = async (req, res) => {
 
 const getReviewCycleById = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const cycle = await ReviewCycle.findById(req.params.id).populate('kpiTemplateId');
     if (!cycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
@@ -73,7 +75,31 @@ const getReviewCycleById = async (req, res) => {
 
 const createReviewCycle = async (req, res) => {
   try {
-    const { reviewMonth, startDate, endDate, status, kpiTemplateId, cycleType } = req.body;
+    let { reviewMonth, startDate, endDate, status, kpiTemplateId, cycleType, targetRole } = req.body;
+
+    // Default targetRole: if created by executive (CEO), target managers; otherwise target employees
+    if (!targetRole) {
+      if (req.user?.role === 'executive') {
+        targetRole = 'manager';
+      } else {
+        targetRole = 'employee';
+      }
+    }
+
+    // Fetch the KPI template to get its departmentId
+    const template = await KpiTemplate.findById(kpiTemplateId);
+    const departmentId = template ? template.departmentId : null;
+
+    // Duplicate check: check if cycle already exists for the same reviewMonth, cycleType, targetRole, and department
+    const existingCycles = await ReviewCycle.find({ reviewMonth, cycleType, targetRole }).populate('kpiTemplateId');
+    const isDuplicate = existingCycles.some(c => {
+      const existingDeptId = c.kpiTemplateId?.departmentId?.toString();
+      return existingDeptId === departmentId?.toString();
+    });
+
+    if (isDuplicate) {
+      return res.status(400).json({ message: 'A review cycle for this month, cycle type, target role, and department already exists.' });
+    }
 
     const cycle = await ReviewCycle.create({
       reviewMonth,
@@ -81,7 +107,8 @@ const createReviewCycle = async (req, res) => {
       endDate,
       status: status || 'draft',
       kpiTemplateId,
-      cycleType
+      cycleType,
+      targetRole
     });
 
     if (cycle.status === 'active') {
@@ -127,32 +154,39 @@ const updateReviewCycle = async (req, res) => {
   }
 };
 
-// Helper: notify all active employees of new cycle
+// Helper: notify targeted department members and managers of new cycle
 const notifyAllEmployeesOfNewCycle = async (cycle) => {
   try {
     // Resolve KPI Template department
     const template = await KpiTemplate.findById(cycle.kpiTemplateId);
     const targetDeptId = template?.departmentId || null;
 
-    const employeeFilter = { role: 'employee', employmentStatus: 'active' };
+    const baseFilter = { employmentStatus: 'active' };
     if (targetDeptId) {
-      employeeFilter.departmentId = targetDeptId;
+      baseFilter.departmentId = targetDeptId;
     }
 
-    // Only send self-assessment prompts to active employees in the targeted department
-    const targetEmployees = await User.find(employeeFilter);
-    const allUsers = await User.find({ employmentStatus: 'active' });
+    if (cycle.targetRole === 'manager') {
+      // CEO created cycle -> ONLY Reporting Managers and HR Managers of that department
+      baseFilter.role = { $in: ['manager', 'hr'] };
+    } else {
+      // HR/Manager created cycle -> ONLY regular employees of that department
+      baseFilter.role = 'employee';
+    }
 
-    // In-app notifications for all active users
-    const notifications = allUsers.map(u => ({
+    const targetUsers = await User.find(baseFilter);
+    if (targetUsers.length === 0) return;
+
+    // In-app notifications for targeted users
+    const notifications = targetUsers.map(u => ({
       userId: u._id,
       type: 'review_assigned',
-      message: `A new performance review cycle has been started for ${cycle.reviewMonth}.`
+      message: `A new performance review cycle (${cycle.reviewMonth}) has been started for your department.`
     }));
     await Notification.insertMany(notifications);
 
-    // Email notifications specifically to employees eligible for self-assessment in this department
-    for (const emp of targetEmployees) {
+    // Email notifications specifically to targeted users
+    for (const emp of targetUsers) {
       if (emp.email) {
         sendReviewCycleStartedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.endDate)
           .catch(err => console.error(`Review cycle email failed for ${emp.email}:`, err));
@@ -219,8 +253,13 @@ const getSelfAssessmentById = async (req, res) => {
 
 const submitSelfAssessment = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const { reviewCycleId, details, status } = req.body;
     const employeeId = req.user.id;
+
+    if (req.user.role === 'executive') {
+      return res.status(400).json({ message: 'Executives / CEOs do not submit self-assessments.' });
+    }
 
     // Check if review cycle is active
     const cycle = await ReviewCycle.findById(reviewCycleId);
@@ -350,6 +389,7 @@ const getManagerReviewById = async (req, res) => {
 
 const submitManagerReview = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const { reviewCycleId, employeeId, details, status } = req.body;
     const managerId = req.user.id;
 

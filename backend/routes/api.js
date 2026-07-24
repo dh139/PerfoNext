@@ -121,6 +121,8 @@ router.post('/documents/upload', verifyToken, upload.single('file'), documentCon
 
 // AI Insights Routes
 router.get('/insights/:employeeId', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), insightController.getEmployeeInsights);
+router.get('/review-cycles/:cycleId/employees/:employeeId/insights', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), insightController.getEmployeeCycleInsights);
+router.post('/review-cycles/:cycleId/employees/:employeeId/insights/regenerate', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), insightController.regenerateEmployeeCycleInsights);
 
 // 360 Feedback Routes
 router.get('/feedback/requests', verifyToken, feedbackController.getFeedbackRequests);

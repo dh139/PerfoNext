@@ -1,6 +1,7 @@
 const Recognition = require('../models/Recognition');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const ReviewCycle = require('../models/ReviewCycle');
 const { logAction } = require('../utils/logger');
 
 const getRecognitions = async (req, res) => {
@@ -26,11 +27,27 @@ const getRecognitions = async (req, res) => {
 const createRecognition = async (req, res) => {
   try {
     const { employeeId, cycleId, category, comments } = req.body;
-    const awardedBy = req.user.id;
+    // Department ownership check if logged in as a Reporting Manager
+    if (req.user.role === 'manager') {
+      const targetEmp = await User.findById(employeeId);
+      if (!targetEmp) return res.status(404).json({ message: 'Target employee not found.' });
+      const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only award recognitions to employees in your assigned department.' });
+      }
+    }
+
+    // Check if there is an active review cycle
+    await ReviewCycle.autoCloseExpiredCycles();
+    const activeCycle = await ReviewCycle.findOne({ status: 'active' });
+    if (!activeCycle) {
+      return res.status(400).json({ message: 'Cannot award recognition when there is no active review cycle.' });
+    }
 
     const recognition = await Recognition.create({
       employeeId,
-      cycleId: cycleId || null,
+      cycleId: cycleId || activeCycle._id,
       category,
       comments,
       awardedBy

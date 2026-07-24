@@ -136,7 +136,15 @@ const createUser = async (req, res) => {
       role
     } = req.body;
 
-    // Validate email & employeeCode uniqueness
+    if (!email || !firstName || !lastName || !role) {
+      return res.status(400).json({ message: 'First name, last name, email, and role are required.' });
+    }
+
+    if (!['admin', 'executive'].includes(role) && !designationId) {
+      return res.status(400).json({ message: 'Designation is required for non-admin/executive roles.' });
+    }
+
+    // Validate email uniqueness
     const emailExists = await User.findOne({ email });
     if (emailExists) {
       return res.status(400).json({ message: 'Email already exists.' });
@@ -241,6 +249,9 @@ const createUser = async (req, res) => {
     res.status(201).json(userObj);
   } catch (error) {
     console.error('createUser error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };

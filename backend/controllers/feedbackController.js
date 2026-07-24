@@ -5,28 +5,21 @@ const User = require('../models/User');
 
 const getFeedbackRequests = async (req, res) => {
   try {
-    const { employeeId, cycleId, status } = req.query;
+    await ReviewCycle.autoCloseExpiredCycles();
+    const { employeeId, reviewerId, cycleId, status, assignedToMe } = req.query;
     const filter = {};
 
-    // Standard employees can only see feedback requests assigned TO them as a reviewer
-    if (req.user.role === 'employee') {
+    // If assignedToMe is requested (e.g. for "My Pending Reviews"), strictly filter reviewerId to logged-in user
+    if (assignedToMe === 'true' || req.user.role === 'employee') {
       filter.reviewerId = req.user.id;
-    } else if (req.user.role === 'manager') {
-      // Managers can see requests where they are the reviewer, plus requests about their own direct reports.
+    } else if (req.user.role === 'manager' && !reviewerId && !employeeId) {
+      // Managers monitoring direct reports
       const reports = await User.find({ managerId: req.user.id }).select('_id');
       const reportIds = reports.map(r => r._id.toString());
-
-      if (employeeId) {
-        // Only allow filtering by an employeeId that's actually their direct report.
-        filter.$or = reportIds.includes(employeeId)
-          ? [{ employeeId }, { reviewerId: req.user.id }]
-          : [{ reviewerId: req.user.id }];
-      } else {
-        filter.$or = [{ employeeId: { $in: reportIds } }, { reviewerId: req.user.id }];
-      }
+      filter.$or = [{ employeeId: { $in: reportIds } }, { reviewerId: req.user.id }];
     } else {
       if (employeeId) filter.employeeId = employeeId;
-      if (req.query.reviewerId) filter.reviewerId = req.query.reviewerId;
+      if (reviewerId) filter.reviewerId = reviewerId;
     }
 
     if (cycleId) filter.cycleId = cycleId;
@@ -46,6 +39,7 @@ const getFeedbackRequests = async (req, res) => {
 
 const createFeedbackRequest = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const { employeeId, reviewerId, relationship, cycleId } = req.body;
 
     if (!employeeId || !reviewerId || !relationship || !cycleId) {

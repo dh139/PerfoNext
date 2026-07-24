@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Department = require('../models/Department');
 const ReviewCycle = require('../models/ReviewCycle');
@@ -9,9 +10,24 @@ const getEmployeeReport = async (req, res) => {
   try {
     const { id: employeeId } = req.params;
     
+    if (!mongoose.isValidObjectId(employeeId)) {
+      return res.status(400).json({ message: 'Invalid employee ID format.' });
+    }
+    
     // Auth Check: Employees can only view their own report
     if (req.user.role === 'employee' && req.user.id !== employeeId) {
       return res.status(403).json({ message: 'Forbidden. You can only view your own report.' });
+    }
+
+    // Auth Check: Reporting Managers can only view reports for employees in their assigned department
+    if (req.user.role === 'manager') {
+      const targetEmp = await User.findById(employeeId);
+      if (!targetEmp) return res.status(404).json({ message: 'Employee not found.' });
+      const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only view reports for employees in your assigned department.' });
+      }
     }
 
     const employee = await User.findById(employeeId)
@@ -50,9 +66,24 @@ const getDepartmentReport = async (req, res) => {
     const { id: departmentId } = req.params;
     const { reviewCycleId } = req.query;
 
+    if (!mongoose.isValidObjectId(departmentId)) {
+      return res.status(400).json({ message: 'Invalid department ID format.' });
+    }
+    if (reviewCycleId && !mongoose.isValidObjectId(reviewCycleId)) {
+      return res.status(400).json({ message: 'Invalid review cycle ID format.' });
+    }
+
     const dept = await Department.findById(departmentId);
     if (!dept) {
       return res.status(404).json({ message: 'Department not found.' });
+    }
+
+    // Role boundary check: Reporting Managers can ONLY view reports for their assigned department
+    if (req.user.role === 'manager') {
+      const userDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!userDeptId || userDeptId.toString() !== departmentId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only view reports for your assigned department.' });
+      }
     }
 
     // Get all employees of the department
@@ -66,8 +97,8 @@ const getDepartmentReport = async (req, res) => {
 
     // Get scores for these employees
     const scores = await ReviewScore.find(matchFilter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId' })
-      .populate({ path: 'reviewCycleId', select: 'reviewMonth' });
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId role' })
+      .populate({ path: 'reviewCycleId', select: 'reviewMonth targetRole' });
 
     // Calculate aggregated department averages
     let avgFinalScore = 0;
@@ -124,10 +155,14 @@ const getDepartmentReport = async (req, res) => {
 
 const getReviewCompletionReport = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const { reviewCycleId } = req.query;
 
     if (!reviewCycleId) {
       return res.status(400).json({ message: 'reviewCycleId query param is required.' });
+    }
+    if (!mongoose.isValidObjectId(reviewCycleId)) {
+      return res.status(400).json({ message: 'Invalid review cycle ID format.' });
     }
 
     const cycle = await ReviewCycle.findById(reviewCycleId).populate('kpiTemplateId');

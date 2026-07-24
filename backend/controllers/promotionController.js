@@ -33,6 +33,17 @@ const createPromotion = async (req, res) => {
     const { employeeId, currentDesignationId, proposedDesignationId, salaryIncrementPercent, effectiveDate, supportingReviewScores } = req.body;
     const recommendedBy = req.user.id;
 
+    // Department ownership check if logged in as a Reporting Manager
+    if (req.user.role === 'manager') {
+      const targetEmp = await User.findById(employeeId);
+      if (!targetEmp) return res.status(404).json({ message: 'Target employee not found.' });
+      const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only recommend promotions for employees in your assigned department.' });
+      }
+    }
+
     // Check if a promotion recommendation is already pending approval for this employee
     const existingPending = await Promotion.findOne({
       employeeId,

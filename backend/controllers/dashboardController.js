@@ -42,6 +42,7 @@ const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDa
 
 const getDashboardData = async (req, res) => {
   try {
+    await ReviewCycle.autoCloseExpiredCycles();
     const { role, id: userId } = req.user;
     
     // Fetch active review cycles
@@ -54,8 +55,16 @@ const getDashboardData = async (req, res) => {
 
     const pendingSelfAssessments = [];
     
-    if (user) {
+    if (user && user.role !== 'executive') {
       for (const cycle of activeCycles) {
+        // Filter by targetRole eligibility
+        if (cycle.targetRole === 'manager' && user.role === 'employee') {
+          continue;
+        }
+        if (cycle.targetRole === 'employee' && (user.role === 'manager' || user.role === 'executive')) {
+          continue;
+        }
+
         if (user.joiningDate && !isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
           continue;
         }
@@ -106,6 +115,10 @@ const getDashboardData = async (req, res) => {
       let activeCycleId = null;
 
       for (const cycle of activeCycles) {
+        if (cycle.targetRole === 'manager') {
+          continue; // Skip manager-targeted cycles for employee role
+        }
+
         // Filter by joining date eligibility
         if (!isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
           continue; // Skip this cycle for this employee as they are not eligible
@@ -183,11 +196,34 @@ const getDashboardData = async (req, res) => {
       const pendingManagerReviews = [];
       const pendingSelfAssessmentsFromSubordinates = [];
 
+      // Batch fetch all self-assessments and manager-reviews for active cycles & subordinates
+      const allSelfAsses = await SelfAssessment.find({
+        reviewCycleId: { $in: activeCycleIds },
+        employeeId: { $in: subordinateIds }
+      });
+      const allManRevs = await ManagerReview.find({
+        reviewCycleId: { $in: activeCycleIds },
+        employeeId: { $in: subordinateIds }
+      });
+
+      const selfAssMap = new Map();
+      allSelfAsses.forEach(sa => selfAssMap.set(`${sa.reviewCycleId.toString()}_${sa.employeeId.toString()}`, sa));
+
+      const manRevMap = new Map();
+      allManRevs.forEach(mr => manRevMap.set(`${mr.reviewCycleId.toString()}_${mr.employeeId.toString()}`, mr));
+
       for (const cycle of activeCycles) {
         const template = await KpiTemplate.findById(cycle.kpiTemplateId);
         const targetDeptId = template?.departmentId || null;
 
         for (const sub of subordinates) {
+          if (cycle.targetRole === 'manager' && sub.role === 'employee') {
+            continue;
+          }
+          if (cycle.targetRole === 'employee' && (sub.role === 'manager' || sub.role === 'hr')) {
+            continue;
+          }
+
           if (!isEmployeeEligibleForCycle(sub.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
             continue;
           }
@@ -199,7 +235,8 @@ const getDashboardData = async (req, res) => {
             }
           }
 
-          const selfAss = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: sub._id });
+          const key = `${cycle._id.toString()}_${sub._id.toString()}`;
+          const selfAss = selfAssMap.get(key);
           
           if (!selfAss || selfAss.status !== 'submitted') {
             pendingSelfAssessmentsFromSubordinates.push({
@@ -208,7 +245,7 @@ const getDashboardData = async (req, res) => {
             });
           }
 
-          const manRev = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: sub._id });
+          const manRev = manRevMap.get(key);
           if (!manRev || manRev.status === 'draft') {
             pendingManagerReviews.push({
               employee: sub,

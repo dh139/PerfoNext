@@ -24,6 +24,7 @@ const Certification = require('../models/Certification');
 const Attendance = require('../models/Attendance');
 const LmsRecord = require('../models/LmsRecord');
 const IntegrationLog = require('../models/IntegrationLog');
+const AIReport = require('../models/AIReport');
 
 const keepUsersOnly = async () => {
   try {
@@ -50,6 +51,7 @@ const keepUsersOnly = async () => {
     await Attendance.deleteMany({});
     await LmsRecord.deleteMany({});
     await IntegrationLog.deleteMany({});
+    await AIReport.deleteMany({});
 
     const userCount = await User.countDocuments();
     const deptCount = await Department.countDocuments();
