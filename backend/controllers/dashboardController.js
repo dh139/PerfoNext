@@ -278,6 +278,7 @@ const getDashboardData = async (req, res) => {
     if (role === 'hr' || role === 'admin' || role === 'executive') {
       // 3. HR & Admin & Executive Dashboard Data
       const totalDepartments = await Department.countDocuments({ status: 'active' });
+      const departmentsList = await Department.find({ status: 'active' }).select('departmentName code').sort('departmentName');
       const totalTemplates = await KpiTemplate.countDocuments({ status: 'active' });
       const totalUsers = await User.countDocuments({ employmentStatus: 'active' });
       const totalManagers = await User.countDocuments({ role: 'manager', employmentStatus: 'active' });
@@ -375,19 +376,32 @@ const getDashboardData = async (req, res) => {
         .sort('-createdAt')
         .limit(5);
 
-      // Fetch performance rankings for CEO & Management
+      // Fetch performance rankings for Management & HR (Unique user per ranking)
       const allReviewScores = await ReviewScore.find()
         .populate({ path: 'employeeId', populate: 'departmentId designationId' })
         .populate({ path: 'reviewCycleId', select: 'reviewMonth cycleType' })
-        .sort('-finalScore');
+        .sort('-createdAt');
 
-      const topEmployeesRanking = allReviewScores
-        .filter(s => s.employeeId && s.employeeId.role === 'employee')
-        .slice(0, 10);
+      const uniqueEmployeeLatestScores = new Map();
+      allReviewScores.forEach(s => {
+        if (s.employeeId && s.employeeId._id) {
+          const empIdStr = s.employeeId._id.toString();
+          if (!uniqueEmployeeLatestScores.has(empIdStr)) {
+            uniqueEmployeeLatestScores.set(empIdStr, s);
+          }
+        }
+      });
 
-      const topManagersRanking = allReviewScores
-        .filter(s => s.employeeId && (s.employeeId.role === 'manager' || s.employeeId.role === 'hr'))
-        .slice(0, 10);
+      const uniqueScores = Array.from(uniqueEmployeeLatestScores.values());
+
+      const employeeScores = uniqueScores.filter(s => s.employeeId?.role === 'employee');
+      const managerScores = uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role));
+
+      const topEmployeesRanking = [...employeeScores].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+      const topManagersRanking = [...managerScores].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+
+      const lowestEmployeesRanking = [...employeeScores].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
+      const lowestManagersRanking = [...managerScores].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
 
       return res.json({
         role,
@@ -395,7 +409,8 @@ const getDashboardData = async (req, res) => {
           totalDepartments,
           totalTemplates,
           totalUsers,
-          totalManagers
+          totalManagers,
+          departmentsList
         },
         activeCycleMetrics,
         scoreDistribution,
@@ -406,7 +421,11 @@ const getDashboardData = async (req, res) => {
         teamScores,
         pendingSelfAssessments,
         topEmployeesRanking,
-        topManagersRanking
+        topManagersRanking,
+        lowestEmployeesRanking,
+        lowestManagersRanking,
+        allEmployeeScores: employeeScores,
+        allManagerScores: managerScores
       });
     }
 

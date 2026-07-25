@@ -29,7 +29,8 @@ import {
   Medal,
   Eye,
   Search,
-  Plus
+  Plus,
+  AlertTriangle
 } from 'lucide-react';
 
 const Dashboard = () => {
@@ -582,6 +583,10 @@ const HRDashboard = ({ data, user }) => {
     pendingSelfAssessments = [],
     topEmployeesRanking = [],
     topManagersRanking = [],
+    lowestEmployeesRanking = [],
+    lowestManagersRanking = [],
+    allEmployeeScores = [],
+    allManagerScores = [],
     recentAudits = []
   } = data || {};
 
@@ -601,6 +606,16 @@ const HRDashboard = ({ data, user }) => {
   // Leaderboard Tab State
   const [leaderboardDept, setLeaderboardDept] = useState('all');
   const [leaderboardSearch, setLeaderboardSearch] = useState('');
+  const [leaderboardViewMode, setLeaderboardViewMode] = useState('top'); // 'top' | 'lowest'
+  const [departmentsList, setDepartmentsList] = useState([]);
+
+  useEffect(() => {
+    if (stats.departmentsList && stats.departmentsList.length > 0) {
+      setDepartmentsList(stats.departmentsList);
+    } else {
+      api.get('/api/departments').then(res => setDepartmentsList(res.data)).catch(() => {});
+    }
+  }, [stats.departmentsList]);
 
   // Needs HR Grade Count
   const needsHrGradeCount = pendingManagerReviews.filter(r => r.isEmployeeSubmitted).length;
@@ -628,8 +643,12 @@ const HRDashboard = ({ data, user }) => {
     gradingPage * GRADING_PER_PAGE
   );
 
-  // Filter top rankings by department
-  const filteredEmployeesRanking = (topEmployeesRanking || []).filter(score => {
+  // Department-wise dynamic pools
+  const baseEmployeeScores = (allEmployeeScores && allEmployeeScores.length > 0) ? allEmployeeScores : (topEmployeesRanking || []);
+  const baseManagerScores = (allManagerScores && allManagerScores.length > 0) ? allManagerScores : (topManagersRanking || []);
+
+  // Filter employees by department and search
+  const filteredEmpPool = baseEmployeeScores.filter(score => {
     const deptId = score.employeeId?.departmentId?._id || score.employeeId?.departmentId;
     const matchesDept = leaderboardDept === 'all' || (deptId && deptId.toString() === leaderboardDept.toString());
     const empName = `${score.employeeId?.firstName} ${score.employeeId?.lastName}`.toLowerCase();
@@ -637,7 +656,8 @@ const HRDashboard = ({ data, user }) => {
     return matchesDept && matchesSearch;
   });
 
-  const filteredManagersRanking = (topManagersRanking || []).filter(score => {
+  // Filter managers by department and search
+  const filteredMgrPool = baseManagerScores.filter(score => {
     const deptId = score.employeeId?.departmentId?._id || score.employeeId?.departmentId;
     const matchesDept = leaderboardDept === 'all' || (deptId && deptId.toString() === leaderboardDept.toString());
     const mgrName = `${score.employeeId?.firstName} ${score.employeeId?.lastName}`.toLowerCase();
@@ -645,10 +665,18 @@ const HRDashboard = ({ data, user }) => {
     return matchesDept && matchesSearch;
   });
 
+  // Dynamic Department-wise Top Rankings (Highest Scores)
+  const filteredEmployeesRanking = [...filteredEmpPool].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  const filteredManagersRanking = [...filteredMgrPool].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+
+  // Dynamic Department-wise Needs Improvement Rankings (Lowest Scores)
+  const filteredLowestEmployeesRanking = [...filteredEmpPool].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
+  const filteredLowestManagersRanking = [...filteredMgrPool].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
+
   return (
     <div className="space-y-8 animate-fade-in text-xs text-slate-800">
       
-      {/* Hallmark HR Hero Header */}
+      {/* Hallmark HR / Admin Hero Header */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-sky-500/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -656,17 +684,19 @@ const HRDashboard = ({ data, user }) => {
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-400/30 tracking-wider">
-                HR Operations Console
+                {user?.role === 'admin' ? 'System Administrator Console' : 'HR Operations Console'}
               </span>
               <span className="text-[10px] text-slate-400 font-medium">
                 {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
               </span>
             </div>
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
-              HR & Operations Command Desk
+              {user?.role === 'admin' ? 'System Administration Command Desk' : 'HR & Operations Command Desk'}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Organization-wide review cycle administration, submission tracking, & workforce performance control desk.
+              {user?.role === 'admin'
+                ? 'Organization-wide system administration, review cycle control, user management & performance oversight.'
+                : 'Organization-wide review cycle administration, submission tracking, & workforce performance control desk.'}
             </p>
           </div>
 
@@ -1076,18 +1106,51 @@ const HRDashboard = ({ data, user }) => {
         <div className="space-y-6 animate-fade-in">
           
           <div className="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-700">
-                <Trophy size={20} />
+            <div className="flex items-center gap-3">
+              <div className={`p-2.5 rounded-2xl ${leaderboardViewMode === 'top' ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700'}`}>
+                {leaderboardViewMode === 'top' ? <Trophy size={20} /> : <AlertTriangle size={20} />}
               </div>
               <div>
-                <h3 className="font-extrabold text-slate-800 text-sm">Organizational Performance Rankings</h3>
-                <p className="text-slate-500 text-xs">Filter rankings by department or employee name</p>
+                <h3 className="font-extrabold text-slate-800 text-sm">
+                  {leaderboardViewMode === 'top' ? 'Organizational Top Performance Rankings' : 'Needs Improvement & Low Performers Audit'}
+                </h3>
+                <p className="text-slate-500 text-xs">
+                  {leaderboardViewMode === 'top'
+                    ? 'Unique employee & management performance rankings by highest scores'
+                    : 'Unique employee & management performance rankings by lowest scores requiring intervention'}
+                </p>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full md:w-64">
+              {/* Segmented Mode Switcher */}
+              <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200/80">
+                <button
+                  onClick={() => setLeaderboardViewMode('top')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    leaderboardViewMode === 'top'
+                      ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/60 font-black'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Trophy size={14} className={leaderboardViewMode === 'top' ? 'text-amber-500' : 'text-slate-400'} />
+                  <span>Top Performers</span>
+                </button>
+
+                <button
+                  onClick={() => setLeaderboardViewMode('lowest')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer ${
+                    leaderboardViewMode === 'lowest'
+                      ? 'bg-white text-rose-700 shadow-xs border border-slate-200/60 font-black'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <AlertTriangle size={14} className={leaderboardViewMode === 'lowest' ? 'text-rose-500' : 'text-slate-400'} />
+                  <span>Needs Improvement</span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full md:w-56">
                 <Search size={14} className="text-slate-400" />
                 <input
                   type="text"
@@ -1104,7 +1167,7 @@ const HRDashboard = ({ data, user }) => {
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
               >
                 <option value="all">All Departments</option>
-                {stats.departmentsList?.map(d => (
+                {departmentsList.map(d => (
                   <option key={d._id} value={d._id}>{d.departmentName}</option>
                 ))}
               </select>
@@ -1113,31 +1176,35 @@ const HRDashboard = ({ data, user }) => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Top Employees Ranking */}
+            {/* Employees Ranking (Top or Lowest) */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                  <span>Top Performing Employees</span>
+                  <span>{leaderboardViewMode === 'top' ? 'Top Performing Employees' : 'Needs Improvement Employees'}</span>
                 </h4>
-                <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
-                  Staff ({filteredEmployeesRanking.length})
+                <span className={`text-[9px] uppercase font-extrabold px-2.5 py-0.5 rounded-full border ${
+                  leaderboardViewMode === 'top' ? 'bg-sky-50 text-sky-700 border-sky-100' : 'bg-rose-50 text-rose-700 border-rose-100'
+                }`}>
+                  Staff ({leaderboardViewMode === 'top' ? filteredEmployeesRanking.length : filteredLowestEmployeesRanking.length})
                 </span>
               </div>
 
-              {filteredEmployeesRanking.length === 0 ? (
+              {((leaderboardViewMode === 'top' ? filteredEmployeesRanking : filteredLowestEmployeesRanking).length === 0) ? (
                 <p className="text-slate-400 italic text-center py-10">No employee scores recorded matching your filter.</p>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredEmployeesRanking.map((score, index) => (
+                  {(leaderboardViewMode === 'top' ? filteredEmployeesRanking : filteredLowestEmployeesRanking).map((score, index) => (
                     <div
                       key={score._id}
-                      className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl hover:border-slate-300 transition-colors"
+                      className={`flex items-center justify-between p-3.5 border rounded-2xl hover:border-slate-300 transition-colors ${
+                        leaderboardViewMode === 'top' ? 'bg-slate-50 border-slate-200/80' : 'bg-rose-50/30 border-rose-100'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 shadow-xs ${
-                          index === 0 ? 'bg-amber-400 text-amber-950' :
-                          index === 1 ? 'bg-slate-300 text-slate-800' :
-                          index === 2 ? 'bg-amber-700/20 text-amber-900' : 'bg-slate-200 text-slate-700'
+                          leaderboardViewMode === 'top'
+                            ? (index === 0 ? 'bg-amber-400 text-amber-950' : index === 1 ? 'bg-slate-300 text-slate-800' : index === 2 ? 'bg-amber-700/20 text-amber-900' : 'bg-slate-200 text-slate-700')
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
                         }`}>
                           #{index + 1}
                         </div>
@@ -1146,15 +1213,19 @@ const HRDashboard = ({ data, user }) => {
                             {score.employeeId?.firstName} {score.employeeId?.lastName}
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">
-                            Dept: <span className="font-semibold text-slate-700">{score.employeeId?.departmentId?.departmentName || '-'}</span> | Cycle: {score.reviewCycleId?.reviewMonth}
+                            Dept: <span className="font-semibold text-slate-700">{score.employeeId?.departmentId?.departmentName || '-'}</span> | Latest: {score.reviewCycleId?.reviewMonth}
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
                         <div className="text-right">
-                          <span className="font-extrabold text-sky-700 text-sm block">{score.finalScore} / 5.0</span>
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">{score.rating}</span>
+                          <span className={`font-extrabold text-sm block ${leaderboardViewMode === 'top' ? 'text-sky-700' : 'text-rose-700'}`}>
+                            {score.finalScore} / 5.0
+                          </span>
+                          <span className={`text-[9px] font-bold uppercase ${leaderboardViewMode === 'top' ? 'text-slate-500' : 'text-rose-600'}`}>
+                            {score.rating}
+                          </span>
                         </div>
                         <Link
                           to={`/reports/employee/${score.employeeId?._id}`}
@@ -1169,31 +1240,35 @@ const HRDashboard = ({ data, user }) => {
               )}
             </div>
 
-            {/* Top Reporting Managers Ranking */}
+            {/* Managers & HRs Ranking (Top or Lowest) */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
               <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                 <h4 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
-                  <span>Top Reporting Managers & HRs</span>
+                  <span>{leaderboardViewMode === 'top' ? 'Top Reporting Managers & HRs' : 'Needs Improvement Managers & HRs'}</span>
                 </h4>
-                <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-50 text-emerald-800 rounded-full border border-emerald-100">
-                  Leadership ({filteredManagersRanking.length})
+                <span className={`text-[9px] uppercase font-extrabold px-2.5 py-0.5 rounded-full border ${
+                  leaderboardViewMode === 'top' ? 'bg-emerald-50 text-emerald-800 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'
+                }`}>
+                  Leadership ({leaderboardViewMode === 'top' ? filteredManagersRanking.length : filteredLowestManagersRanking.length})
                 </span>
               </div>
 
-              {filteredManagersRanking.length === 0 ? (
+              {((leaderboardViewMode === 'top' ? filteredManagersRanking : filteredLowestManagersRanking).length === 0) ? (
                 <p className="text-slate-400 italic text-center py-10">No manager scores recorded matching your filter.</p>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                  {filteredManagersRanking.map((score, index) => (
+                  {(leaderboardViewMode === 'top' ? filteredManagersRanking : filteredLowestManagersRanking).map((score, index) => (
                     <div
                       key={score._id}
-                      className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl hover:border-slate-300 transition-colors"
+                      className={`flex items-center justify-between p-3.5 border rounded-2xl hover:border-slate-300 transition-colors ${
+                        leaderboardViewMode === 'top' ? 'bg-slate-50 border-slate-200/80' : 'bg-rose-50/30 border-rose-100'
+                      }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 shadow-xs ${
-                          index === 0 ? 'bg-amber-400 text-amber-950' :
-                          index === 1 ? 'bg-slate-300 text-slate-800' :
-                          index === 2 ? 'bg-amber-700/20 text-amber-900' : 'bg-slate-200 text-slate-700'
+                          leaderboardViewMode === 'top'
+                            ? (index === 0 ? 'bg-amber-400 text-amber-950' : index === 1 ? 'bg-slate-300 text-slate-800' : index === 2 ? 'bg-amber-700/20 text-amber-900' : 'bg-slate-200 text-slate-700')
+                            : 'bg-rose-100 text-rose-800 border border-rose-200'
                         }`}>
                           #{index + 1}
                         </div>
@@ -1207,15 +1282,19 @@ const HRDashboard = ({ data, user }) => {
                             </span>
                           </div>
                           <p className="text-[10px] text-slate-500 mt-0.5">
-                            Dept: <span className="font-semibold text-slate-700">{score.employeeId?.departmentId?.departmentName || '-'}</span> | Cycle: {score.reviewCycleId?.reviewMonth}
+                            Dept: <span className="font-semibold text-slate-700">{score.employeeId?.departmentId?.departmentName || '-'}</span> | Latest: {score.reviewCycleId?.reviewMonth}
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3">
                         <div className="text-right">
-                          <span className="font-extrabold text-emerald-700 text-sm block">{score.finalScore} / 5.0</span>
-                          <span className="text-[9px] font-bold text-slate-500 uppercase">{score.rating}</span>
+                          <span className={`font-extrabold text-sm block ${leaderboardViewMode === 'top' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {score.finalScore} / 5.0
+                          </span>
+                          <span className={`text-[9px] font-bold uppercase ${leaderboardViewMode === 'top' ? 'text-slate-500' : 'text-rose-600'}`}>
+                            {score.rating}
+                          </span>
                         </div>
                         <Link
                           to={`/reports/employee/${score.employeeId?._id}`}
