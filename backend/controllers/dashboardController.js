@@ -55,7 +55,7 @@ const getDashboardData = async (req, res) => {
 
     const pendingSelfAssessments = [];
     
-    if (user && user.role !== 'executive') {
+    if (user && user.role !== 'executive' && user.role !== 'admin') {
       for (const cycle of activeCycles) {
         // Filter by targetRole eligibility
         if (cycle.targetRole === 'manager' && user.role === 'employee') {

@@ -32,7 +32,13 @@ import LandingPage from './pages/LandingPage';
 import useAuthStore from './store/authStore';
 
 function App() {
-  const { token } = useAuthStore();
+  const { isAuthenticated, fetchMe } = useAuthStore();
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      fetchMe();
+    }
+  }, [isAuthenticated, fetchMe]);
 
   return (
     <>

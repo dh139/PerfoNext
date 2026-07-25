@@ -52,6 +52,23 @@ const useAuthStore = create((set) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  fetchMe: async () => {
+    try {
+      const res = await api.get('/api/users/me');
+      if (res.data) {
+        const updatedUser = {
+          ...res.data,
+          id: res.data._id
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
+        return updatedUser;
+      }
+    } catch (err) {
+      console.error('Failed to sync user profile:', err);
+    }
+  },
   
   updateProfile: (updatedUserData) => {
     const saved = localStorage.getItem('user');

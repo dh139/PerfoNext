@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Department = require('../models/Department');
 const Designation = require('../models/Designation');
+const ManagerReview = require('../models/ManagerReview');
 const bcrypt = require('bcryptjs');
 const { logAction } = require('../utils/logger');
 const { sendWelcomeEmail } = require('../services/emailService');
@@ -337,6 +338,15 @@ const updateUser = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true })
       .populate('departmentId designationId')
       .select('-passwordHash -refreshToken');
+
+    if (updates.managerId !== undefined && (before.managerId?._id || before.managerId)?.toString() !== updates.managerId?.toString()) {
+      if (updates.managerId) {
+        await ManagerReview.updateMany(
+          { employeeId: userId, status: 'draft' },
+          { $set: { managerId: updates.managerId } }
+        );
+      }
+    }
 
     const roleChanged = updates.role && updates.role !== before.role;
 

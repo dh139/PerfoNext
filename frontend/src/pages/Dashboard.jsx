@@ -99,10 +99,10 @@ const Dashboard = () => {
 const EmployeeDashboard = ({ data, user }) => {
   const navigate = useNavigate();
   const {
-    profile,
-    pendingSelfAssessments,
-    reviewScores,
-    notifications,
+    profile = {},
+    pendingSelfAssessments = [],
+    reviewScores = [],
+    notifications = [],
     skillsCount = 0,
     certificationsCount = 0,
     managerVerified = false,
@@ -112,7 +112,7 @@ const EmployeeDashboard = ({ data, user }) => {
     finalScore = null,
     ratingBand = null,
     activeCycleId = null
-  } = data;
+  } = data || {};
 
   // Lifecycle journey calculation
   const totalStages = 6;
@@ -415,7 +415,13 @@ const EmployeeDashboard = ({ data, user }) => {
 // ==================== SUB-DASHBOARD: MANAGER ====================
 
 const ManagerDashboard = ({ data, user }) => {
-  const { teamCount, pendingManagerReviews, pendingSelfAssessmentsFromSubordinates, teamScores, pendingSelfAssessments } = data;
+  const {
+    teamCount = 0,
+    pendingManagerReviews = [],
+    pendingSelfAssessmentsFromSubordinates = [],
+    teamScores = [],
+    pendingSelfAssessments = []
+  } = data || {};
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -741,7 +747,7 @@ const HRDashboard = ({ data, user }) => {
       </div>
 
       {/* HR Self Assessment Action Banner (Displayed prominent OUTSIDE tabs) */}
-      {pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
+      {user?.role !== 'admin' && pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
         <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800 animate-fade-in">
           <div>
             <div className="flex items-center gap-2">
