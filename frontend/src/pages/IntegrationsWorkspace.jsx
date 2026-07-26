@@ -22,6 +22,10 @@ const IntegrationsWorkspace = () => {
   const [syncMode, setSyncMode] = useState('single'); // 'single' | 'batch'
   const [formDeptFilter, setFormDeptFilter] = useState('all');
   const [formUserSearch, setFormUserSearch] = useState('');
+  // Combobox state for enterprise employee pickers
+  const [empComboboxOpen, setEmpComboboxOpen] = useState(false);
+  const [lmsComboboxOpen, setLmsComboboxOpen] = useState(false);
+  const [lmsUserSearch, setLmsUserSearch] = useState('');
   const [attendanceForm, setAttendanceForm] = useState({
     employeeId: '',
     month: '2026-07',
@@ -442,40 +446,159 @@ const IntegrationsWorkspace = () => {
                       </select>
                     </div>
 
-                    {/* Search & Select Employee */}
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                        <Search size={11} className="text-slate-400" />
-                        <span>Search & Select Employee</span>
-                      </label>
-                      
-                      <div className="relative mb-1">
-                        <input
-                          type="text"
-                          placeholder="Type employee name or code..."
-                          value={formUserSearch}
-                          onChange={(e) => setFormUserSearch(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 pl-7 pr-3 py-1.5 rounded-xl outline-none text-xs text-slate-800 focus:border-sky-500"
-                        />
-                        <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                    {/* Search & Select Employee (Enterprise Combobox) */}
+                    <div className="space-y-1 relative">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                          <Users size={11} className="text-slate-400" />
+                          <span>Select Employee</span>
+                        </label>
+                        <span className="text-[9px] text-sky-600 font-extrabold">
+                          {filteredFormUsers.length} Available
+                        </span>
                       </div>
 
-                      <select
-                        value={attendanceForm.employeeId}
-                        onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700 text-xs"
-                        required
+                      {/* Trigger Button */}
+                      <button
+                        type="button"
+                        onClick={() => setEmpComboboxOpen(!empComboboxOpen)}
+                        className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
                       >
-                        {filteredFormUsers.length === 0 ? (
-                          <option value="" disabled>No employees match filter</option>
-                        ) : (
-                          filteredFormUsers.map(u => (
-                            <option key={u._id} value={u._id}>
-                              {u.firstName} {u.lastName} ({u.employeeCode || u.role}) - {u.departmentId?.departmentName || 'No Dept'}
-                            </option>
-                          ))
-                        )}
-                      </select>
+                        {(() => {
+                          const selected = users.find(u => u._id === attendanceForm.employeeId);
+                          if (!selected) {
+                            return <span className="text-slate-400 italic">Click to search & select employee...</span>;
+                          }
+                          const deptName = selected.departmentId?.departmentName || 'No Dept';
+                          return (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 rounded-full bg-sky-700 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                                {selected.firstName?.[0]}{selected.lastName?.[0]}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <span className="font-extrabold text-slate-900 block truncate">
+                                  {selected.firstName} {selected.lastName}
+                                </span>
+                                <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                                  <span className="font-mono text-slate-500 font-bold">{selected.employeeCode || 'EMP'}</span>
+                                  <span>•</span>
+                                  <span className="truncate">{deptName}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
+                      </button>
+
+                      {/* Floating Combobox Popover */}
+                      {empComboboxOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-20"
+                            onClick={() => setEmpComboboxOpen(false)}
+                          />
+                          <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
+                            {/* Live Search Input */}
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
+                              <Search size={14} className="text-slate-400 shrink-0" />
+                              <input
+                                type="text"
+                                value={formUserSearch}
+                                onChange={(e) => setFormUserSearch(e.target.value)}
+                                placeholder="Search name, code (EMP004), department..."
+                                className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
+                                autoFocus
+                              />
+                            </div>
+
+                            {/* Department Quick Filter Pills */}
+                            <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
+                              <button
+                                type="button"
+                                onClick={() => setFormDeptFilter('all')}
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                                  formDeptFilter === 'all'
+                                    ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }`}
+                              >
+                                All ({users.length})
+                              </button>
+                              {departments.map(d => (
+                                <button
+                                  key={d._id}
+                                  type="button"
+                                  onClick={() => setFormDeptFilter(d._id)}
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                                    formDeptFilter.toString() === d._id.toString()
+                                      ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {d.departmentName}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Searchable Options List */}
+                            <div className="max-h-60 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                              {filteredFormUsers.length === 0 ? (
+                                <div className="p-4 text-center text-slate-400 text-xs italic">
+                                  No employees match your search query.
+                                </div>
+                              ) : (
+                                filteredFormUsers.map(u => {
+                                  const isSelected = attendanceForm.employeeId === u._id;
+                                  const deptName = u.departmentId?.departmentName || 'No Dept';
+
+                                  return (
+                                    <button
+                                      key={u._id}
+                                      type="button"
+                                      onClick={() => {
+                                        setAttendanceForm(prev => ({ ...prev, employeeId: u._id }));
+                                        setEmpComboboxOpen(false);
+                                      }}
+                                      className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
+                                        isSelected
+                                          ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-xs'
+                                          : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
+                                          isSelected ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'
+                                        }`}>
+                                          {u.firstName?.[0]}{u.lastName?.[0]}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <p className="font-extrabold text-slate-900 text-xs truncate">
+                                            {u.firstName} {u.lastName}
+                                          </p>
+                                          <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                                            <span className="font-mono text-slate-500 font-bold">{u.employeeCode || 'EMP'}</span>
+                                            <span>•</span>
+                                            <span className="truncate">{deptName}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${
+                                        u.role === 'manager' || u.role === 'hr'
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                                      }`}>
+                                        {u.role}
+                                      </span>
+                                    </button>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="space-y-1">
@@ -853,18 +976,83 @@ const IntegrationsWorkspace = () => {
             <form onSubmit={handleLmsSync} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
               <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">Register LMS Course Completion</h3>
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Employee</label>
-                <select
-                  value={lmsForm.employeeId}
-                  onChange={(e) => setLmsForm({ ...lmsForm, employeeId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-                  required
+              {/* Searchable Enterprise Employee Combobox */}
+              <div className="space-y-1 relative">
+                <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
+                  <span>Select Employee</span>
+                  <span className="text-[9px] text-sky-600 font-extrabold">{users.length} Total</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setLmsComboboxOpen(!lmsComboboxOpen)}
+                  className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
                 >
-                  {users.map(u => (
-                    <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.role})</option>
-                  ))}
-                </select>
+                  {(() => {
+                    const selected = users.find(u => u._id === lmsForm.employeeId);
+                    if (!selected) {
+                      return <span className="text-slate-400 italic">Click to select employee...</span>;
+                    }
+                    const deptName = selected.departmentId?.departmentName || 'No Dept';
+                    return (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                          {selected.firstName?.[0]}{selected.lastName?.[0]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-slate-900 block truncate">
+                            {selected.firstName} {selected.lastName}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block truncate">{selected.employeeCode} • {deptName}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
+                </button>
+
+                {lmsComboboxOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setLmsComboboxOpen(false)} />
+                    <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
+                        <Search size={14} className="text-slate-400 shrink-0" />
+                        <input
+                          type="text"
+                          value={lmsUserSearch}
+                          onChange={(e) => setLmsUserSearch(e.target.value)}
+                          placeholder="Search employee by name, code..."
+                          className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
+                          autoFocus
+                        />
+                      </div>
+
+                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                        {users
+                          .filter(u => `${u.firstName} ${u.lastName} ${u.employeeCode} ${u.role}`.toLowerCase().includes(lmsUserSearch.toLowerCase()))
+                          .map(u => (
+                            <button
+                              key={u._id}
+                              type="button"
+                              onClick={() => {
+                                setLmsForm(prev => ({ ...prev, employeeId: u._id }));
+                                setLmsComboboxOpen(false);
+                              }}
+                              className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
+                                lmsForm.employeeId === u._id ? 'bg-indigo-50 text-indigo-950 font-bold border-indigo-300' : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                              }`}
+                            >
+                              <div>
+                                <p className="font-extrabold text-slate-900">{u.firstName} {u.lastName}</p>
+                                <span className="text-[9px] text-slate-400">{u.employeeCode} • {u.departmentId?.departmentName || 'No Dept'}</span>
+                              </div>
+                              <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{u.role}</span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="space-y-1">

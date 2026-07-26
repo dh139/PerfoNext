@@ -267,10 +267,18 @@ const submitSelfAssessment = async (req, res) => {
       return res.status(400).json({ message: 'Self assessment can only be submitted for active review cycles.' });
     }
 
-    // Verify user eligibility based on joining date
+    // Verify user eligibility based on joining date & target role
     const emp = await User.findById(employeeId);
-    if (emp && !isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
-      return res.status(403).json({ message: 'You are not eligible for this review cycle due to joining date constraints.' });
+    if (emp) {
+      if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive', 'admin'].includes(emp.role)) {
+        return res.status(403).json({ message: 'Managers and HR Managers do not submit self-assessments for employee review cycles.' });
+      }
+      if (cycle.targetRole === 'manager' && emp.role === 'employee') {
+        return res.status(403).json({ message: 'Standard employees are not eligible for manager review cycles.' });
+      }
+      if (!isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+        return res.status(403).json({ message: 'You are not eligible for this review cycle due to joining date constraints.' });
+      }
     }
 
     if (status === 'submitted') {

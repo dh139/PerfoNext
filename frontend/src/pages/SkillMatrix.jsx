@@ -252,6 +252,33 @@ const SkillMatrix = () => {
     }
   };
 
+  const handleValidateAllSkills = async () => {
+    if (!selectedEmployeeId) return;
+    setError('');
+    setSuccess('');
+    try {
+      setLoading(true);
+      for (const sk of skills) {
+        const record = getEmployeeSkillRecord(sk._id);
+        if (record.selfRating && !record.managerRating) {
+          await api.post('/api/employee-skills', {
+            skillId: sk._id,
+            selfRating: record.selfRating,
+            managerRating: record.selfRating,
+            employeeId: selectedEmployeeId
+          });
+        }
+      }
+      setSuccess('All employee self-ratings successfully validated!');
+      fetchEmployeeSkills(selectedEmployeeId);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to validate skills.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getEmployeeSkillRecord = (skillId) => {
     return employeeSkills.find(es => es.skillId?._id === skillId || es.skillId === skillId) || { selfRating: null, managerRating: null, proficiencyLevel: 0 };
   };
@@ -357,74 +384,6 @@ const SkillMatrix = () => {
 
           {/* Quick Controls Header Bar */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Staff selector dropdown for managers / HR */}
-            {user?.role !== 'employee' && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2.5 px-3.5 rounded-2xl text-xs font-bold text-white transition-colors cursor-pointer shadow-md"
-                >
-                  <User size={16} className="text-sky-400" />
-                  <div className="text-left">
-                    <span className="text-[8px] text-slate-400 block uppercase tracking-wider leading-none">Selected Staff</span>
-                    <span className="mt-0.5 block font-extrabold text-sky-200">
-                      {selectedUserObj ? `${selectedUserObj.firstName} ${selectedUserObj.lastName}` : 'Select Staff'}
-                    </span>
-                  </div>
-                  <span className="ml-1 text-slate-400 text-[10px]">▼</span>
-                </button>
-
-                {dropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-20"
-                      onClick={() => { setDropdownOpen(false); setSearchQuery(''); }}
-                    />
-                    <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
-                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
-                        <Search size={14} className="text-slate-400" />
-                        <input
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="Search staff by name..."
-                          className="w-full bg-transparent text-xs text-slate-800 outline-none"
-                          autoFocus
-                        />
-                      </div>
-                      <div className="max-h-60 overflow-y-auto space-y-1">
-                        {users
-                          .filter(u => `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(searchQuery.toLowerCase()))
-                          .map(u => (
-                            <button
-                              key={u._id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedEmployeeId(u._id);
-                                setDropdownOpen(false);
-                                setSearchQuery('');
-                              }}
-                              className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
-                                selectedEmployeeId === u._id ? 'bg-sky-50 text-sky-800 font-bold border border-sky-100' : 'hover:bg-slate-50 text-slate-700'
-                              }`}
-                            >
-                              <div>
-                                <p className="font-bold">{u.firstName} {u.lastName}</p>
-                                <span className="text-[9px] text-slate-400">{u.departmentId?.departmentName || 'Global'}</span>
-                              </div>
-                              <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
-                                {u.role}
-                              </span>
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
             {/* Add Skill Button */}
             {user?.role !== 'employee' && (
               <button
@@ -493,6 +452,98 @@ const SkillMatrix = () => {
         </div>
       </div>
 
+      {/* Staff Directory Selector Panel for Managers & HR */}
+      {user?.role !== 'employee' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-2">
+                <User size={16} className="text-sky-600" />
+                <span>Staff Capability Directory ({users.length} Employees)</span>
+              </h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                Select an employee below to view, rate, or validate their technical & domain competencies.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full sm:w-64">
+                <Search size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search staff by name, code, dept..."
+                  className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedEmployeeId(user?.id)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                  selectedEmployeeId === user?.id
+                    ? 'bg-sky-700 text-white border-sky-700 shadow-sm'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                My Matrix (Self)
+              </button>
+            </div>
+          </div>
+
+          {/* Grid of Interactive Staff Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+            {users
+              .filter(u => {
+                const name = `${u.firstName} ${u.lastName} ${u.employeeCode}`.toLowerCase();
+                const dept = (u.departmentId?.departmentName || '').toLowerCase();
+                const role = (u.role || '').toLowerCase();
+                const q = searchQuery.toLowerCase();
+                return name.includes(q) || dept.includes(q) || role.includes(q);
+              })
+              .map(u => {
+                const isSelected = selectedEmployeeId === u._id;
+                const deptName = u.departmentId?.departmentName || 'Global';
+
+                return (
+                  <button
+                    key={u._id}
+                    type="button"
+                    onClick={() => setSelectedEmployeeId(u._id)}
+                    className={`text-left p-3 rounded-2xl transition-all cursor-pointer border flex flex-col justify-between space-y-2 ${
+                      isSelected
+                        ? 'bg-sky-50 text-sky-950 border-sky-500 shadow-md ring-2 ring-sky-500/20'
+                        : 'bg-slate-50/70 hover:bg-slate-100 text-slate-700 border-slate-200/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
+                        isSelected ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {u.firstName?.[0]}{u.lastName?.[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-xs text-slate-900 truncate">{u.firstName} {u.lastName}</p>
+                        <span className="text-[9px] font-mono text-slate-400 block truncate">{u.employeeCode}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[9px]">
+                      <span className="font-semibold text-slate-500 truncate max-w-[80px]">{deptName}</span>
+                      <span className={`font-black uppercase px-1.5 py-0.2 rounded text-[8px] ${
+                        u.role === 'manager' || u.role === 'hr' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {u.role === 'manager' ? 'MGR' : u.role === 'hr' ? 'HR' : 'EMP'}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* Tabbed Navigation Bar */}
       <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto">
         <button
@@ -544,15 +595,29 @@ const SkillMatrix = () => {
               </h3>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full sm:w-64">
-              <Search size={14} className="text-slate-400 shrink-0" />
-              <input
-                type="text"
-                placeholder="Filter skill or category..."
-                value={skillSearchTerm}
-                onChange={(e) => setSkillSearchTerm(e.target.value)}
-                className="bg-transparent text-xs text-slate-800 outline-none w-full"
-              />
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+              {user?.role !== 'employee' && selectedEmployeeId !== user?.id && (
+                <button
+                  type="button"
+                  onClick={handleValidateAllSkills}
+                  className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer"
+                  title="Copy employee self-ratings into manager ratings"
+                >
+                  <CheckCircle2 size={15} />
+                  <span>Validate All Self Ratings</span>
+                </button>
+              )}
+
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full sm:w-64">
+                <Search size={14} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Filter skill or category..."
+                  value={skillSearchTerm}
+                  onChange={(e) => setSkillSearchTerm(e.target.value)}
+                  className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
+                />
+              </div>
             </div>
           </div>
 

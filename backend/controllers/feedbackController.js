@@ -46,6 +46,10 @@ const createFeedbackRequest = async (req, res) => {
       return res.status(400).json({ message: 'employeeId, reviewerId, relationship, and cycleId are required.' });
     }
 
+    if (employeeId.toString() === reviewerId.toString()) {
+      return res.status(400).json({ message: 'Assigned reviewer cannot be the same person as the subject employee.' });
+    }
+
     // Verify cycle is active
     const cycle = await ReviewCycle.findById(cycleId);
     if (!cycle || cycle.status !== 'active') {

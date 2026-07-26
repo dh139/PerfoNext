@@ -61,7 +61,7 @@ const getDashboardData = async (req, res) => {
         if (cycle.targetRole === 'manager' && user.role === 'employee') {
           continue;
         }
-        if (cycle.targetRole === 'employee' && (user.role === 'manager' || user.role === 'executive')) {
+        if (cycle.targetRole === 'employee' && (user.role === 'manager' || user.role === 'hr' || user.role === 'executive')) {
           continue;
         }
 

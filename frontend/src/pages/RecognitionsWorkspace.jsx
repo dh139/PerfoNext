@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Plus, Award, Calendar, MessageSquare } from 'lucide-react';
+import { AlertCircle, Plus, Award, Calendar, MessageSquare, Search } from 'lucide-react';
 import { toast } from '../store/toastStore';
 
 const RecognitionsWorkspace = () => {
@@ -13,12 +13,17 @@ const RecognitionsWorkspace = () => {
   const [error, setError] = useState('');
   const [activeCycleExists, setActiveCycleExists] = useState(true);
 
+  const [departments, setDepartments] = useState([]);
+
   // Form states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [employeeId, setEmployeeId] = useState('');
   const [cycleId, setCycleId] = useState('');
   const [category, setCategory] = useState('Star Performer');
   const [comments, setComments] = useState('');
+  const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
+  const [empSearchQuery, setEmpSearchQuery] = useState('');
+  const [empDeptFilter, setEmpDeptFilter] = useState('all');
 
   // Filter states (Must be declared at top level)
   const [awardCategoryFilter, setAwardCategoryFilter] = useState('all');
@@ -34,6 +39,9 @@ const RecognitionsWorkspace = () => {
       setCycles(cycleRes.data);
       const active = cycleRes.data.some(c => c.status === 'active');
       setActiveCycleExists(active);
+
+      const deptsRes = await api.get('/api/departments');
+      setDepartments(deptsRes.data);
 
       if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') {
         const empRes = await api.get('/api/users?role=employee');
@@ -309,18 +317,146 @@ const RecognitionsWorkspace = () => {
             </div>
 
             <form onSubmit={handleCreate} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Recognized Staff Member *</label>
-                <select
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
-                  required
+              {/* Recognized Staff Member (Enterprise Combobox) */}
+              <div className="space-y-1.5 relative">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Recognized Staff Member *</label>
+                  <span className="text-[9px] font-extrabold text-amber-600">
+                    {employees.length} Eligible
+                  </span>
+                </div>
+
+                {/* Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => setEmpDropdownOpen(!empDropdownOpen)}
+                  className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
                 >
-                  {employees.map(e => (
-                    <option key={e._id} value={e._id}>{e.firstName} {e.lastName} ({e.employeeCode})</option>
-                  ))}
-                </select>
+                  {(() => {
+                    const selected = employees.find(e => e._id === employeeId);
+                    if (!selected) {
+                      return <span className="text-slate-400 italic">Click to search & select staff member...</span>;
+                    }
+                    const deptName = selected.departmentId?.departmentName || 'No Dept';
+                    return (
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">
+                          {selected.firstName?.[0]}{selected.lastName?.[0]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-slate-900 block truncate">
+                            {selected.firstName} {selected.lastName}
+                          </span>
+                          <span className="text-[9px] text-slate-400 block truncate">{selected.employeeCode} • {deptName}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
+                </button>
+
+                {/* Floating Combobox Popover */}
+                {empDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setEmpDropdownOpen(false)} />
+                    <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
+                      {/* Search Bar */}
+                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
+                        <Search size={14} className="text-slate-400 shrink-0" />
+                        <input
+                          type="text"
+                          value={empSearchQuery}
+                          onChange={(e) => setEmpSearchQuery(e.target.value)}
+                          placeholder="Search nominee by name, code (EMP004)..."
+                          className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
+                          autoFocus
+                        />
+                      </div>
+
+                      {/* Department Filter Pills */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
+                        <button
+                          type="button"
+                          onClick={() => setEmpDeptFilter('all')}
+                          className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                            empDeptFilter === 'all'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          All ({employees.length})
+                        </button>
+                        {departments.map(d => (
+                          <button
+                            key={d._id}
+                            type="button"
+                            onClick={() => setEmpDeptFilter(d._id)}
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                              empDeptFilter.toString() === d._id.toString()
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {d.departmentName}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Searchable Options List */}
+                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                        {employees
+                          .filter(e => {
+                            const deptId = e.departmentId?._id || e.departmentId;
+                            const matchesDept = empDeptFilter === 'all' || (deptId && deptId.toString() === empDeptFilter.toString());
+                            const text = `${e.firstName} ${e.lastName} ${e.employeeCode}`.toLowerCase();
+                            return matchesDept && text.includes(empSearchQuery.toLowerCase());
+                          })
+                          .map(e => {
+                            const isSelected = employeeId === e._id;
+                            const deptName = e.departmentId?.departmentName || 'No Dept';
+
+                            return (
+                              <button
+                                key={e._id}
+                                type="button"
+                                onClick={() => {
+                                  setEmployeeId(e._id);
+                                  setEmpDropdownOpen(false);
+                                }}
+                                className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? 'bg-amber-50 text-amber-950 font-bold border-amber-300 shadow-xs'
+                                    : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
+                                    isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-700'
+                                  }`}>
+                                    {e.firstName?.[0]}{e.lastName?.[0]}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-extrabold text-slate-900 text-xs truncate">
+                                      {e.firstName} {e.lastName}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                                      <span className="font-mono text-slate-500 font-bold">{e.employeeCode || 'EMP'}</span>
+                                      <span>•</span>
+                                      <span className="truncate">{deptName}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                                  {e.role}
+                                </span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -153,16 +153,18 @@ const createUser = async (req, res) => {
     // Auto-generate employeeCode if not provided
     let finalCode = employeeCode;
     if (!finalCode) {
-      const count = await User.countDocuments();
-      const lastUser = await User.findOne({}, { employeeCode: 1 }).sort({ createdAt: -1 });
-      let nextNum = count + 1;
-      if (lastUser && lastUser.employeeCode) {
-        const match = lastUser.employeeCode.match(/(\d+)/);
-        if (match) {
-          nextNum = parseInt(match[1], 10) + 1;
+      const allUsers = await User.find({}, { employeeCode: 1 });
+      let maxNum = 0;
+      allUsers.forEach(u => {
+        if (u.employeeCode) {
+          const match = u.employeeCode.match(/(\d+)/);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxNum) maxNum = num;
+          }
         }
-      }
-      finalCode = `EMP${String(nextNum).padStart(3, '0')}`;
+      });
+      finalCode = `EMP${String(maxNum + 1).padStart(3, '0')}`;
     } else {
       const codeExists = await User.findOne({ employeeCode: finalCode });
       if (codeExists) {

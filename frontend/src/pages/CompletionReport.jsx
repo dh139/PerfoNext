@@ -100,8 +100,10 @@ const CompletionReport = () => {
     <div className="space-y-6 animate-fade-in text-xs text-slate-800">
       
       {/* Hallmark Hero Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative">
+        <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-emerald-500/10 rounded-full blur-3xl" />
+        </div>
         
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
           <div>
@@ -161,20 +163,29 @@ const CompletionReport = () => {
               {dropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => { setDropdownOpen(false); setSearchQuery(''); }} />
-                  <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
-                      <Search size={14} className="text-slate-400" />
+                  <div className="absolute right-0 mt-2 w-[420px] bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-4 space-y-3 animate-fade-in text-slate-800">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <span className="text-[10px] uppercase font-black text-slate-400 tracking-wider">
+                        Select Review Cycle ({cycles.length} Total)
+                      </span>
+                      <span className="text-[9px] text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">
+                        {cycles.filter(c => c.status === 'active').length} Active Now
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
+                      <Search size={14} className="text-slate-400 shrink-0" />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search month, dept, target audience..."
-                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                        placeholder="Search department (Sales, HR, Engineering), month..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
                         autoFocus
                       />
                     </div>
 
-                    <div className="max-h-72 overflow-y-auto space-y-1.5 pr-0.5">
+                    <div className="max-h-96 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                       {cycles
                         .filter(c => {
                           const isMgr = c.targetRole === 'manager';
@@ -187,6 +198,7 @@ const CompletionReport = () => {
                         .map(c => {
                           const isMgr = c.targetRole === 'manager';
                           const isSelected = selectedCycleId === c._id;
+                          const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide';
 
                           return (
                             <button
@@ -197,22 +209,22 @@ const CompletionReport = () => {
                                 setDropdownOpen(false);
                                 setSearchQuery('');
                               }}
-                              className={`w-full text-left p-3 rounded-xl text-xs space-y-1 transition-all cursor-pointer border ${
+                              className={`w-full text-left p-3 rounded-2xl text-xs space-y-1.5 transition-all cursor-pointer border ${
                                 isSelected
-                                  ? 'bg-sky-50/90 text-sky-950 font-bold border-sky-300 shadow-sm'
-                                  : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                                  ? 'bg-sky-50/90 text-sky-950 font-bold border-sky-300 shadow-sm ring-1 ring-sky-300'
+                                  : 'hover:bg-slate-50 text-slate-700 border-slate-200/80'
                               }`}
                             >
                               <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                   <span className="font-extrabold text-slate-900 text-xs">{c.reviewMonth}</span>
-                                  <span className="text-slate-400 text-[10px]">•</span>
-                                  <span className="font-bold text-slate-700 text-xs">
-                                    {c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'}
+                                  <span className="text-slate-300 text-[10px]">•</span>
+                                  <span className="font-black text-slate-800 text-xs bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                    {deptName}
                                   </span>
                                 </div>
 
-                                <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded border ${
+                                <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
                                   c.status === 'active'
                                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -222,7 +234,7 @@ const CompletionReport = () => {
                               </div>
 
                               <div className="flex justify-between items-center pt-0.5">
-                                <span className={`inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                <span className={`inline-flex items-center text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border ${
                                   isMgr
                                     ? 'bg-purple-100 text-purple-800 border-purple-200'
                                     : 'bg-sky-100 text-sky-800 border-sky-200'
@@ -230,7 +242,7 @@ const CompletionReport = () => {
                                   {isMgr ? '👔 Manager Cycle (CEO Review)' : '👤 Employee Cycle (Manager Review)'}
                                 </span>
 
-                                <span className="text-[9px] text-slate-400 capitalize">{c.cycleType || 'Monthly'}</span>
+                                <span className="text-[9px] text-slate-400 font-semibold uppercase">{c.cycleType || 'Monthly'}</span>
                               </div>
                             </button>
                           );

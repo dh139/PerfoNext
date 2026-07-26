@@ -127,10 +127,14 @@ const FeedbackCenter = () => {
 
       setUsers(allUsers);
       if (allUsers.length > 0) {
+        const defaultSubj = allUsers[0]._id;
+        const defaultRev = allUsers.length > 1 ? allUsers[1]._id : allUsers[0]._id;
+        const initialRel = detectRelationship(defaultSubj, defaultRev);
         setRequestForm(prev => ({
           ...prev,
-          employeeId: allUsers[0]._id,
-          reviewerId: allUsers[0]._id
+          employeeId: defaultSubj,
+          reviewerId: defaultRev,
+          relationship: initialRel
         }));
         setSummaryEmployeeId(usersRes.data[0]._id);
       }
@@ -581,24 +585,26 @@ const FeedbackCenter = () => {
                       />
                     </div>
                     <div className="space-y-0.5">
-                      {users.filter(u => `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(revSearchQuery.toLowerCase())).map(u => (
-                        <button
-                          key={u._id}
-                          type="button"
-                          onClick={() => {
-                            const autoRel = detectRelationship(requestForm.employeeId, u._id);
-                            setRequestForm(prev => ({ ...prev, reviewerId: u._id, relationship: autoRel }));
-                            setRevDropdownOpen(false);
-                            setRevSearchQuery('');
-                          }}
-                          className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
-                            requestForm.reviewerId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <span>{u.firstName} {u.lastName}</span>
-                          <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
-                        </button>
-                      ))}
+                      {users
+                        .filter(u => u._id !== requestForm.employeeId && `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(revSearchQuery.toLowerCase()))
+                        .map(u => (
+                          <button
+                            key={u._id}
+                            type="button"
+                            onClick={() => {
+                              const autoRel = detectRelationship(requestForm.employeeId, u._id);
+                              setRequestForm(prev => ({ ...prev, reviewerId: u._id, relationship: autoRel }));
+                              setRevDropdownOpen(false);
+                              setRevSearchQuery('');
+                            }}
+                            className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
+                              requestForm.reviewerId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <span>{u.firstName} {u.lastName}</span>
+                            <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
+                          </button>
+                        ))}
                     </div>
                   </div>
                 </>

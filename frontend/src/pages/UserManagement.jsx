@@ -225,6 +225,63 @@ const UserManagement = () => {
     );
   }
 
+  const getLevelAndExperienceBadge = (u) => {
+    const jd = u.joiningDate ? new Date(u.joiningDate) : null;
+    let expText = 'New Joiner';
+    if (jd && !isNaN(jd.getTime())) {
+      const diffYears = Math.round((Math.abs(new Date() - jd) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
+      if (diffYears < 0.1) {
+        expText = '< 1 mo tenure';
+      } else if (diffYears < 1) {
+        const months = Math.round(diffYears * 12);
+        expText = `${months} mos tenure`;
+      } else {
+        expText = `${diffYears} yrs tenure`;
+      }
+    }
+
+    const lvl = u.level || 5;
+    let levelTitle = `L${lvl}`;
+    let badgeColor = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    switch (lvl) {
+      case 1:
+        levelTitle = 'L1 • Executive';
+        badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
+        break;
+      case 2:
+        levelTitle = 'L2 • Senior Lead';
+        badgeColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        break;
+      case 3:
+        levelTitle = 'L3 • Team Lead';
+        badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
+        break;
+      case 4:
+        levelTitle = 'L4 • Senior Staff';
+        badgeColor = 'bg-teal-100 text-teal-800 border-teal-200';
+        break;
+      case 5:
+        levelTitle = 'L5 • Mid-Level';
+        badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        break;
+      case 6:
+      default:
+        levelTitle = 'L6 • Associate';
+        badgeColor = 'bg-amber-100 text-amber-800 border-amber-200';
+        break;
+    }
+
+    return (
+      <div className="space-y-0.5">
+        <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded border ${badgeColor}`}>
+          {levelTitle}
+        </span>
+        <p className="text-[10px] text-slate-500 font-semibold">{expText}</p>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in text-xs text-slate-800">
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
@@ -300,7 +357,12 @@ const UserManagement = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-black uppercase text-slate-400">
-                  <th className="p-3 pl-4">Employee</th><th className="p-3">Role Privilege</th><th className="p-3">Dept & Designation</th><th className="p-3">Reporting Line</th><th className="p-3 text-center">Status</th>
+                  <th className="p-3 pl-4">Employee</th>
+                  <th className="p-3">Role Privilege</th>
+                  <th className="p-3">Dept & Designation</th>
+                  <th className="p-3">Level & Experience</th>
+                  <th className="p-3">Reporting Line</th>
+                  <th className="p-3 text-center">Status</th>
                   {currentUser?.role !== 'executive' && <th className="p-3 pr-4 text-right">Actions</th>}
                 </tr>
               </thead>
@@ -333,6 +395,7 @@ const UserManagement = () => {
                     </td>
                     <td className="p-3">{renderRoleBadge(u.role)}</td>
                     <td className="p-3"><p className="font-bold text-slate-700">{u.departmentId?.departmentName || '-'}</p><p className="text-[10px] text-slate-500">{u.designationId?.designationName || '-'}</p></td>
+                    <td className="p-3">{getLevelAndExperienceBadge(u)}</td>
                     <td className="p-3">{u.managerId ? `${u.managerId.firstName} ${u.managerId.lastName}` : '-'}</td>
                     <td className="p-3 text-center">
                       <span className={`inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-full text-[9px] uppercase border ${u.employmentStatus === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
