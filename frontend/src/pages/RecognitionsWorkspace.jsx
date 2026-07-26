@@ -348,14 +348,36 @@ const RecognitionsWorkspace = () => {
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
                   >
                     <option value="">No cycle (Org Level)</option>
-                    {cycles.map(c => {
-                      const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
-                      return (
-                        <option key={c._id} value={c._id}>
-                          {c.reviewMonth} — {deptName}
-                        </option>
-                      );
-                    })}
+                    {(() => {
+                      const selectedEmp = employees.find(e => e._id === employeeId);
+                      const filteredCycles = cycles.filter(c => {
+                        if (!selectedEmp) return true;
+
+                        // Check target role compatibility
+                        const isEmpManager = selectedEmp.role === 'manager' || selectedEmp.role === 'hr';
+                        if (isEmpManager && c.targetRole === 'employee') return false;
+                        if (!isEmpManager && c.targetRole === 'manager') return false;
+
+                        // Check department compatibility
+                        const cycleDeptId = c.kpiTemplateId?.departmentId?._id || c.kpiTemplateId?.departmentId;
+                        const empDeptId = selectedEmp.departmentId?._id || selectedEmp.departmentId;
+                        if (cycleDeptId && empDeptId && cycleDeptId.toString() !== empDeptId.toString()) {
+                          return false;
+                        }
+
+                        return true;
+                      });
+
+                      return filteredCycles.map(c => {
+                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
+                        const targetBadge = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
+                        return (
+                          <option key={c._id} value={c._id}>
+                            Month: {c.reviewMonth} — {deptName} [{targetBadge}]
+                          </option>
+                        );
+                      });
+                    })()}
                   </select>
                 </div>
               </div>

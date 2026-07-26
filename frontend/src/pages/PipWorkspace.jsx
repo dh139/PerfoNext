@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Plus, CheckCircle, Clock, XCircle, FileText, Send, User, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { 
+  AlertCircle, Plus, CheckCircle, Clock, XCircle, FileText, Send, User, ShieldAlert, CheckCircle2,
+  Search, Building2, Filter, RefreshCw, Briefcase, UserCheck, Calendar
+} from 'lucide-react';
 import { toast } from '../store/toastStore';
 
 const PipWorkspace = () => {
   const { user } = useAuthStore();
   const [pips, setPips] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Search & Filter State for PIP List
+  const [pipSearch, setPipSearch] = useState('');
+  const [pipDeptFilter, setPipDeptFilter] = useState('all');
+  const [pipStatusFilter, setPipStatusFilter] = useState('all');
 
   // Creation Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -25,8 +34,12 @@ const PipWorkspace = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const pipRes = await api.get('/api/pips');
+      const [pipRes, deptsRes] = await Promise.all([
+        api.get('/api/pips'),
+        api.get('/api/departments')
+      ]);
       setPips(pipRes.data);
+      setDepartments(deptsRes.data);
 
       if (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') {
         const sugRes = await api.get('/api/pips/suggestions');
@@ -288,153 +301,292 @@ const PipWorkspace = () => {
             The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in consecutive appraisal cycles.
           </p>
 
-          <div className="space-y-3">
-            {suggestions.map(sug => (
-              <div key={sug.employee._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-amber-200/80 p-4 rounded-2xl shadow-3xs">
-                <div>
-                  <span className="font-extrabold text-slate-900 text-sm">
-                    {sug.employee.firstName} {sug.employee.lastName}
-                  </span>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{sug.reason}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {suggestions.map(sug => {
+              const emp = sug.employee || {};
+              const deptName = emp.departmentId?.departmentName || 'General';
+              const desigName = emp.designationId?.designationName || '-';
+
+              return (
+                <div key={emp._id} className="bg-white border border-amber-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-extrabold text-slate-900 text-sm">
+                        {emp.firstName} {emp.lastName}
+                      </span>
+                      <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
+                        {emp.employeeCode || 'EMP-N/A'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                        {deptName}
+                      </span>
+                      <span className="text-[9px] font-medium text-slate-500">
+                        • {desigName}
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-amber-800 font-medium bg-amber-50/80 p-2 rounded-xl border border-amber-100/60 mt-1">
+                      ⚠️ {sug.reason}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleInitiatePip(sug)}
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-xs py-2 px-3 rounded-xl cursor-pointer shadow-3xs transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Initiate PIP Plan</span>
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleInitiatePip(sug)}
-                  className="bg-amber-600 hover:bg-amber-700 text-white font-black text-xs px-4 py-2 rounded-xl cursor-pointer shadow-3xs transition-colors shrink-0"
-                >
-                  Initiate PIP Plan
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Active Plans Catalog Header */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
-        <div className="flex justify-between items-center border-b pb-4">
+      {/* Active Plans Catalog Header & Filters */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+        
+        {/* Header & Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">Performance Improvement Plans (PIP)</h3>
-            <p className="text-[10px] text-slate-400 mt-0.5">Track structured action goals, target windows, and milestone progress</p>
+            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+              <FileText size={18} className="text-sky-600" />
+              <span>Performance Improvement Plans (PIP)</span>
+            </h3>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Track structured action goals, target windows, and milestone progress
+            </p>
           </div>
 
-          {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && (
-            <button
-              onClick={() => handleInitiatePip(null)}
-              className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-colors flex items-center gap-1.5 uppercase text-[10px]"
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Search Input */}
+            <div className="relative w-full md:w-48">
+              <input
+                type="text"
+                placeholder="Search employee, goal..."
+                value={pipSearch}
+                onChange={(e) => setPipSearch(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 pl-7 pr-2.5 py-1.5 rounded-xl outline-none text-xs text-slate-800 focus:border-sky-500"
+              />
+              <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+            </div>
+
+            {/* Department Filter */}
+            <select
+              value={pipDeptFilter}
+              onChange={(e) => setPipDeptFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
             >
-              <Plus size={14} />
-              <span>Initiate New PIP</span>
-            </button>
-          )}
+              <option value="all">All Departments</option>
+              {departments.map(d => (
+                <option key={d._id} value={d._id}>{d.departmentName}</option>
+              ))}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={pipStatusFilter}
+              onChange={(e) => setPipStatusFilter(e.target.value)}
+              className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="closed">Closed</option>
+              <option value="escalated">Escalated</option>
+            </select>
+
+            {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && (
+              <button
+                onClick={() => handleInitiatePip(null)}
+                className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+              >
+                <Plus size={14} />
+                <span>Initiate PIP</span>
+              </button>
+            )}
+          </div>
         </div>
         
-        {pips.length === 0 ? (
-          <div className="text-center py-12 bg-slate-50 border border-slate-200 rounded-xl">
-            <FileText size={32} className="text-slate-400 mx-auto mb-2" />
-            <p className="text-slate-600 font-bold">No active or historical PIPs found.</p>
-            <p className="text-slate-400 text-[10px] mt-1">Click "+ Initiate New PIP" above to start an action plan for any employee.</p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {pips.map(pip => (
-              <div key={pip._id} className="border border-slate-200 rounded-xl p-5 space-y-4 bg-slate-50/40 hover:bg-slate-50 transition-colors">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h4 className="font-bold text-slate-800 text-sm">
-                      Employee: {pip.employeeId?.firstName} {pip.employeeId?.lastName} ({pip.employeeId?.employeeCode})
-                    </h4>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      Duration: {new Date(pip.startDate).toLocaleDateString()} to {new Date(pip.endDate).toLocaleDateString()} | HR Overseer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
-                    </p>
-                  </div>
+        {/* Filter PIP catalog */}
+        {(() => {
+          const filteredPips = pips.filter(pip => {
+            const emp = pip.employeeId || {};
+            const empName = `${emp.firstName || ''} ${emp.lastName || ''} ${emp.employeeCode || ''}`.toLowerCase();
+            const deptName = (emp.departmentId?.departmentName || '').toLowerCase();
+            const goalsText = (pip.goals || []).map(g => g.description).join(' ').toLowerCase();
 
-                  <div className="flex items-center gap-3">
-                    <span className={`px-3 py-1 rounded-full font-bold uppercase text-[10px] ${getStatusBadge(pip.status)}`}>
-                      Status: {pip.status}
-                    </span>
+            const matchesSearch = empName.includes(pipSearch.toLowerCase()) ||
+                                  deptName.includes(pipSearch.toLowerCase()) ||
+                                  goalsText.includes(pipSearch.toLowerCase());
 
-                    {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && pip.status === 'active' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleClosePip(pip._id, false)}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer"
-                        >
-                          Close PIP
-                        </button>
-                        <button
-                          onClick={() => handleClosePip(pip._id, true)}
-                          className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer"
-                        >
-                          Escalate
-                        </button>
+            const deptId = emp.departmentId?._id || emp.departmentId;
+            const matchesDept = pipDeptFilter === 'all' || (deptId && deptId.toString() === pipDeptFilter.toString());
+
+            const matchesStatus = pipStatusFilter === 'all' || pip.status === pipStatusFilter;
+
+            return matchesSearch && matchesDept && matchesStatus;
+          });
+
+          if (filteredPips.length === 0) {
+            return (
+              <div className="text-center py-12 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <FileText size={32} className="text-slate-300 mx-auto" />
+                <p className="text-slate-600 font-bold">No PIP records match your filter criteria.</p>
+                {(pipSearch || pipDeptFilter !== 'all' || pipStatusFilter !== 'all') && (
+                  <button
+                    onClick={() => { setPipSearch(''); setPipDeptFilter('all'); setPipStatusFilter('all'); }}
+                    className="text-xs font-bold text-sky-600 hover:underline cursor-pointer"
+                  >
+                    Clear search & filters
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-6">
+              {filteredPips.map(pip => {
+                const emp = pip.employeeId || {};
+                const deptName = emp.departmentId?.departmentName || 'General';
+                const desigName = emp.designationId?.designationName || '-';
+
+                return (
+                  <div key={pip._id} className="border border-slate-200/80 rounded-2xl p-5 space-y-4 bg-slate-50/40 hover:bg-slate-50 transition-colors shadow-2xs">
+                    
+                    {/* PIP Card Header */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-200/60 pb-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-extrabold text-slate-800 text-sm">
+                            {emp.firstName} {emp.lastName}
+                          </h4>
+                          <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md">
+                            {emp.employeeCode || 'EMP-N/A'}
+                          </span>
+                          <span className="text-[9px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
+                            {deptName}
+                          </span>
+                          <span className="text-[9px] font-semibold text-slate-500">
+                            {desigName}
+                          </span>
+                        </div>
+
+                        <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
+                          <span className="flex items-center gap-1">
+                            <Calendar size={11} className="text-slate-400" />
+                            Duration: {new Date(pip.startDate).toLocaleDateString()} to {new Date(pip.endDate).toLocaleDateString()}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <UserCheck size={11} className="text-slate-400" />
+                            HR Overseer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
+                          </span>
+                        </p>
+                      </div>
+
+                      {/* Status & Quick Actions */}
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={`px-3 py-1 rounded-full font-extrabold uppercase text-[9px] tracking-wider ${getStatusBadge(pip.status)}`}>
+                          ● {pip.status}
+                        </span>
+
+                        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && pip.status === 'active' && (
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleClosePip(pip._id, false)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                            >
+                              Close PIP
+                            </button>
+                            <button
+                              onClick={() => handleClosePip(pip._id, true)}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                            >
+                              Escalate
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Goals checklist */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Target Action Goals</span>
+                      <div className="space-y-2">
+                        {pip.goals.map((g, idx) => (
+                          <div key={idx} className="flex justify-between items-center bg-white border border-slate-200 p-3 rounded-xl">
+                            <div>
+                              <p className="font-semibold text-slate-800 text-xs">{g.description}</p>
+                              <p className="text-[9px] text-slate-400 mt-0.5">Target Date: {new Date(g.targetDate).toLocaleDateString()}</p>
+                            </div>
+                            
+                            {/* Goal Status Selector */}
+                            {pip.status === 'active' ? (
+                              <select
+                                value={g.status}
+                                onChange={(e) => handleUpdateGoalStatus(pip._id, idx, e.target.value)}
+                                className="bg-slate-50 border border-slate-200 font-bold p-1.5 rounded-lg text-[10px] outline-none cursor-pointer text-slate-700"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                              </select>
+                            ) : (
+                              <span className={`font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-full ${
+                                g.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {g.status}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {pip.closureNotes && (
+                      <div className="bg-slate-100 border border-slate-200 p-3 rounded-xl text-slate-700 text-xs">
+                        <span className="font-bold text-[9px] uppercase text-slate-500 block mb-0.5">Closure Notes</span>
+                        <p className="italic">{pip.closureNotes}</p>
                       </div>
                     )}
                   </div>
-                </div>
-
-                {/* Goals checklist */}
-                <div className="space-y-2 pt-2 border-t border-slate-200/60">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Target Action Goals</span>
-                  <div className="space-y-2">
-                    {pip.goals.map((g, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-white border border-slate-200 p-3 rounded-lg">
-                        <div>
-                          <p className="font-semibold text-slate-700">{g.description}</p>
-                          <p className="text-[9px] text-slate-400 mt-0.5">Target Date: {new Date(g.targetDate).toLocaleDateString()}</p>
-                        </div>
-                        
-                        {/* Goal Status Selector */}
-                        {pip.status === 'active' ? (
-                          <select
-                            value={g.status}
-                            onChange={(e) => handleUpdateGoalStatus(pip._id, idx, e.target.value)}
-                            className="bg-slate-50 border border-slate-200 font-bold p-1.5 rounded text-[10px] outline-none cursor-pointer"
-                          >
-                            <option value="pending">Pending</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="completed">Completed</option>
-                          </select>
-                        ) : (
-                          <span className={`font-bold text-[10px] uppercase px-2 py-0.5 rounded ${
-                            g.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {g.status}
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {pip.closureNotes && (
-                  <div className="bg-slate-100 border border-slate-200 p-3 rounded-lg text-slate-655">
-                    <span className="font-bold text-[10px] uppercase text-slate-500 block mb-1">Closure Notes</span>
-                    <p className="italic">{pip.closureNotes}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-xl shadow-2xl space-y-4">
-            <h3 className="font-bold text-sm text-slate-800 border-b pb-2">Initiate Performance Improvement Plan</h3>
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xl shadow-2xl space-y-4">
+            <h3 className="font-extrabold text-sm text-slate-800 border-b pb-2">Initiate Performance Improvement Plan</h3>
 
             <form onSubmit={handleCreatePip} className="space-y-4">
               {/* Employee Selection */}
               {selectedSug ? (
-                <div className="bg-slate-50 border p-3 rounded-xl flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-800 text-white font-bold flex items-center justify-center uppercase">
-                    {selectedSug.employee.firstName[0]}{selectedSug.employee.lastName[0]}
+                <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center uppercase">
+                      {selectedSug.employee.firstName[0]}{selectedSug.employee.lastName[0]}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">{selectedSug.employee.firstName} {selectedSug.employee.lastName}</p>
+                      <p className="text-[10px] text-slate-500 font-mono">
+                        {selectedSug.employee.employeeCode} • {selectedSug.employee.departmentId?.departmentName || 'General'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-bold text-slate-800">{selectedSug.employee.firstName} {selectedSug.employee.lastName}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Auto-Flagged Code: {selectedSug.employee.employeeCode}</p>
-                  </div>
+                  <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-200/60 text-amber-900 rounded-md">
+                    Auto-Flagged
+                  </span>
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -442,14 +594,15 @@ const PipWorkspace = () => {
                   <select
                     value={selectedEmployeeId}
                     onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700 text-xs"
                     required
                   >
                     {allUsers.map(u => {
-                      const deptName = u.departmentId?.departmentName || '';
+                      const deptName = u.departmentId?.departmentName || 'General';
+                      const desigName = u.designationId?.designationName || '';
                       return (
                         <option key={u._id} value={u._id}>
-                          {u.firstName} {u.lastName} ({u.employeeCode}){deptName ? ` — ${deptName}` : ''}
+                          {u.firstName} {u.lastName} ({u.employeeCode}) — {deptName}{desigName ? ` (${desigName})` : ''}
                         </option>
                       );
                     })}
@@ -464,7 +617,7 @@ const PipWorkspace = () => {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-xs"
                     required
                   />
                 </div>
@@ -475,7 +628,7 @@ const PipWorkspace = () => {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-xs"
                     required
                   />
                 </div>
@@ -486,7 +639,7 @@ const PipWorkspace = () => {
                 <select
                   value={selectedHrId}
                   onChange={(e) => setSelectedHrId(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-700 font-semibold"
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-700 font-semibold text-xs"
                   required
                 >
                   {hrList.map(hr => (
@@ -508,9 +661,9 @@ const PipWorkspace = () => {
                   </button>
                 </div>
 
-                <div className="space-y-3 max-h-40 overflow-y-auto">
+                <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
                   {goals.map((g, idx) => (
-                    <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200 items-end relative">
+                    <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 items-end">
                       <div className="flex-1 space-y-1">
                         <label className="text-[8px] font-bold text-slate-400 uppercase">Goal Description</label>
                         <input
@@ -518,7 +671,7 @@ const PipWorkspace = () => {
                           value={g.description}
                           onChange={(e) => handleGoalChange(idx, 'description', e.target.value)}
                           placeholder="e.g. Reduce production bugs below 2%..."
-                          className="w-full bg-white border border-slate-200 p-2 rounded outline-none text-slate-800"
+                          className="w-full bg-white border border-slate-200 p-2 rounded-lg outline-none text-slate-800 text-xs"
                           required
                         />
                       </div>
@@ -529,7 +682,7 @@ const PipWorkspace = () => {
                           type="date"
                           value={g.targetDate}
                           onChange={(e) => handleGoalChange(idx, 'targetDate', e.target.value)}
-                          className="w-full bg-white border border-slate-200 p-2 rounded outline-none text-slate-700"
+                          className="w-full bg-white border border-slate-200 p-2 rounded-lg outline-none text-slate-700 text-xs"
                           required
                         />
                       </div>
@@ -538,7 +691,7 @@ const PipWorkspace = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveGoal(idx)}
-                          className="text-rose-500 hover:bg-rose-50 p-2 rounded cursor-pointer"
+                          className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg cursor-pointer text-xs font-bold"
                         >
                           Remove
                         </button>
@@ -552,13 +705,13 @@ const PipWorkspace = () => {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer"
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-850 text-white font-semibold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors"
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2 rounded-xl shadow-xs cursor-pointer transition-colors text-xs"
                 >
                   Initiate Plan
                 </button>

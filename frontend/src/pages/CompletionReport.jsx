@@ -129,61 +129,112 @@ const CompletionReport = () => {
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2.5 px-3.5 rounded-2xl text-xs font-bold text-white transition-colors cursor-pointer shadow-md"
+                className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 p-2.5 px-4 rounded-2xl text-xs font-bold text-white transition-colors cursor-pointer shadow-md"
               >
-                <Calendar size={16} className="text-sky-400" />
+                <Calendar size={18} className="text-sky-400" />
                 <div className="text-left">
-                  <span className="text-[8px] text-slate-400 block uppercase tracking-wider leading-none">Review Cycle</span>
-                  <span className="mt-0.5 block font-extrabold text-sky-200">
+                  <span className="text-[8px] text-slate-400 block uppercase tracking-wider leading-none">Selected Review Cycle</span>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="font-black text-sky-200">
+                      {(() => {
+                        const selected = cycles.find(c => c._id === selectedCycleId);
+                        return selected ? `${selected.reviewMonth} - ${selected.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'}` : 'Select Cycle';
+                      })()}
+                    </span>
                     {(() => {
                       const selected = cycles.find(c => c._id === selectedCycleId);
-                      return selected ? `${selected.reviewMonth} (${selected.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'})` : 'Select Cycle';
+                      if (!selected) return null;
+                      const isManager = selected.targetRole === 'manager';
+                      return (
+                        <span className={`text-[8px] font-extrabold uppercase px-2 py-0.2 rounded ${
+                          isManager ? 'bg-purple-900/80 text-purple-200 border border-purple-700/60' : 'bg-sky-900/80 text-sky-200 border border-sky-700/60'
+                        }`}>
+                          {isManager ? 'Manager Cycle' : 'Employee Cycle'}
+                        </span>
+                      );
                     })()}
-                  </span>
+                  </div>
                 </div>
-                <span className="ml-1 text-slate-400 text-[10px]">▼</span>
+                <span className="ml-2 text-slate-400 text-[10px]">▼</span>
               </button>
 
               {dropdownOpen && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => { setDropdownOpen(false); setSearchQuery(''); }} />
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
+                  <div className="absolute right-0 mt-2 w-96 bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
                     <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
                       <Search size={14} className="text-slate-400" />
                       <input
                         type="text"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search cycle month, dept..."
+                        placeholder="Search month, dept, target audience..."
                         className="w-full bg-transparent text-xs text-slate-800 outline-none"
                         autoFocus
                       />
                     </div>
-                    <div className="max-h-60 overflow-y-auto space-y-1">
+
+                    <div className="max-h-72 overflow-y-auto space-y-1.5 pr-0.5">
                       {cycles
-                        .filter(c => `${c.reviewMonth} ${c.kpiTemplateId?.departmentId?.departmentName || ''}`.toLowerCase().includes(searchQuery.toLowerCase()))
-                        .map(c => (
-                          <button
-                            key={c._id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedCycleId(c._id);
-                              setDropdownOpen(false);
-                              setSearchQuery('');
-                            }}
-                            className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
-                              selectedCycleId === c._id ? 'bg-sky-50 text-sky-800 font-bold border border-sky-100' : 'hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <div>
-                              <p className="font-bold">{c.reviewMonth}</p>
-                              <span className="text-[9px] text-slate-400">{c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide Core'}</span>
-                            </div>
-                            <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded">
-                              {c.status}
-                            </span>
-                          </button>
-                        ))}
+                        .filter(c => {
+                          const isMgr = c.targetRole === 'manager';
+                          const roleText = isMgr ? 'manager reporting manager ceo' : 'employee employee evaluation';
+                          const deptText = c.kpiTemplateId?.departmentId?.departmentName || 'org-wide';
+                          const tNameText = c.kpiTemplateId?.templateName || '';
+                          const text = `${c.reviewMonth} ${deptText} ${tNameText} ${roleText} ${c.status}`.toLowerCase();
+                          return text.includes(searchQuery.toLowerCase());
+                        })
+                        .map(c => {
+                          const isMgr = c.targetRole === 'manager';
+                          const isSelected = selectedCycleId === c._id;
+
+                          return (
+                            <button
+                              key={c._id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCycleId(c._id);
+                                setDropdownOpen(false);
+                                setSearchQuery('');
+                              }}
+                              className={`w-full text-left p-3 rounded-xl text-xs space-y-1 transition-all cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-sky-50/90 text-sky-950 font-bold border-sky-300 shadow-sm'
+                                  : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                              }`}
+                            >
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-extrabold text-slate-900 text-xs">{c.reviewMonth}</span>
+                                  <span className="text-slate-400 text-[10px]">•</span>
+                                  <span className="font-bold text-slate-700 text-xs">
+                                    {c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'}
+                                  </span>
+                                </div>
+
+                                <span className={`text-[8px] font-extrabold uppercase px-2 py-0.5 rounded border ${
+                                  c.status === 'active'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 border-slate-200'
+                                }`}>
+                                  {c.status}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center pt-0.5">
+                                <span className={`inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                  isMgr
+                                    ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                    : 'bg-sky-100 text-sky-800 border-sky-200'
+                                }`}>
+                                  {isMgr ? '👔 Manager Cycle (CEO Review)' : '👤 Employee Cycle (Manager Review)'}
+                                </span>
+
+                                <span className="text-[9px] text-slate-400 capitalize">{c.cycleType || 'Monthly'}</span>
+                              </div>
+                            </button>
+                          );
+                        })}
                     </div>
                   </div>
                 </>

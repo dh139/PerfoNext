@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye, RefreshCw } from 'lucide-react';
+import { toast } from '../store/toastStore';
 
 const Certifications = () => {
   const { user } = useAuthStore();
   const [certs, setCerts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -86,7 +88,7 @@ const Certifications = () => {
     setSuccess('');
 
     if (!name || !issuer || !issueDate || !file) {
-      setError('Please fill in all fields and select a file.');
+      setError('Please fill in all required fields and select a file.');
       return;
     }
 
@@ -99,26 +101,31 @@ const Certifications = () => {
     formData.append('file', file);
 
     try {
-      setLoading(true);
+      setUploading(true);
       await api.post('/api/certifications/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
       setSuccess('Certification successfully registered!');
+      toast.success('Professional certification uploaded successfully!');
       setName('');
       setIssuer('');
       setIssueDate('');
       setExpiryDate('');
       setFile(null);
-      // Reset input element
-      document.getElementById('certFileField').value = '';
+      // Reset input element safely
+      const fileField = document.getElementById('certFileField');
+      if (fileField) fileField.value = '';
+      setShowUploadModal(false);
       fetchCertifications(selectedEmployeeId);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Upload failed.');
+      const errMsg = err.response?.data?.message || 'Upload failed.';
+      setError(errMsg);
+      toast.error(errMsg);
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
 
@@ -339,7 +346,7 @@ const Certifications = () => {
               <button onClick={() => setShowUploadModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
             </div>
 
-            <form onSubmit={(e) => { handleUploadSubmit(e); setShowUploadModal(false); }} className="space-y-4">
+            <form onSubmit={handleUploadSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Certification Title *</label>
                 <input
@@ -401,16 +408,25 @@ const Certifications = () => {
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
+                  disabled={uploading}
                   onClick={() => setShowUploadModal(false)}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2 rounded-xl cursor-pointer"
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2 rounded-xl cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors"
+                  disabled={uploading}
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50"
                 >
-                  Upload & Register
+                  {uploading ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <span>Upload & Register</span>
+                  )}
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 const Certification = require('../models/Certification');
 const Document = require('../models/Document');
 const ReviewCycle = require('../models/ReviewCycle');
+const AIReport = require('../models/AIReport');
 const fs = require('fs');
 const pdf = require('pdf-parse');
 
@@ -73,14 +74,8 @@ const uploadCertification = async (req, res) => {
       extractedText
     });
 
-    // Also register in the employee's Document Repository
-    await Document.create({
-      employeeId: targetEmployeeId,
-      fileName: `Certificate: ${name} (${issuer})`,
-      fileUrl,
-      mimeType: req.file.mimetype || 'application/pdf',
-      uploadedBy: req.user.id
-    });
+    // Invalidate AI report cache to trigger fresh AI insight generation with new certificate
+    await AIReport.deleteMany({ employeeId: targetEmployeeId });
 
     res.status(201).json(cert);
   } catch (error) {

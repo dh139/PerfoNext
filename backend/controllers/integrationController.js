@@ -18,7 +18,11 @@ const getAttendance = async (req, res) => {
     if (month) filter.month = month;
 
     const records = await Attendance.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode email' })
+      .populate({
+        path: 'employeeId',
+        select: 'firstName lastName employeeCode email departmentId designationId',
+        populate: { path: 'departmentId designationId' }
+      })
       .sort('-month');
 
     res.json(records);
@@ -73,6 +77,61 @@ const syncAttendance = async (req, res) => {
       status: 'failed',
       responseMessage: error.message
     });
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
+const batchSyncAttendance = async (req, res) => {
+  try {
+    const { departmentId, month, totalWorkingDays, daysPresent } = req.body;
+
+    if (!month || !totalWorkingDays || daysPresent === undefined) {
+      return res.status(400).json({ message: 'Month, totalWorkingDays, and daysPresent are required.' });
+    }
+
+    const userFilter = { employmentStatus: 'active' };
+    if (departmentId && departmentId !== 'all') {
+      userFilter.departmentId = departmentId;
+    }
+
+    const targetUsers = await User.find(userFilter);
+    if (targetUsers.length === 0) {
+      return res.status(404).json({ message: 'No eligible active employees found for batch sync.' });
+    }
+
+    let syncedCount = 0;
+    const percentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
+
+    for (const emp of targetUsers) {
+      let record = await Attendance.findOne({ employeeId: emp._id, month });
+      if (record) {
+        record.totalWorkingDays = totalWorkingDays;
+        record.daysPresent = daysPresent;
+        record.attendancePercentage = percentage;
+        await record.save();
+      } else {
+        await Attendance.create({
+          employeeId: emp._id,
+          month,
+          totalWorkingDays,
+          daysPresent,
+          attendancePercentage: percentage
+        });
+      }
+      syncedCount++;
+    }
+
+    await IntegrationLog.create({
+      system: 'attendance',
+      eventType: 'batch_attendance_sync',
+      payload: { departmentId: departmentId || 'all', month, totalWorkingDays, daysPresent, syncedCount },
+      status: 'success',
+      responseMessage: `Batch synced attendance for ${syncedCount} employees for ${month}.`
+    });
+
+    res.status(200).json({ message: `Successfully batch synced attendance for ${syncedCount} employees!`, syncedCount });
+  } catch (error) {
+    console.error('batchSyncAttendance error:', error);
     res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };
@@ -201,6 +260,7 @@ const getIntegrationLogs = async (req, res) => {
 module.exports = {
   getAttendance,
   syncAttendance,
+  batchSyncAttendance,
   sendTeamsWebhook,
   getLmsRecords,
   syncLmsRecord,

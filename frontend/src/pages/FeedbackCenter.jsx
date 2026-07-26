@@ -631,9 +631,10 @@ const FeedbackCenter = () => {
               >
                 {cycles.map(c => {
                   const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                  const targetLabel = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
                   return (
                     <option key={c._id} value={c._id}>
-                      Month: {c.reviewMonth} — Dept: {deptName} ({c.cycleType})
+                      Month: {c.reviewMonth} — Dept: {deptName} [{targetLabel}] ({c.cycleType})
                     </option>
                   );
                 })}

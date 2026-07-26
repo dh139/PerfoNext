@@ -101,6 +101,12 @@ const DepartmentReports = () => {
     ], table.allFilteredRows);
   };
 
+  const [cycleDropdownOpen, setCycleDropdownOpen] = useState(false);
+  const [cycleSearch, setCycleSearch] = useState('');
+
+  const selectedCycleObj = cycles.find(c => c._id === selectedCycleId);
+  const isManagerTarget = selectedCycleObj?.targetRole === 'manager';
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Dropdowns Card */}
@@ -111,7 +117,7 @@ const DepartmentReports = () => {
             <select
               value={selectedDeptId}
               onChange={(e) => setSelectedDeptId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-semibold p-3 rounded-xl text-xs outline-none focus:border-sky-500"
+              className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold p-3 rounded-xl text-xs outline-none focus:border-sky-500 cursor-pointer"
             >
               {departments.map(d => (
                 <option key={d._id} value={d._id}>{d.departmentName}</option>
@@ -120,25 +126,101 @@ const DepartmentReports = () => {
           </div>
         </div>
 
+        {/* Custom Review Cycle Dropdown */}
         <div className="flex-1 space-y-2">
           <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Cycle</label>
           <div className="relative">
-            <select
-              value={selectedCycleId}
-              onChange={(e) => setSelectedCycleId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-semibold p-3 rounded-xl text-xs outline-none focus:border-sky-500"
+            <button
+              type="button"
+              onClick={() => setCycleDropdownOpen(!cycleDropdownOpen)}
+              className="w-full text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 px-3.5 rounded-xl text-xs font-bold text-slate-800 transition-colors cursor-pointer flex justify-between items-center"
             >
-              {cycles.map(c => {
-                const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                const tempName = c.kpiTemplateId?.templateName || 'General Template';
-                const targetText = c.targetRole === 'manager' ? 'Managers Evaluation' : 'Employees Evaluation';
-                return (
-                  <option key={c._id} value={c._id}>
-                    Month: {c.reviewMonth} — [{targetText}] — Dept: {deptName} ({tempName}) ({c.status})
-                  </option>
-                );
-              })}
-            </select>
+              <div>
+                <span className="font-extrabold text-slate-900 block">
+                  {selectedCycleObj ? `Month: ${selectedCycleObj.reviewMonth}` : 'Select Review Cycle'}
+                </span>
+                {selectedCycleObj && (
+                  <span className={`inline-block text-[9px] font-extrabold px-2 py-0.2 rounded mt-0.5 ${
+                    isManagerTarget ? 'bg-purple-100 text-purple-800 border border-purple-200' : 'bg-sky-100 text-sky-800 border border-sky-200'
+                  }`}>
+                    {isManagerTarget ? '👔 Manager Cycle (CEO Review)' : '👤 Employee Cycle (Manager Review)'}
+                  </span>
+                )}
+              </div>
+              <span className="text-slate-400 text-[10px] ml-2">▼</span>
+            </button>
+
+            {cycleDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => { setCycleDropdownOpen(false); setCycleSearch(''); }} />
+                <div className="absolute right-0 mt-2 w-full min-w-[340px] bg-white border border-slate-200 rounded-2xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
+                    <Search size={14} className="text-slate-400" />
+                    <input
+                      type="text"
+                      value={cycleSearch}
+                      onChange={(e) => setCycleSearch(e.target.value)}
+                      placeholder="Search cycle month, dept, target audience..."
+                      className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-0.5">
+                    {cycles
+                      .filter(c => {
+                        const isMgr = c.targetRole === 'manager';
+                        const roleText = isMgr ? 'manager reporting manager ceo' : 'employee employee evaluation';
+                        const deptText = c.kpiTemplateId?.departmentId?.departmentName || 'all departments';
+                        const tNameText = c.kpiTemplateId?.templateName || '';
+                        const text = `${c.reviewMonth} ${deptText} ${tNameText} ${roleText} ${c.status}`.toLowerCase();
+                        return text.includes(cycleSearch.toLowerCase());
+                      })
+                      .map(c => {
+                        const isMgr = c.targetRole === 'manager';
+                        const isSelected = selectedCycleId === c._id;
+
+                        return (
+                          <button
+                            key={c._id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCycleId(c._id);
+                              setCycleDropdownOpen(false);
+                              setCycleSearch('');
+                            }}
+                            className={`w-full text-left p-2.5 rounded-xl text-xs space-y-1 transition-all cursor-pointer border ${
+                              isSelected
+                                ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-sm'
+                                : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-black text-slate-900">Month: {c.reviewMonth}</span>
+                              <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
+                                c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                              }`}>
+                                {c.status}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-between items-center">
+                              <span className={`inline-flex items-center text-[9px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                isMgr ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-sky-100 text-sky-800 border-sky-200'
+                              }`}>
+                                {isMgr ? '👔 Manager Cycle' : '👤 Employee Cycle'}
+                              </span>
+                              <span className="text-[9px] text-slate-400 truncate max-w-[140px]">
+                                {c.kpiTemplateId?.departmentId?.departmentName || 'All Depts'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -165,7 +247,9 @@ const DepartmentReports = () => {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-center items-center text-center">
-              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Employees</span>
+              <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                {isManagerTarget ? 'Active Managers' : 'Active Employees'}
+              </span>
               <h2 className="text-3xl font-extrabold text-slate-800 mt-2">{report.employeeCount}</h2>
             </div>
 
@@ -204,10 +288,12 @@ const DepartmentReports = () => {
             </div>
           )}
 
-          {/* Employee Final Scores list */}
+          {/* Employee / Manager Final Scores list */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Employee Final Scores</h3>
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                {isManagerTarget ? 'Reporting Manager Final Scores' : 'Employee Final Scores'}
+              </h3>
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

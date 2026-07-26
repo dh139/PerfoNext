@@ -50,7 +50,7 @@ const createRecognition = async (req, res) => {
       cycleId: cycleId || activeCycle._id,
       category,
       comments,
-      awardedBy
+      awardedBy: req.user.id
     });
 
     const populated = await Recognition.findById(recognition._id)

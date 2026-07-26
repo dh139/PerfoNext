@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, CheckCircle2, Clock, Send, Calendar, BookOpen, MessageSquare, Activity, RefreshCw, Cpu, Check, AlertTriangle } from 'lucide-react';
+import { 
+  AlertCircle, CheckCircle2, Clock, Send, Calendar, BookOpen, MessageSquare, Activity, 
+  RefreshCw, Cpu, Check, AlertTriangle, Search, Users, Filter, ChevronLeft, ChevronRight, 
+  Building2, Layers 
+} from 'lucide-react';
 
 const IntegrationsWorkspace = () => {
   const { user } = useAuthStore();
@@ -11,15 +15,31 @@ const IntegrationsWorkspace = () => {
   const [success, setSuccess] = useState('');
 
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   // Attendance state
   const [attendanceRecords, setAttendanceRecords] = useState([]);
+  const [syncMode, setSyncMode] = useState('single'); // 'single' | 'batch'
+  const [formDeptFilter, setFormDeptFilter] = useState('all');
+  const [formUserSearch, setFormUserSearch] = useState('');
   const [attendanceForm, setAttendanceForm] = useState({
     employeeId: '',
     month: '2026-07',
     totalWorkingDays: 22,
     daysPresent: 20
   });
+
+  // Batch sync state
+  const [batchDeptId, setBatchDeptId] = useState('all');
+  const [batchMonth, setBatchMonth] = useState('2026-07');
+  const [batchWorkingDays, setBatchWorkingDays] = useState(22);
+  const [batchDaysPresent, setBatchDaysPresent] = useState(20);
+
+  // Table filtering & pagination state
+  const [tableSearch, setTableSearch] = useState('');
+  const [tableMonthFilter, setTableMonthFilter] = useState('all');
+  const [tableDeptFilter, setTableDeptFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Teams Webhook state
   const [teamsForm, setTeamsForm] = useState({
@@ -52,8 +72,12 @@ const IntegrationsWorkspace = () => {
 
   const fetchMetadata = async () => {
     try {
-      const usersRes = await api.get('/api/users');
+      const [usersRes, deptsRes] = await Promise.all([
+        api.get('/api/users'),
+        api.get('/api/departments')
+      ]);
       setUsers(usersRes.data);
+      setDepartments(deptsRes.data);
       if (usersRes.data.length > 0) {
         setAttendanceForm(prev => ({ ...prev, employeeId: usersRes.data[0]._id }));
         setLmsForm(prev => ({ ...prev, employeeId: usersRes.data[0]._id }));
@@ -108,6 +132,32 @@ const IntegrationsWorkspace = () => {
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Sync failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBatchAttendanceSync = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    try {
+      setLoading(true);
+      const res = await api.post('/api/integrations/attendance/batch-sync', {
+        departmentId: batchDeptId,
+        month: batchMonth,
+        totalWorkingDays: batchWorkingDays,
+        daysPresent: batchDaysPresent
+      });
+      setSuccess(res.data.message || 'Batch attendance metrics synced successfully!');
+      fetchAttendance();
+      if (user?.role === 'hr' || user?.role === 'admin') {
+        fetchLogs();
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Batch sync failed.');
     } finally {
       setLoading(false);
     }
@@ -295,127 +345,449 @@ const IntegrationsWorkspace = () => {
       )}
 
       {/* Tab 1: Attendance HRMS Sync */}
-      {activeTab === 'attendance' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {activeTab === 'attendance' && (() => {
+        // Calculate filtered employee list for single employee form
+        const filteredFormUsers = users.filter(u => {
+          const deptId = u.departmentId?._id || u.departmentId;
+          const matchesDept = formDeptFilter === 'all' || (deptId && deptId.toString() === formDeptFilter.toString());
+          const fullName = `${u.firstName} ${u.lastName} ${u.employeeCode || ''}`.toLowerCase();
+          const matchesSearch = fullName.includes(formUserSearch.toLowerCase());
+          return matchesDept && matchesSearch;
+        });
+
+        // Filter attendance table records
+        const filteredAttendanceRecords = attendanceRecords.filter(rec => {
+          const emp = rec.employeeId || {};
+          const empName = `${emp.firstName || ''} ${emp.lastName || ''} ${emp.employeeCode || ''}`.toLowerCase();
+          const deptName = (emp.departmentId?.departmentName || '').toLowerCase();
+          const desigName = (emp.designationId?.designationName || '').toLowerCase();
           
-          {/* Sync Trigger Form (Admin / HR) */}
-          {(user?.role === 'hr' || user?.role === 'admin') && (
-            <form onSubmit={handleAttendanceSync} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
-              <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">Sync HRMS Attendance Data</h3>
+          const matchesSearch = empName.includes(tableSearch.toLowerCase()) ||
+                                deptName.includes(tableSearch.toLowerCase()) ||
+                                desigName.includes(tableSearch.toLowerCase());
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Employee</label>
-                <select
-                  value={attendanceForm.employeeId}
-                  onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-                  required
-                >
-                  {users.map(u => (
-                    <option key={u._id} value={u._id}>{u.firstName} {u.lastName} ({u.role})</option>
-                  ))}
-                </select>
-              </div>
+          const matchesMonth = tableMonthFilter === 'all' || rec.month === tableMonthFilter;
 
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Review Month</label>
-                <input
-                  type="month"
-                  value={attendanceForm.month}
-                  onChange={(e) => setAttendanceForm({ ...attendanceForm, month: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700"
-                  required
-                />
-              </div>
+          const deptId = emp.departmentId?._id || emp.departmentId;
+          const matchesDept = tableDeptFilter === 'all' || (deptId && deptId.toString() === tableDeptFilter.toString());
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Working Days</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    value={attendanceForm.totalWorkingDays}
-                    onChange={(e) => setAttendanceForm({ ...attendanceForm, totalWorkingDays: +e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none"
-                    required
-                  />
+          return matchesSearch && matchesMonth && matchesDept;
+        });
+
+        const uniqueMonths = Array.from(new Set(attendanceRecords.map(r => r.month))).sort().reverse();
+
+        const ITEMS_PER_PAGE = 10;
+        const totalPages = Math.ceil(filteredAttendanceRecords.length / ITEMS_PER_PAGE) || 1;
+        const safeCurrentPage = Math.min(currentPage, totalPages);
+        const paginatedRecords = filteredAttendanceRecords.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Sync Trigger Console (Admin / HR) */}
+            {(user?.role === 'hr' || user?.role === 'admin') && (
+              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
+                <div className="flex justify-between items-center border-b pb-3">
+                  <div>
+                    <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Sync HRMS Attendance</h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Push or simulate HRMS webhook payloads</p>
+                  </div>
+                  
+                  {/* Mode Switcher */}
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setSyncMode('single')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        syncMode === 'single' ? 'bg-white text-sky-700 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Single Employee
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSyncMode('batch')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
+                        syncMode === 'batch' ? 'bg-white text-emerald-700 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Bulk Department
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Days Present</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max={attendanceForm.totalWorkingDays}
-                    value={attendanceForm.daysPresent}
-                    onChange={(e) => setAttendanceForm({ ...attendanceForm, daysPresent: +e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none"
-                    required
-                  />
-                </div>
-              </div>
+                {/* SINGLE EMPLOYEE SYNC FORM */}
+                {syncMode === 'single' && (
+                  <form onSubmit={handleAttendanceSync} className="space-y-3.5">
+                    {/* Department Filter for Employee List */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                          <Building2 size={11} className="text-slate-400" />
+                          <span>Filter Department</span>
+                        </label>
+                        <span className="text-[9px] font-bold text-slate-400">
+                          {filteredFormUsers.length} Eligible
+                        </span>
+                      </div>
+                      <select
+                        value={formDeptFilter}
+                        onChange={(e) => setFormDeptFilter(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                      >
+                        <option value="all">All Departments ({users.length} Total Users)</option>
+                        {departments.map(d => (
+                          <option key={d._id} value={d._id}>{d.departmentName}</option>
+                        ))}
+                      </select>
+                    </div>
 
-              <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl flex justify-between items-center text-sky-800 font-bold">
-                <span>Calculated Attendance %:</span>
-                <span className="text-sm">{calculatedPct}%</span>
-              </div>
+                    {/* Search & Select Employee */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <Search size={11} className="text-slate-400" />
+                        <span>Search & Select Employee</span>
+                      </label>
+                      
+                      <div className="relative mb-1">
+                        <input
+                          type="text"
+                          placeholder="Type employee name or code..."
+                          value={formUserSearch}
+                          onChange={(e) => setFormUserSearch(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 pl-7 pr-3 py-1.5 rounded-xl outline-none text-xs text-slate-800 focus:border-sky-500"
+                        />
+                        <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                      </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-sky-700 hover:bg-sky-850 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors uppercase text-[10px] flex justify-center items-center gap-2"
-              >
-                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                <span>Simulate HRMS Webhook Pull</span>
-              </button>
-            </form>
-          )}
+                      <select
+                        value={attendanceForm.employeeId}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, employeeId: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700 text-xs"
+                        required
+                      >
+                        {filteredFormUsers.length === 0 ? (
+                          <option value="" disabled>No employees match filter</option>
+                        ) : (
+                          filteredFormUsers.map(u => (
+                            <option key={u._id} value={u._id}>
+                              {u.firstName} {u.lastName} ({u.employeeCode || u.role}) - {u.departmentId?.departmentName || 'No Dept'}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
 
-          {/* Attendance Table */}
-          <div className={`${(user?.role === 'hr' || user?.role === 'admin') ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4`}>
-            <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">Monthly Attendance Metrics</h3>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Review Month</label>
+                      <input
+                        type="month"
+                        value={attendanceForm.month}
+                        onChange={(e) => setAttendanceForm({ ...attendanceForm, month: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-slate-700 text-xs"
+                        required
+                      />
+                    </div>
 
-            {attendanceRecords.length === 0 ? (
-              <p className="text-slate-400 italic text-center py-8">No attendance sync records available.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="pb-2">Employee</th>
-                      <th className="pb-2">Month</th>
-                      <th className="pb-2">Present / Total</th>
-                      <th className="pb-2">Attendance %</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-xs">
-                    {attendanceRecords.map(rec => (
-                      <tr key={rec._id} className="hover:bg-slate-50/60">
-                        <td className="py-3 font-semibold text-slate-700">
-                          {rec.employeeId?.firstName} {rec.employeeId?.lastName}
-                        </td>
-                        <td className="py-3 text-slate-500">{rec.month}</td>
-                        <td className="py-3 text-slate-500">{rec.daysPresent} / {rec.totalWorkingDays} days</td>
-                        <td className="py-3">
-                          <span className={`font-bold px-2 py-0.5 rounded ${
-                            rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700' :
-                            rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700' :
-                            'bg-rose-50 text-rose-700'
-                          }`}>
-                            {rec.attendancePercentage}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Working Days</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={attendanceForm.totalWorkingDays}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, totalWorkingDays: +e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Days Present</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={attendanceForm.totalWorkingDays}
+                          value={attendanceForm.daysPresent}
+                          onChange={(e) => setAttendanceForm({ ...attendanceForm, daysPresent: +e.target.value })}
+                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl flex justify-between items-center text-sky-800 font-bold text-xs">
+                      <span>Calculated Attendance %:</span>
+                      <span className="text-sm">{calculatedPct}%</span>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading || !attendanceForm.employeeId}
+                      className="w-full bg-sky-700 hover:bg-sky-800 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-xs transition-colors uppercase text-[10px] flex justify-center items-center gap-2"
+                    >
+                      <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                      <span>Simulate HRMS Webhook Pull</span>
+                    </button>
+                  </form>
+                )}
+
+                {/* BULK DEPARTMENT SYNC FORM */}
+                {syncMode === 'batch' && (
+                  <form onSubmit={handleBatchAttendanceSync} className="space-y-3.5">
+                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-[11px] leading-relaxed">
+                      <p className="font-bold">⚡ Bulk Webhook Sync Mode</p>
+                      <p className="text-[10px] text-emerald-700 mt-0.5">
+                        Sync attendance records for an entire department or company in 1-click.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department</label>
+                      <select
+                        value={batchDeptId}
+                        onChange={(e) => setBatchDeptId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                      >
+                        <option value="all">All Departments ({users.length} Active Employees)</option>
+                        {departments.map(d => (
+                          <option key={d._id} value={d._id}>{d.departmentName}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Review Month</label>
+                      <input
+                        type="month"
+                        value={batchMonth}
+                        onChange={(e) => setBatchMonth(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-slate-700 text-xs"
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Total Working Days</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={batchWorkingDays}
+                          onChange={(e) => setBatchWorkingDays(+e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 uppercase">Days Present</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={batchWorkingDays}
+                          value={batchDaysPresent}
+                          onChange={(e) => setBatchDaysPresent(+e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-xs transition-colors uppercase text-[10px] flex justify-center items-center gap-2"
+                    >
+                      <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                      <span>Execute Batch HRMS Webhook Sync</span>
+                    </button>
+                  </form>
+                )}
               </div>
             )}
-          </div>
 
-        </div>
-      )}
+            {/* Attendance Registry & Audit Table (With Filters & Pagination) */}
+            <div className={`${(user?.role === 'hr' || user?.role === 'admin') ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4`}>
+              
+              {/* Header & Controls Bar */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
+                <div>
+                  <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <Clock size={16} className="text-sky-600" />
+                    <span>Enterprise Attendance Registry</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    Searchable attendance records ({filteredAttendanceRecords.length} records found)
+                  </p>
+                </div>
+
+                {/* Filters */}
+                <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                  {/* Search Bar */}
+                  <div className="relative w-full md:w-44">
+                    <input
+                      type="text"
+                      placeholder="Search registry..."
+                      value={tableSearch}
+                      onChange={(e) => { setTableSearch(e.target.value); setCurrentPage(1); }}
+                      className="w-full bg-slate-50 border border-slate-200 pl-7 pr-2.5 py-1.5 rounded-xl outline-none text-xs text-slate-800 focus:border-sky-500"
+                    />
+                    <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
+                  </div>
+
+                  {/* Month Filter */}
+                  <select
+                    value={tableMonthFilter}
+                    onChange={(e) => { setTableMonthFilter(e.target.value); setCurrentPage(1); }}
+                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Months</option>
+                    {uniqueMonths.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+
+                  {/* Department Filter */}
+                  <select
+                    value={tableDeptFilter}
+                    onChange={(e) => { setTableDeptFilter(e.target.value); setCurrentPage(1); }}
+                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Depts</option>
+                    {departments.map(d => (
+                      <option key={d._id} value={d._id}>{d.departmentName}</option>
+                    ))}
+                  </select>
+
+                  {/* Reset Filters */}
+                  {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
+                    <button
+                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer"
+                      title="Clear Filters"
+                    >
+                      <RefreshCw size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {filteredAttendanceRecords.length === 0 ? (
+                <div className="py-12 text-center space-y-2">
+                  <Clock size={32} className="mx-auto text-slate-300" />
+                  <p className="text-slate-400 italic">No attendance records matching your filter criteria.</p>
+                  {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
+                    <button
+                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
+                      className="text-xs font-bold text-sky-600 hover:underline cursor-pointer"
+                    >
+                      Clear search & filters
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                          <th className="pb-2.5 pl-1">Employee</th>
+                          <th className="pb-2.5">Department & Designation</th>
+                          <th className="pb-2.5">Month</th>
+                          <th className="pb-2.5">Present / Total</th>
+                          <th className="pb-2.5 pr-1">Attendance %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-xs">
+                        {paginatedRecords.map(rec => {
+                          const emp = rec.employeeId || {};
+                          const deptName = emp.departmentId?.departmentName || 'General';
+                          const desigName = emp.designationId?.designationName || '-';
+
+                          return (
+                            <tr key={rec._id} className="hover:bg-slate-50/60 transition-colors">
+                              <td className="py-3 pl-1">
+                                <div>
+                                  <p className="font-bold text-slate-800">
+                                    {emp.firstName} {emp.lastName}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 font-mono">
+                                    {emp.employeeCode || 'EMP-N/A'}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="py-3">
+                                <p className="font-semibold text-slate-700">{deptName}</p>
+                                <p className="text-[10px] text-slate-400">{desigName}</p>
+                              </td>
+                              <td className="py-3 text-slate-600 font-medium">
+                                <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] border border-slate-200">
+                                  {rec.month}
+                                </span>
+                              </td>
+                              <td className="py-3 text-slate-600 font-medium">
+                                {rec.daysPresent} / {rec.totalWorkingDays} days
+                              </td>
+                              <td className="py-3 pr-1">
+                                <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
+                                  rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                  'bg-rose-50 text-rose-700 border border-rose-200'
+                                }`}>
+                                  {rec.attendancePercentage}%
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100 text-xs">
+                    <p className="text-slate-500 font-medium text-[11px]">
+                      Showing <span className="font-bold text-slate-800">{(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{' '}
+                      <span className="font-bold text-slate-800">{Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredAttendanceRecords.length)}</span> of{' '}
+                      <span className="font-bold text-slate-800">{filteredAttendanceRecords.length}</span> records
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={safeCurrentPage === 1}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft size={13} />
+                        <span>Prev</span>
+                      </button>
+
+                      <span className="px-3 py-1 bg-sky-50 text-sky-800 font-black rounded-lg text-[11px] border border-sky-100">
+                        {safeCurrentPage} / {totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={safeCurrentPage >= totalPages}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+          </div>
+        );
+      })()}
 
       {/* Tab 2: MS Teams Connector */}
       {activeTab === 'teams' && (

@@ -145,6 +145,7 @@ router.post('/certifications/upload', verifyToken, upload.single('file'), certif
 // Ecosystem Integration Routes
 router.get('/integrations/attendance', verifyToken, integrationController.getAttendance);
 router.post('/integrations/attendance/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncAttendance);
+router.post('/integrations/attendance/batch-sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.batchSyncAttendance);
 router.post('/integrations/teams/webhook', verifyToken, authorizeRoles('admin', 'hr', 'manager'), integrationController.sendTeamsWebhook);
 router.get('/integrations/lms', verifyToken, integrationController.getLmsRecords);
 router.post('/integrations/lms/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncLmsRecord);

@@ -29,6 +29,31 @@ const getMonthsInRange = (startDate, endDate) => {
   return months;
 };
 
+const calculateCyclePeriodBounds = (cycle) => {
+  let startBound;
+  let endBound;
+
+  if (cycle.reviewMonth && /^\d{4}-\d{2}$/.test(cycle.reviewMonth)) {
+    const [year, month] = cycle.reviewMonth.split('-').map(Number);
+    startBound = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    endBound = new Date(Date.UTC(year, month, 0, 12, 0, 0));
+  } else {
+    startBound = new Date(cycle.startDate);
+    startBound.setUTCHours(0, 0, 0, 0);
+    endBound = new Date(cycle.endDate);
+    endBound.setUTCHours(12, 0, 0, 0);
+
+    if (endBound.getTime() - startBound.getTime() < 86400000 * 2) {
+      const year = startBound.getUTCFullYear();
+      const month = startBound.getUTCMonth();
+      startBound = new Date(Date.UTC(year, month, 1, 0, 0, 0));
+      endBound = new Date(Date.UTC(year, month + 1, 0, 12, 0, 0));
+    }
+  }
+
+  return { startBound, endBound };
+};
+
 // Generate AI performance insights (called by GET /api/review-cycles/:cycleId/employees/:employeeId/insights)
 const getAiInsights = async (employeeId, cycleId) => {
   try {
@@ -55,6 +80,9 @@ const getAiInsights = async (employeeId, cycleId) => {
       };
     }
 
+    const cycleObj = await ReviewCycle.findById(targetCycleId);
+    const { startBound, endBound } = calculateCyclePeriodBounds(cycleObj || {});
+
     // 3. Fetch existing cached AI report
     const cachedReport = await AIReport.findOne({ employeeId, reviewCycleId: targetCycleId });
     if (cachedReport && cachedReport.status === 'COMPLETED') {
@@ -65,6 +93,9 @@ const getAiInsights = async (employeeId, cycleId) => {
         sentiment: cachedReport.sentiment,
         turnoverRisk: cachedReport.turnoverRisk,
         actionItems: cachedReport.actionItems,
+        startDate: cachedReport.startDate || startBound,
+        endDate: cachedReport.endDate || endBound,
+        reviewMonth: cachedReport.reviewMonth || cycleObj?.reviewMonth,
         status: 'COMPLETED',
         generatedAt: cachedReport.generatedAt
       };
@@ -113,6 +144,8 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
     throw new Error('Review cycle not found');
   }
 
+  const { startBound, endBound } = calculateCyclePeriodBounds(cycle);
+
   // Always include target cycleId and any overlapping cycles
   const cycleIds = [cycle._id];
   const overlappingCycles = await ReviewCycle.find({
@@ -122,16 +155,11 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
   });
   overlappingCycles.forEach(c => cycleIds.push(c._id));
 
-  const startBound = new Date(cycle.startDate);
-  startBound.setUTCHours(0, 0, 0, 0);
-  const endBound = new Date(cycle.endDate);
-  endBound.setUTCHours(23, 59, 59, 999);
-
-  // Query database filtering by cycle date boundaries
+  // Query database filtering by cycle date boundaries for review scores, attendance, certifications, and awards
   const scores = await ReviewScore.find({ employeeId, reviewCycleId: { $in: cycleIds } }).populate('reviewCycleId').sort('createdAt');
   const selfAssessments = await SelfAssessment.find({ employeeId, reviewCycleId: { $in: cycleIds } }).sort('createdAt');
   const managerReviews = await ManagerReview.find({ employeeId, reviewCycleId: { $in: cycleIds } }).sort('createdAt');
-  const certifications = await Certification.find({ employeeId, issueDate: { $gte: startBound, $lte: endBound } }).sort('createdAt');
+  const certifications = await Certification.find({ employeeId, issueDate: { $gte: startBound, $lte: endBound } }).sort('-issueDate');
   const awards = await Recognition.find({ employeeId, awardedAt: { $gte: startBound, $lte: endBound } }).populate('awardedBy').sort('-awardedAt');
 
   const months = getMonthsInRange(cycle.startDate, cycle.endDate);
@@ -235,15 +263,21 @@ Performance Review Scores for this period:
       messages: [
         {
           role: 'system',
-          content: `You are a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades. Generate a comprehensive professional performance insight analysis report.
+          content: `You are a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(cycle.startDate).toLocaleDateString()} to ${new Date(cycle.endDate).toLocaleDateString()}).
+
+CRITICAL CYCLE-SCOPED RULES:
+1. STRICT PERIOD BOUNDARY: You must ONLY analyze performance metrics, reviews, attendance, awards, and certifications that occurred strictly within the specified evaluation cycle period (${new Date(cycle.startDate).toLocaleDateString()} to ${new Date(cycle.endDate).toLocaleDateString()}).
+2. CERTIFICATIONS: If professional certifications were earned strictly within this evaluation cycle period, highlight them in "strengths" (e.g. "Earned verified professional certification in AWS CI/CD during this appraisal cycle"). If no certifications were issued during this specific cycle period, do NOT list certificates from other periods.
+3. DO NOT suggest "pursuing professional certifications" under "improvements" unless directly relevant to current cycle gaps.
+
 Output exactly in this clean JSON structure (do not include markdown wrapping blocks, just raw JSON):
 {
-  "summary": "2-3 sentence executive summary of overall performance, incorporating attendance status, awards, and credentials.",
-  "strengths": ["Strength point 1 (e.g. certificates, awards, performance highlights)", "Strength point 2"],
+  "summary": "2-3 sentence executive summary of performance during this evaluation cycle period, incorporating attendance status, awards, and credentials.",
+  "strengths": ["Strength point 1 (performance highlights and credentials earned during this cycle)", "Strength point 2"],
   "improvements": ["Area of growth 1", "Area of growth 2"],
   "sentiment": "Positive / Mixed / Critical",
-  "turnoverRisk": "Low / Medium / High (incorporate attendance percentage in this estimation)",
-  "actionItems": ["Recommended action 1 (e.g. leveraging certifications, next steps)", "Recommended action 2"]
+  "turnoverRisk": "Low / Medium / High (incorporate attendance percentage for this cycle in this estimation)",
+  "actionItems": ["Recommended action 1", "Recommended action 2"]
 }`
         },
         {
@@ -272,6 +306,9 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
         sentiment: fallbackParsed.sentiment || 'Neutral',
         turnoverRisk: fallbackParsed.turnoverRisk || 'Low',
         actionItems: fallbackParsed.actionItems || [],
+        startDate: startBound,
+        endDate: endBound,
+        reviewMonth: cycle.reviewMonth,
         prompt: historyContext,
         responseRaw: 'LOCAL_FALLBACK_ENGINED_GENERATION: ' + errText,
         modelUsed: 'local-analytics-fallback',
@@ -281,7 +318,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
       { upsert: true }
     );
 
-    return { ...fallbackParsed, status: 'COMPLETED', generatedAt: new Date() };
+    return { ...fallbackParsed, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: new Date() };
   }
 
   const resData = await response.json();
@@ -301,6 +338,9 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
       sentiment: parsed.sentiment || 'Neutral',
       turnoverRisk: parsed.turnoverRisk || 'Low',
       actionItems: parsed.actionItems || [],
+      startDate: startBound,
+      endDate: endBound,
+      reviewMonth: cycle.reviewMonth,
       prompt: historyContext,
       responseRaw: contentText,
       modelUsed: GROQ_MODEL,
@@ -310,7 +350,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
     { upsert: true }
   );
 
-  return { ...parsed, status: 'COMPLETED', generatedAt: now };
+  return { ...parsed, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
 };
 
 // Algorithmic local fallback when API key fails or rate-limits

@@ -46,6 +46,15 @@ const aiReportSchema = new mongoose.Schema({
   modelUsed: {
     type: String
   },
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
+  reviewMonth: {
+    type: String
+  },
   status: {
     type: String,
     enum: ['PROCESSING', 'COMPLETED', 'FAILED'],

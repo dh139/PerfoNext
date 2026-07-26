@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles, Download } from 'lucide-react';
+import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles, Download, RefreshCw, Eye } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
 import { exportToCsv } from '../utils/csvExport';
@@ -181,6 +181,15 @@ const EmployeeReport = () => {
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const year = d.getUTCFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
       {/* Header Back Button */}
@@ -238,13 +247,41 @@ const EmployeeReport = () => {
                     <Sparkles size={18} className="animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm tracking-tight text-slate-100">AI Performance Insights</h3>
-
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-sm tracking-tight text-slate-100">AI Performance Insights</h3>
+                      {aiInsights?.startDate && aiInsights?.endDate && (
+                        <span className="text-[9px] font-mono font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 flex items-center gap-1">
+                          <Calendar size={10} />
+                          <span>
+                            {formatDate(aiInsights.startDate)} – {formatDate(aiInsights.endDate)}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Deep skill, attendance, certification, & score trends analysis for this cycle period</p>
                   </div>
                 </div>
-                {loadingInsights && (
-                  <span className="text-[10px] text-sky-300 animate-pulse font-medium">Analyzing history...</span>
-                )}
+                
+                <button
+                  onClick={async () => {
+                    try {
+                      setLoadingInsights(true);
+                      const res = await api.post(`/api/review-cycles/${selectedCycleId || 'latest'}/employees/${employeeId}/insights/regenerate`);
+                      setAiInsights(res.data);
+                      toast.success('AI Performance Insights regenerated successfully!');
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('Failed to regenerate AI insights.');
+                    } finally {
+                      setLoadingInsights(false);
+                    }
+                  }}
+                  disabled={loadingInsights}
+                  className="text-[10px] bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold px-3 py-1.5 rounded-xl border border-sky-500/30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  <RefreshCw size={12} className={loadingInsights ? 'animate-spin' : ''} />
+                  <span>{loadingInsights ? 'Analyzing...' : 'Regenerate Insights'}</span>
+                </button>
               </div>
 
               {loadingInsights ? (
@@ -517,9 +554,9 @@ const EmployeeReport = () => {
             </div>
           )}
 
-          {/* Recognitions & Documents Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            {/* Recognitions List */}
+          {/* Recognitions, Certifications & Documents Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+            {/* 1. Recognitions List */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-4">
@@ -546,7 +583,43 @@ const EmployeeReport = () => {
               </div>
             </div>
 
-            {/* Documents Repository */}
+            {/* 2. Professional Certifications Vault */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Award size={18} className="text-sky-600" />
+                  <h3 className="font-bold text-slate-800 text-sm">Verified Certifications</h3>
+                </div>
+                
+                {certifications.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic py-6 text-center">No certifications uploaded yet.</p>
+                ) : (
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {certifications.map(c => (
+                      <div key={c._id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex justify-between items-center text-xs gap-3">
+                        <div className="overflow-hidden">
+                          <p className="font-bold text-slate-800 truncate">{c.name}</p>
+                          <p className="text-[10px] text-sky-700 font-semibold mt-0.5">
+                            {c.issuer} • {new Date(c.issueDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {c.fileUrl && (
+                          <button
+                            onClick={() => setPreviewDoc({ fileName: c.name, fileUrl: c.fileUrl })}
+                            className="font-bold text-sky-700 hover:text-sky-900 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg border border-sky-100 shrink-0 text-[10px] cursor-pointer flex items-center gap-1"
+                          >
+                            <Eye size={12} />
+                            <span>Proof</span>
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 3. Documents Repository */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-center mb-4">
@@ -557,7 +630,7 @@ const EmployeeReport = () => {
                   
                   {/* Upload Button */}
                   <label className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] px-3.5 py-2 rounded-xl cursor-pointer transition-colors shrink-0 shadow-sm inline-flex items-center gap-1.5">
-                    <span>{uploading ? 'Uploading...' : '+ Upload Document'}</span>
+                    <span>{uploading ? 'Uploading...' : '+ Upload'}</span>
                     <input type="file" onChange={handleFileUpload} className="hidden" disabled={uploading} />
                   </label>
                 </div>

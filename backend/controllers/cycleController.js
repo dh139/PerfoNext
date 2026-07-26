@@ -311,23 +311,30 @@ const submitSelfAssessment = async (req, res) => {
       });
     }
 
-    // If submitted, notify Manager
+    // If submitted, notify Manager or CEO
     if (status === 'submitted') {
       const user = await User.findById(employeeId).populate('managerId');
-      if (user && user.managerId) {
+      let evaluator = user?.managerId;
+
+      // If user is a manager/HR or cycle targets managers, evaluator is the CEO / Executive
+      if (!evaluator || user?.role === 'manager' || user?.role === 'hr' || cycle?.targetRole === 'manager') {
+        evaluator = await User.findOne({ role: 'executive', employmentStatus: 'active' });
+      }
+
+      if (evaluator) {
         await Notification.create({
-          userId: user.managerId._id,
+          userId: evaluator._id,
           type: 'manager_review_pending',
-          message: `${user.firstName} ${user.lastName} has submitted their self-assessment for ${cycle.reviewMonth}. Please complete your manager review.`
+          message: `${user.firstName} ${user.lastName} has submitted their self-assessment for ${cycle.reviewMonth}. Please complete your evaluation.`
         });
 
-        if (user.managerId.email) {
+        if (evaluator.email) {
           sendSelfAssessmentSubmittedEmail(
-            user.managerId.email,
-            user.managerId.firstName,
+            evaluator.email,
+            evaluator.firstName,
             `${user.firstName} ${user.lastName}`,
             cycle.reviewMonth
-          ).catch(err => console.error('Manager email notification failed:', err));
+          ).catch(err => console.error('Evaluator email notification failed:', err));
         }
       }
 

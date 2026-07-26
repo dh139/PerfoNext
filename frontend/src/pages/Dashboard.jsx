@@ -871,7 +871,10 @@ const HRDashboard = ({ data, user }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {activeCycleMetrics.map((item) => {
-                const visibleSubmissions = item.submissions?.filter(sub => sub.role === 'employee') || [];
+                const isManagerCycle = item.targetRole === 'manager';
+                const visibleSubmissions = item.submissions?.filter(sub =>
+                  isManagerCycle ? (sub.role === 'manager' || sub.role === 'hr') : sub.role === 'employee'
+                ) || [];
                 const totalCount = visibleSubmissions.length;
                 const selfCount = visibleSubmissions.filter(s => s.selfSubmitted).length;
                 const mgrCount = visibleSubmissions.filter(s => s.managerSubmitted).length;
@@ -886,9 +889,16 @@ const HRDashboard = ({ data, user }) => {
                   <div key={item.cycleId} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start border-b border-slate-200/80 pb-3">
                       <div>
-                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
-                          Cycle Month: {item.reviewMonth}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
+                            Cycle Month: {item.reviewMonth}
+                          </span>
+                          <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
+                            isManagerCycle ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
+                          }`}>
+                            {isManagerCycle ? 'Manager Cycle' : 'Employee Cycle'}
+                          </span>
+                        </div>
                         <h4 className="font-extrabold text-slate-800 text-xs mt-1">
                           Dept: {item.departmentName}
                         </h4>
@@ -900,11 +910,15 @@ const HRDashboard = ({ data, user }) => {
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Phase 1: Employee Self-Assessment</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                          {isManagerCycle ? 'Phase 1: Manager Self-Assessment' : 'Phase 1: Employee Self-Assessment'}
+                        </span>
                         <span className="font-bold text-slate-800 text-sm mt-0.5 block">{selfCount} / {totalCount} ({selfPercent}%)</span>
                       </div>
                       <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Phase 2: Manager Review</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                          {isManagerCycle ? 'Phase 2: CEO Grading' : 'Phase 2: Manager Review'}
+                        </span>
                         <span className="font-bold text-slate-800 text-sm mt-0.5 block">{mgrCount} / {totalCount} ({mgrPercent}%)</span>
                       </div>
                     </div>
@@ -913,31 +927,38 @@ const HRDashboard = ({ data, user }) => {
                       onClick={() => setExpandedCycleId(isExpanded ? null : item.cycleId)}
                       className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 transition-colors cursor-pointer"
                     >
-                      {isExpanded ? 'Hide Employee Breakdown ↑' : `View Employee Breakdown (${visibleSubmissions.length}) ↓`}
+                      {isExpanded
+                        ? (isManagerCycle ? 'Hide Manager Breakdown ↑' : 'Hide Employee Breakdown ↑')
+                        : (isManagerCycle ? `View Manager Breakdown (${visibleSubmissions.length}) ↓` : `View Employee Breakdown (${visibleSubmissions.length}) ↓`)
+                      }
                     </button>
 
                     {isExpanded && (
                       <div className="space-y-2 pt-2 animate-fade-in border-t border-slate-200">
-                        {visibleSubmissions.map(sub => (
-                          <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
-                            <div>
-                              <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
-                              <p className="text-[10px] text-slate-400">{sub.designationName}</p>
+                        {visibleSubmissions.length === 0 ? (
+                          <p className="text-slate-400 text-xs italic py-2 text-center">No participants registered in this cycle group.</p>
+                        ) : (
+                          visibleSubmissions.map(sub => (
+                            <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                              <div>
+                                <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
+                                <p className="text-[10px] text-slate-400">{sub.designationName} • Manager: {sub.managerName}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                  sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
+                                </span>
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                  sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                  {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                              }`}>
-                                Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
-                              </span>
-                              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                              }`}>
-                                Manager: {sub.managerSubmitted ? 'Graded' : 'Pending'}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     )}
                   </div>
@@ -1915,7 +1936,10 @@ const ExecutiveDashboard = ({ data, user }) => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {activeCycleMetrics.map((item) => {
-                const visibleSubmissions = item.submissions?.filter(sub => sub.role === 'manager' || sub.role === 'hr') || [];
+                const isManagerCycle = item.targetRole === 'manager';
+                const visibleSubmissions = item.submissions?.filter(sub =>
+                  isManagerCycle ? (sub.role === 'manager' || sub.role === 'hr') : sub.role === 'employee'
+                ) || [];
                 const totalCount = visibleSubmissions.length;
                 const selfCount = visibleSubmissions.filter(s => s.selfSubmitted).length;
                 const mgrCount = visibleSubmissions.filter(s => s.managerSubmitted).length;
@@ -1927,9 +1951,16 @@ const ExecutiveDashboard = ({ data, user }) => {
                   <div key={item.cycleId} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start border-b border-slate-200/80 pb-3">
                       <div>
-                        <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
-                          Cycle Month: {item.reviewMonth}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
+                            Cycle Month: {item.reviewMonth}
+                          </span>
+                          <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
+                            isManagerCycle ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
+                          }`}>
+                            {isManagerCycle ? 'Manager Cycle' : 'Employee Cycle'}
+                          </span>
+                        </div>
                         <h4 className="font-extrabold text-slate-800 text-xs mt-1">
                           Dept: {item.departmentName}
                         </h4>
@@ -1941,11 +1972,15 @@ const ExecutiveDashboard = ({ data, user }) => {
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Phase 1: Self Assessment</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                          {isManagerCycle ? 'Phase 1: Manager Self-Assessment' : 'Phase 1: Employee Self-Assessment'}
+                        </span>
                         <span className="font-bold text-slate-800 text-sm mt-0.5 block">{selfCount} / {totalCount}</span>
                       </div>
                       <div className="bg-white border border-slate-200 p-3 rounded-xl">
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase">Phase 2: CEO Grading</span>
+                        <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                          {isManagerCycle ? 'Phase 2: CEO Grading' : 'Phase 2: Manager Review'}
+                        </span>
                         <span className="font-bold text-slate-800 text-sm mt-0.5 block">{mgrCount} / {totalCount}</span>
                       </div>
                     </div>
@@ -1954,31 +1989,38 @@ const ExecutiveDashboard = ({ data, user }) => {
                       onClick={() => setExpandedCycleId(isExpanded ? null : item.cycleId)}
                       className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 transition-colors cursor-pointer"
                     >
-                      {isExpanded ? 'Hide Manager Submissions ↑' : `View Manager Submissions (${visibleSubmissions.length}) ↓`}
+                      {isExpanded
+                        ? (isManagerCycle ? 'Hide Manager Submissions ↑' : 'Hide Employee Submissions ↑')
+                        : (isManagerCycle ? `View Manager Submissions (${visibleSubmissions.length}) ↓` : `View Employee Submissions (${visibleSubmissions.length}) ↓`)
+                      }
                     </button>
 
                     {isExpanded && (
                       <div className="space-y-2 pt-2 animate-fade-in border-t border-slate-200">
-                        {visibleSubmissions.map(sub => (
-                          <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
-                            <div>
-                              <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
-                              <p className="text-[10px] text-slate-400">{sub.designationName}</p>
+                        {visibleSubmissions.length === 0 ? (
+                          <p className="text-slate-400 text-xs italic py-2 text-center">No participants registered in this cycle group.</p>
+                        ) : (
+                          visibleSubmissions.map(sub => (
+                            <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                              <div>
+                                <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
+                                <p className="text-[10px] text-slate-400">{sub.designationName} • Manager: {sub.managerName}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                  sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
+                                </span>
+                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                  sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                }`}>
+                                  {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                              }`}>
-                                Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
-                              </span>
-                              <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                              }`}>
-                                CEO: {sub.managerSubmitted ? 'Graded' : 'Pending'}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
                     )}
                   </div>

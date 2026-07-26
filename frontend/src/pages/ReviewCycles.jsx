@@ -21,6 +21,7 @@ const ReviewCycles = () => {
   const [endDate, setEndDate] = useState('');
   const [kpiTemplateId, setKpiTemplateId] = useState('');
   const [cycleType, setCycleType] = useState('monthly');
+  const [targetRole, setTargetRole] = useState(user?.role === 'executive' ? 'manager' : 'employee');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const fetchData = async () => {
@@ -60,6 +61,7 @@ const ReviewCycles = () => {
         endDate,
         kpiTemplateId,
         cycleType,
+        targetRole,
         status: 'draft'
       });
 
@@ -250,6 +252,7 @@ const ReviewCycles = () => {
               <thead>
                 <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200 bg-slate-50/80">
                   <th className="py-3 px-4 rounded-l-xl">Cycle Period</th>
+                  <th className="py-3 px-4">Target Audience</th>
                   <th className="py-3 px-4">Cycle Type</th>
                   <th className="py-3 px-4">KPI Template Pairing</th>
                   <th className="py-3 px-4">Start Date</th>
@@ -263,6 +266,15 @@ const ReviewCycles = () => {
                   <tr key={c._id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-4 font-black text-slate-900 text-xs">
                       {c.reviewMonth}
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                        c.targetRole === 'manager'
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                          : 'bg-sky-100 text-sky-800 border border-sky-200'
+                      }`}>
+                        {c.targetRole === 'manager' ? 'Managers (CEO Review)' : 'Employees (Manager Review)'}
+                      </span>
                     </td>
                     <td className="py-4 px-4 font-bold text-slate-600 capitalize">
                       {c.cycleType || 'monthly'}
@@ -343,6 +355,19 @@ const ReviewCycles = () => {
                     <option value="annual">Annual</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Target Audience (Evaluated Group) *</label>
+                <select
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                  required
+                >
+                  <option value="employee">Department Employees (Evaluated by Reporting Managers)</option>
+                  <option value="manager">Reporting Managers & HRs (Evaluated by CEO / Executive)</option>
+                </select>
               </div>
 
               <div className="space-y-1.5">

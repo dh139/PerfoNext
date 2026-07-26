@@ -6,7 +6,8 @@ const { logAction } = require('../utils/logger');
 
 const getPipSuggestions = async (req, res) => {
   try {
-    const employees = await User.find({ employmentStatus: 'active', role: 'employee' });
+    const employees = await User.find({ employmentStatus: 'active', role: 'employee' })
+      .populate('departmentId designationId');
     const suggestions = [];
 
     for (const emp of employees) {
@@ -52,7 +53,11 @@ const getPips = async (req, res) => {
     }
 
     const pips = await Pip.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
+      .populate({
+        path: 'employeeId',
+        select: 'firstName lastName email employeeCode departmentId designationId',
+        populate: { path: 'departmentId designationId' }
+      })
       .populate({ path: 'managerId', select: 'firstName lastName email' })
       .populate({ path: 'hrReviewerId', select: 'firstName lastName email' });
 

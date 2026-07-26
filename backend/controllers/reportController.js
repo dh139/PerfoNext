@@ -86,8 +86,23 @@ const getDepartmentReport = async (req, res) => {
       }
     }
 
-    // Get all employees of the department
-    const employees = await User.find({ departmentId, employmentStatus: 'active' });
+    let targetRole = null;
+    if (reviewCycleId) {
+      const cycle = await ReviewCycle.findById(reviewCycleId);
+      if (cycle) targetRole = cycle.targetRole;
+    }
+
+    const employeeFilter = { departmentId, employmentStatus: 'active' };
+    if (targetRole === 'manager') {
+      employeeFilter.role = { $in: ['manager', 'hr'] };
+    } else if (targetRole === 'employee') {
+      employeeFilter.role = 'employee';
+    } else {
+      employeeFilter.role = { $ne: 'admin' };
+    }
+
+    // Get all eligible employees of the department for this target role
+    const employees = await User.find(employeeFilter);
     const employeeIds = employees.map(emp => emp._id);
 
     const matchFilter = { employeeId: { $in: employeeIds } };
@@ -171,12 +186,17 @@ const getReviewCompletionReport = async (req, res) => {
     }
 
     const template = cycle.kpiTemplateId;
-    const filter = { employmentStatus: 'active', role: { $ne: 'admin' } };
+    const filter = { employmentStatus: 'active' };
+    if (cycle.targetRole === 'manager') {
+      filter.role = { $in: ['manager', 'hr'] };
+    } else {
+      filter.role = 'employee';
+    }
     if (template && template.departmentId) {
       filter.departmentId = template.departmentId;
     }
 
-    // Get all active employees in target department (excluding admins)
+    // Get all active eligible employees in target department
     const employees = await User.find(filter)
       .populate('departmentId designationId')
       .populate({ path: 'managerId', select: 'firstName lastName email' })

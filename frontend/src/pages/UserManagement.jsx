@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
@@ -60,6 +60,8 @@ const UserManagement = () => {
 
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState(null);
+  const [modalError, setModalError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [employeeCode, setEmployeeCode] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -106,6 +108,8 @@ const UserManagement = () => {
 
   const handleOpenCreate = () => {
     setError('');
+    setModalError('');
+    setIsSubmitting(false);
     setEditUser(null);
     setEmployeeCode(''); setFirstName(''); setLastName(''); setEmail(''); setMobile(''); setPassword('');
     setRole('employee'); setManagerId(''); setEmploymentStatus('active');
@@ -116,6 +120,8 @@ const UserManagement = () => {
 
   const handleOpenEdit = (user) => {
     setError('');
+    setModalError('');
+    setIsSubmitting(false);
     setEditUser(user);
     setEmployeeCode(user.employeeCode); setFirstName(user.firstName); setLastName(user.lastName);
     setEmail(user.email); setMobile(user.mobile); setPassword('');
@@ -129,6 +135,8 @@ const UserManagement = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setModalError('');
+    setIsSubmitting(true);
     const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId, designationId, managerId: managerId || '', joiningDate, employmentStatus };
     if (password) payload.password = password;
     try {
@@ -142,7 +150,11 @@ const UserManagement = () => {
       setShowModal(false);
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save user profile.');
+      const errMsg = err.response?.data?.message || 'Failed to save user profile.';
+      setModalError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -309,7 +321,14 @@ const UserManagement = () => {
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs ${
                           u.role === 'manager' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'
                         }`}>{u.firstName?.[0]}{u.lastName?.[0]}</div>
-                        <div><p className="font-extrabold text-slate-800 text-xs">{u.firstName} {u.lastName}</p><p className="text-[10px] text-slate-500">{u.employeeCode}</p></div>
+                        <div>
+                          <p className="font-extrabold text-slate-800 text-xs">{u.firstName} {u.lastName}</p>
+                          <div className="flex items-center gap-1.5 text-[10px] mt-0.5">
+                            <span className="font-mono font-bold text-slate-500">{u.employeeCode}</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-sky-700 font-medium">{u.email}</span>
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="p-3">{renderRoleBadge(u.role)}</td>
@@ -391,6 +410,12 @@ const UserManagement = () => {
               <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              {modalError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-center gap-2 font-bold text-xs">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* 1. First Name */}
                 <div className="space-y-1.5">
@@ -609,16 +634,25 @@ const UserManagement = () => {
                 <div className="flex gap-3">
                   <button
                     type="button"
+                    disabled={isSubmitting}
                     onClick={() => setShowModal(false)}
-                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer"
+                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-colors"
+                    disabled={isSubmitting}
+                    className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Profile
+                    {isSubmitting ? (
+                      <>
+                        <RefreshCw size={14} className="animate-spin" />
+                        <span>Saving Profile...</span>
+                      </>
+                    ) : (
+                      <span>Save Profile</span>
+                    )}
                   </button>
                 </div>
               </div>

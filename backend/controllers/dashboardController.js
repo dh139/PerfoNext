@@ -187,9 +187,9 @@ const getDashboardData = async (req, res) => {
             { role: { $in: ['manager', 'hr'] } }
           ],
           employmentStatus: 'active'
-        });
+        }).populate('departmentId designationId');
       } else {
-        subordinates = await User.find({ managerId: userId, employmentStatus: 'active' });
+        subordinates = await User.find({ managerId: userId, employmentStatus: 'active' }).populate('departmentId designationId');
       }
       const subordinateIds = subordinates.map(s => s._id);
 
@@ -290,7 +290,12 @@ const getDashboardData = async (req, res) => {
         const template = await KpiTemplate.findById(cycle.kpiTemplateId).populate('departmentId');
         const targetDeptId = template?.departmentId?._id || template?.departmentId || null;
 
-        const employeeFilter = { role: { $in: ['employee', 'manager', 'hr'] }, employmentStatus: 'active' };
+        const employeeFilter = { employmentStatus: 'active' };
+        if (cycle.targetRole === 'manager') {
+          employeeFilter.role = { $in: ['manager', 'hr'] };
+        } else {
+          employeeFilter.role = 'employee';
+        }
         if (targetDeptId) {
           employeeFilter.departmentId = targetDeptId;
         }
@@ -337,6 +342,7 @@ const getDashboardData = async (req, res) => {
           cycleId: cycle._id,
           reviewMonth: cycle.reviewMonth,
           cycleType: cycle.cycleType,
+          targetRole: cycle.targetRole || 'employee',
           templateName: template?.templateName || 'General Template',
           departmentName: template?.departmentId?.departmentName || 'All Departments',
           totalEmployees: totalUsersCount,
