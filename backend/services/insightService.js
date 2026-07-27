@@ -33,6 +33,28 @@ const calculateCyclePeriodBounds = (cycle) => {
   let startBound;
   let endBound;
 
+  if (cycle.cycleType === 'quarterly' && cycle.reviewMonth) {
+    const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const q = parseInt(match[2], 10);
+      const startMonth = (q - 1) * 3; // 0 for Q1, 3 for Q2, 6 for Q3, 9 for Q4
+      startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
+      endBound = new Date(Date.UTC(year, startMonth + 3, 0, 12, 0, 0));
+      return { startBound, endBound };
+    }
+  }
+
+  if (cycle.cycleType === 'annual' && cycle.reviewMonth) {
+    const match = cycle.reviewMonth.match(/^(\d{4})$/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      startBound = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      endBound = new Date(Date.UTC(year, 12, 0, 12, 0, 0));
+      return { startBound, endBound };
+    }
+  }
+
   if (cycle.reviewMonth && /^\d{4}-\d{2}$/.test(cycle.reviewMonth)) {
     const [year, month] = cycle.reviewMonth.split('-').map(Number);
     startBound = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
@@ -162,10 +184,7 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
   const certifications = await Certification.find({ employeeId, issueDate: { $gte: startBound, $lte: endBound } }).sort('-issueDate');
   const awards = await Recognition.find({ employeeId, awardedAt: { $gte: startBound, $lte: endBound } }).populate('awardedBy').sort('-awardedAt');
 
-  const months = getMonthsInRange(cycle.startDate, cycle.endDate);
-  if (cycle.reviewMonth && !months.includes(cycle.reviewMonth)) {
-    months.push(cycle.reviewMonth);
-  }
+  const months = getMonthsInRange(startBound, endBound);
   const attendanceRecords = await Attendance.find({ employeeId, month: { $in: months } }).sort('month');
 
   // Auto-heal certifications pdf text extraction on-the-fly
@@ -176,8 +195,9 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
       if (fs.existsSync(absolutePath) && filename.toLowerCase().endsWith('.pdf')) {
         try {
           const dataBuffer = fs.readFileSync(absolutePath);
-          const parsedData = await pdf(dataBuffer);
-          c.extractedText = parsedData.text || '';
+          const parser = new pdf.PDFParse({});
+          await parser.load(dataBuffer);
+          c.extractedText = await parser.getText() || '';
           await Certification.findByIdAndUpdate(c._id, { extractedText: c.extractedText });
         } catch (err) {
           console.error(`Retroactive PDF text extraction failed for cert ${c._id}:`, err);
@@ -190,7 +210,7 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
   let historyContext = `Employee: ${employee.firstName} ${employee.lastName} (Code: ${employee.employeeCode})
 Designation: ${employee.designationId?.designationName || 'N/A'}
 Department: ${employee.departmentId?.departmentName || 'N/A'}
-Evaluation Period: ${new Date(cycle.startDate).toLocaleDateString()} to ${new Date(cycle.endDate).toLocaleDateString()}
+Evaluation Period: ${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}
 
 Performance Review Scores for this period:
 `;
@@ -202,18 +222,22 @@ Performance Review Scores for this period:
 
   historyContext += '\nManager Comments for this period:\n';
   managerReviews.forEach(mr => {
+    const scoreCycle = scores.find(s => s.reviewCycleId?._id?.toString() === mr.reviewCycleId?.toString());
+    const label = scoreCycle?.reviewCycleId?.reviewMonth ? ` (Cycle: ${scoreCycle.reviewCycleId.reviewMonth})` : '';
     mr.details.forEach(item => {
       if (item.comment) {
-        historyContext += `- [Category: ${item.category}] "${item.comment}"\n`;
+        historyContext += `- [Category: ${item.category}]${label} "${item.comment}"\n`;
       }
     });
   });
 
   historyContext += '\nEmployee Self-Assessment Comments for this period:\n';
   selfAssessments.forEach(sa => {
+    const scoreCycle = scores.find(s => s.reviewCycleId?._id?.toString() === sa.reviewCycleId?.toString());
+    const label = scoreCycle?.reviewCycleId?.reviewMonth ? ` (Cycle: ${scoreCycle.reviewCycleId.reviewMonth})` : '';
     sa.details.forEach(item => {
       if (item.comment) {
-        historyContext += `- [Category: ${item.category}] "${item.comment}"\n`;
+        historyContext += `- [Category: ${item.category}]${label} "${item.comment}"\n`;
       }
     });
   });
@@ -263,12 +287,13 @@ Performance Review Scores for this period:
       messages: [
         {
           role: 'system',
-          content: `You are a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(cycle.startDate).toLocaleDateString()} to ${new Date(cycle.endDate).toLocaleDateString()}).
+          content: `You are a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
 
 CRITICAL CYCLE-SCOPED RULES:
-1. STRICT PERIOD BOUNDARY: You must ONLY analyze performance metrics, reviews, attendance, awards, and certifications that occurred strictly within the specified evaluation cycle period (${new Date(cycle.startDate).toLocaleDateString()} to ${new Date(cycle.endDate).toLocaleDateString()}).
-2. CERTIFICATIONS: If professional certifications were earned strictly within this evaluation cycle period, highlight them in "strengths" (e.g. "Earned verified professional certification in AWS CI/CD during this appraisal cycle"). If no certifications were issued during this specific cycle period, do NOT list certificates from other periods.
-3. DO NOT suggest "pursuing professional certifications" under "improvements" unless directly relevant to current cycle gaps.
+1. STRICT PERIOD BOUNDARY: You must ONLY analyze performance metrics, reviews, attendance, awards, and certifications that occurred strictly within the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
+2. MULTI-PERSPECTIVE EVALUATION: Compare the Employee's Self-Assessment comments/justifications and the Manager's Review comments. Analyze the alignment, gaps, or discrepancies between the self-assessment and manager feedback, and reflect this in your strengths/improvements.
+3. CERTIFICATIONS: If professional certifications were earned strictly within this evaluation cycle period, highlight them in "strengths" (e.g. "Earned verified professional certification in AWS CI/CD during this appraisal cycle"). If no certifications were issued during this specific cycle period, do NOT list certificates from other periods.
+4. DO NOT suggest "pursuing professional certifications" under "improvements" unless directly relevant to current cycle gaps.
 
 Output exactly in this clean JSON structure (do not include markdown wrapping blocks, just raw JSON):
 {
@@ -430,5 +455,6 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
 
 module.exports = {
   getAiInsights,
-  regenerateAiInsights
+  regenerateAiInsights,
+  calculateCyclePeriodBounds
 };

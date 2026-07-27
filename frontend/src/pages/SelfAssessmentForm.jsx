@@ -51,6 +51,14 @@ const SelfAssessmentForm = () => {
             setGeneralError('This self-assessment has already been submitted and cannot be modified.');
           }
         }
+
+        if (cycleRes.data.endDate && (!existing || existing.status !== 'submitted')) {
+          const deadline = new Date(cycleRes.data.endDate);
+          deadline.setHours(23, 59, 59, 999);
+          if (new Date() > deadline) {
+            setGeneralError('The deadline for evaluations has passed.');
+          }
+        }
       } catch (err) {
         console.error(err);
         setGeneralError('Failed to load review cycle questions.');
@@ -183,6 +191,11 @@ const SelfAssessmentForm = () => {
         <p className="text-xs text-slate-500 mt-1">
           Review Cycle: <span className="font-semibold text-slate-800">{cycle?.reviewMonth}</span> | Evaluation Template: <span className="font-semibold text-slate-800">{cycle?.kpiTemplateId?.templateName}</span>
         </p>
+        {cycle?.endDate && (
+          <p className="text-xs text-slate-500 mt-1">
+            Evaluation Due Date: <span className="font-bold text-amber-600">{new Date(cycle.endDate).toLocaleDateString()}</span>
+          </p>
+        )}
 
         {generalError && (
           <div className="mt-4 p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-center gap-2.5">

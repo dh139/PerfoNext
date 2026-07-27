@@ -28,11 +28,12 @@ const EmployeeReport = () => {
   const [aiInsights, setAiInsights] = useState(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
 
-  const fetchInsights = async () => {
+  const fetchInsights = async (cycleId) => {
     if (user?.role === 'employee') return;
     try {
       setLoadingInsights(true);
-      const res = await api.get(`/api/insights/${employeeId}`);
+      const url = cycleId ? `/api/insights/${employeeId}?cycleId=${cycleId}` : `/api/insights/${employeeId}`;
+      const res = await api.get(url);
       setAiInsights(res.data);
     } catch (err) {
       console.error('Failed to load AI insights:', err);
@@ -100,7 +101,6 @@ const EmployeeReport = () => {
         }
 
         await fetchAddons();
-        await fetchInsights();
       } catch (err) {
         console.error(err);
         setError('Failed to fetch employee performance report.');
@@ -111,6 +111,12 @@ const EmployeeReport = () => {
 
     fetchReport();
   }, [employeeId]);
+
+  useEffect(() => {
+    if (selectedCycleId) {
+      fetchInsights(selectedCycleId);
+    }
+  }, [selectedCycleId]);
 
   if (loading) {
     return (
@@ -132,9 +138,9 @@ const EmployeeReport = () => {
   const { employee, scores, selfAssessments, managerReviews } = data;
 
   // Find currently selected cycle scores
-  const selectedScore = scores.find(s => s.reviewCycleId._id === selectedCycleId);
-  const selectedSelf = selfAssessments.find(sa => sa.reviewCycleId === selectedCycleId);
-  const selectedManager = managerReviews.find(mr => mr.reviewCycleId === selectedCycleId);
+  const selectedScore = scores.find(s => s.reviewCycleId?._id?.toString() === selectedCycleId?.toString());
+  const selectedSelf = selfAssessments.find(sa => sa.reviewCycleId?.toString() === selectedCycleId?.toString());
+  const selectedManager = managerReviews.find(mr => mr.reviewCycleId?.toString() === selectedCycleId?.toString());
 
   // Map template questions
   const getCycleDetails = () => {
@@ -150,12 +156,81 @@ const EmployeeReport = () => {
         selfComment: sd?.comment || '',
         managerScore: md.score,
         managerComment: md.comment,
-        gap: sd?.score ? (md.score - sd.score) : '-'
+        gap: sd?.score ? Math.round((md.score - sd.score) * 100) / 100 : '-'
       };
     });
   };
 
   const cycleDetails = getCycleDetails();
+
+  const getFilteredAddons = () => {
+    if (!selectedScore) {
+      return {
+        filteredAttendance: [],
+        filteredCerts: [],
+        filteredRecognitions: []
+      };
+    }
+
+    const cycle = selectedScore.reviewCycleId;
+    let startBound = new Date(cycle.startDate);
+    let endBound = new Date(cycle.endDate);
+
+    if (cycle.cycleType === 'quarterly' && cycle.reviewMonth) {
+      const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const q = parseInt(match[2], 10);
+        const startMonth = (q - 1) * 3;
+        startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
+        endBound = new Date(Date.UTC(year, startMonth + 3, 0, 23, 59, 59));
+      }
+    } else if (cycle.cycleType === 'annual' && cycle.reviewMonth) {
+      const match = cycle.reviewMonth.match(/^(\d{4})$/);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        startBound = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+        endBound = new Date(Date.UTC(year, 12, 0, 23, 59, 59));
+      }
+    } else if (cycle.reviewMonth && /^\d{4}-\d{2}$/.test(cycle.reviewMonth)) {
+      const [year, month] = cycle.reviewMonth.split('-').map(Number);
+      startBound = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+      endBound = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+    }
+
+    const getMonthsInRange = (start, end) => {
+      const months = [];
+      const curr = new Date(start);
+      while (curr <= end) {
+        const yearStr = curr.getUTCFullYear();
+        const monthStr = String(curr.getUTCMonth() + 1).padStart(2, '0');
+        months.push(`${yearStr}-${monthStr}`);
+        curr.setUTCMonth(curr.getUTCMonth() + 1);
+      }
+      return months;
+    };
+    
+    const cycleMonths = getMonthsInRange(startBound, endBound);
+    const fAtt = attendanceRecords.filter(r => cycleMonths.includes(r.month));
+
+    const fCerts = certifications.filter(c => {
+      const issueDate = new Date(c.issueDate);
+      return issueDate >= startBound && issueDate <= endBound;
+    });
+
+    const fRecs = recognitions.filter(r => {
+      const awardDate = new Date(r.awardedAt);
+      return awardDate >= startBound && awardDate <= endBound;
+    });
+
+    return {
+      filteredAttendance: fAtt,
+      filteredCerts: fCerts,
+      filteredRecognitions: fRecs
+    };
+  };
+
+  const { filteredAttendance, filteredCerts, filteredRecognitions } = getFilteredAddons();
 
   const getCategoryLabel = (cat) => {
     switch (cat) {
@@ -415,15 +490,15 @@ const EmployeeReport = () => {
 
             {/* External Activities Rating Card */}
             {selectedScore && (() => {
-              const avgAttendance = attendanceRecords.length > 0
-                ? attendanceRecords.reduce((sum, r) => sum + r.attendancePercentage, 0) / attendanceRecords.length
+              const avgAttendance = filteredAttendance.length > 0
+                ? filteredAttendance.reduce((sum, r) => sum + r.attendancePercentage, 0) / filteredAttendance.length
                 : 100;
               const attScore = Math.round((avgAttendance / 100) * 5 * 100) / 100;
 
-              const certCount = certifications.length;
+              const certCount = filteredCerts.length;
               const certScore = certCount === 0 ? 1.0 : certCount === 1 ? 3.0 : certCount === 2 ? 4.0 : 5.0;
 
-              const awardsCount = recognitions.length;
+              const awardsCount = filteredRecognitions.length;
               const awdScore = awardsCount === 0 ? 1.0 : awardsCount === 1 ? 4.0 : 5.0;
 
               const combinedExternalScore = Math.round(((attScore + certScore + awdScore) / 3) * 100) / 100;
@@ -564,11 +639,11 @@ const EmployeeReport = () => {
                   <h3 className="font-bold text-slate-800 text-sm">Awards & Recognitions</h3>
                 </div>
                 
-                {recognitions.length === 0 ? (
-                  <p className="text-slate-400 text-xs italic py-6 text-center">No awards granted to this employee.</p>
+                {filteredRecognitions.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic py-6 text-center">No awards granted within this period.</p>
                 ) : (
                   <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                    {recognitions.map(rec => (
+                    {filteredRecognitions.map(rec => (
                       <div key={rec._id} className="bg-slate-50 border border-slate-150 p-3 rounded-lg text-xs">
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-amber-700">{rec.category}</span>
@@ -591,11 +666,11 @@ const EmployeeReport = () => {
                   <h3 className="font-bold text-slate-800 text-sm">Verified Certifications</h3>
                 </div>
                 
-                {certifications.length === 0 ? (
-                  <p className="text-slate-400 text-xs italic py-6 text-center">No certifications uploaded yet.</p>
+                {filteredCerts.length === 0 ? (
+                  <p className="text-slate-400 text-xs italic py-6 text-center">No certifications earned within this period.</p>
                 ) : (
                   <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-                    {certifications.map(c => (
+                    {filteredCerts.map(c => (
                       <div key={c._id} className="bg-slate-50 border border-slate-200 p-3 rounded-xl flex justify-between items-center text-xs gap-3">
                         <div className="overflow-hidden">
                           <p className="font-bold text-slate-800 truncate">{c.name}</p>

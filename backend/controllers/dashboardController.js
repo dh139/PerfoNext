@@ -114,6 +114,8 @@ const getDashboardData = async (req, res) => {
       let ratingBand = null;
       let activeCycleId = null;
 
+      const eligibleCycles = [];
+
       for (const cycle of activeCycles) {
         if (cycle.targetRole === 'manager') {
           continue; // Skip manager-targeted cycles for employee role
@@ -133,31 +135,63 @@ const getDashboardData = async (req, res) => {
           }
         }
         
-        activeCycleId = cycle._id;
+        let selfStatus = 'none';
         const assessment = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: userId });
-        if (!assessment) {
-          selfAssessmentStatus = 'pending';
-        } else if (assessment.status === 'draft') {
-          selfAssessmentStatus = 'pending';
+        if (!assessment || assessment.status === 'draft') {
+          selfStatus = 'pending';
         } else {
-          selfAssessmentStatus = 'submitted';
+          selfStatus = 'submitted';
         }
 
+        let mgrStatus = 'none';
         const mgrReview = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: userId });
-        if (selfAssessmentStatus === 'submitted') {
+        if (selfStatus === 'submitted') {
           if (!mgrReview || mgrReview.status === 'draft') {
-            managerReviewStatus = 'waiting';
+            mgrStatus = 'waiting';
           } else {
-            managerReviewStatus = 'complete';
+            mgrStatus = 'complete';
           }
         }
 
+        let finalized = false;
+        let finalScoreValue = null;
+        let ratingBandValue = null;
         const score = await ReviewScore.findOne({ reviewCycleId: cycle._id, employeeId: userId });
         if (score) {
-          finalScoreFinalized = true;
-          finalScore = score.finalScore;
-          ratingBand = score.rating;
+          finalized = true;
+          finalScoreValue = score.finalScore;
+          ratingBandValue = score.rating;
         }
+
+        eligibleCycles.push({
+          cycleId: cycle._id,
+          selfStatus,
+          mgrStatus,
+          finalized,
+          finalScoreValue,
+          ratingBandValue
+        });
+      }
+
+      // Priority Selector:
+      // 1. Any cycle with selfStatus === 'pending'
+      let target = eligibleCycles.find(c => c.selfStatus === 'pending');
+      // 2. Any cycle with mgrStatus === 'waiting'
+      if (!target) {
+        target = eligibleCycles.find(c => c.mgrStatus === 'waiting');
+      }
+      // 3. Fallback to the first eligible cycle (completed or active)
+      if (!target && eligibleCycles.length > 0) {
+        target = eligibleCycles[0];
+      }
+
+      if (target) {
+        activeCycleId = target.cycleId;
+        selfAssessmentStatus = target.selfStatus;
+        managerReviewStatus = target.mgrStatus;
+        finalScoreFinalized = target.finalized;
+        finalScore = target.finalScoreValue;
+        ratingBand = target.ratingBandValue;
       }
 
       return res.json({

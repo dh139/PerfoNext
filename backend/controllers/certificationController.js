@@ -57,8 +57,9 @@ const uploadCertification = async (req, res) => {
     if (req.file.mimetype === 'application/pdf' && fs.existsSync(req.file.path)) {
       try {
         const dataBuffer = fs.readFileSync(req.file.path);
-        const parsedData = await pdf(dataBuffer);
-        extractedText = parsedData.text || '';
+        const parser = new pdf.PDFParse({});
+        await parser.load(dataBuffer);
+        extractedText = await parser.getText() || '';
       } catch (err) {
         console.error('PDF text extraction failed:', err);
       }

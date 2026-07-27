@@ -41,7 +41,7 @@ const getEmployeeReport = async (req, res) => {
 
     // Get all review scores
     const scores = await ReviewScore.find({ employeeId })
-      .populate({ path: 'reviewCycleId', select: 'reviewMonth status startDate endDate' })
+      .populate({ path: 'reviewCycleId', select: 'reviewMonth status startDate endDate cycleType' })
       .sort('reviewCycleId.reviewMonth');
 
     // Get all assessments & reviews for detail mapping

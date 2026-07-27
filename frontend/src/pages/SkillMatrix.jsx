@@ -16,7 +16,7 @@ const SkillMatrix = () => {
   
   // HR/Admin Add Skill State
   const [newSkillName, setNewSkillName] = useState('');
-  const [newSkillCategory, setNewSkillCategory] = useState('Frontend');
+  const [newSkillCategory, setNewSkillCategory] = useState('');
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [newSkillDeptId, setNewSkillDeptId] = useState('');
@@ -156,7 +156,7 @@ const SkillMatrix = () => {
   const handleCancelEdit = () => {
     setEditingSkillId(null);
     setNewSkillName('');
-    setNewSkillCategory('Frontend');
+    setNewSkillCategory('');
     setNewSkillDeptId('');
     setNewSkillDesgId('');
     setShowSkillModal(false);
@@ -390,7 +390,7 @@ const SkillMatrix = () => {
                 onClick={() => {
                   setEditingSkillId(null);
                   setNewSkillName('');
-                  setNewSkillCategory('Frontend');
+                  setNewSkillCategory('');
                   setNewSkillDeptId('');
                   setNewSkillDesgId('');
                   setShowSkillModal(true);
@@ -797,21 +797,14 @@ const SkillMatrix = () => {
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Category *</label>
-                <select
+                <input
+                  type="text"
                   value={newSkillCategory}
                   onChange={(e) => setNewSkillCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
-                >
-                  <option value="Frontend">Frontend Development</option>
-                  <option value="Backend">Backend Development</option>
-                  <option value="Database">Database & Cloud</option>
-                  <option value="DevOps">DevOps & Infrastructure</option>
-                  <option value="Sales & BD">Sales & BD</option>
-                  <option value="Finance">Finance & Accounting</option>
-                  <option value="Human Resources">Human Resources</option>
-                  <option value="Management">Management & Leadership</option>
-                  <option value="General">General Technical</option>
-                </select>
+                  placeholder="e.g. Frontend Development, Soft Skills, Sales..."
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                  required
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">

@@ -24,6 +24,100 @@ const ReviewCycles = () => {
   const [targetRole, setTargetRole] = useState(user?.role === 'executive' ? 'manager' : 'employee');
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  const getQuarterOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 1, currentYear, currentYear + 1];
+    const opts = [];
+    years.forEach(yr => {
+      opts.push({ value: `${yr}-Q1`, label: `${yr}-Q1 (Jan 01 - Mar 31)` });
+      opts.push({ value: `${yr}-Q2`, label: `${yr}-Q2 (Apr 01 - Jun 30)` });
+      opts.push({ value: `${yr}-Q3`, label: `${yr}-Q3 (Jul 01 - Sep 30)` });
+      opts.push({ value: `${yr}-Q4`, label: `${yr}-Q4 (Oct 01 - Dec 31)` });
+    });
+    return opts;
+  };
+
+  const getAnnualOptions = () => {
+    const currentYear = new Date().getFullYear();
+    return [
+      { value: `${currentYear - 1}`, label: `${currentYear - 1} (Jan 01 - Dec 31)` },
+      { value: `${currentYear}`, label: `${currentYear} (Jan 01 - Dec 31)` },
+      { value: `${currentYear + 1}`, label: `${currentYear + 1} (Jan 01 - Dec 31)` }
+    ];
+  };
+
+  const getMonthlyOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 1, currentYear, currentYear + 1];
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const opts = [];
+    years.forEach(yr => {
+      monthNames.forEach((name, idx) => {
+        const mStr = String(idx + 1).padStart(2, '0');
+        const lastDay = new Date(yr, idx + 1, 0).getDate();
+        opts.push({
+          value: `${yr}-${mStr}`,
+          label: `${yr}-${mStr} (${name} 01 - ${name} ${lastDay})`
+        });
+      });
+    });
+    return opts;
+  };
+
+  // Reset default reviewMonth when cycleType changes
+  useEffect(() => {
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    if (cycleType === 'monthly') {
+      setReviewMonth(`${currentYear}-${String(currentMonth).padStart(2, '0')}`);
+    } else if (cycleType === 'quarterly') {
+      const q = Math.ceil(currentMonth / 3);
+      setReviewMonth(`${currentYear}-Q${q}`);
+    } else if (cycleType === 'annual') {
+      setReviewMonth(`${currentYear}`);
+    }
+  }, [cycleType]);
+
+  // Dynamically calculate and pre-populate startDate and endDate when reviewMonth or cycleType changes
+  useEffect(() => {
+    if (!reviewMonth) return;
+
+    if (cycleType === 'monthly') {
+      const match = reviewMonth.match(/^(\d{4})-(\d{2})$/);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const month = parseInt(match[2], 10);
+        const start = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        setStartDate(start);
+        setEndDate(end);
+      }
+    } else if (cycleType === 'quarterly') {
+      const match = reviewMonth.match(/^(\d{4})-Q([1-4])$/);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const q = parseInt(match[2], 10);
+        const startMonth = (q - 1) * 3 + 1;
+        const start = `${year}-${String(startMonth).padStart(2, '0')}-01`;
+        const lastMonth = startMonth + 2;
+        const lastDay = new Date(year, lastMonth, 0).getDate();
+        const end = `${year}-${String(lastMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+        setStartDate(start);
+        setEndDate(end);
+      }
+    } else if (cycleType === 'annual') {
+      const match = reviewMonth.match(/^(\d{4})$/);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const start = `${year}-01-01`;
+        const end = `${year}-12-31`;
+        setStartDate(start);
+        setEndDate(end);
+      }
+    }
+  }, [reviewMonth, cycleType]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -265,7 +359,7 @@ const ReviewCycles = () => {
                 {filteredCycles.map(c => (
                   <tr key={c._id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-4 px-4 font-black text-slate-900 text-xs">
-                      {c.reviewMonth}
+                       {c.reviewMonth}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
@@ -332,15 +426,30 @@ const ReviewCycles = () => {
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Review Period (YYYY-MM) *</label>
-                  <input
-                    type="text"
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">
+                    {cycleType === 'monthly' ? 'Review Period (YYYY-MM) *' : cycleType === 'quarterly' ? 'Quarter Period (YYYY-QX) *' : 'Year Period (YYYY) *'}
+                  </label>
+                  <select
                     value={reviewMonth}
                     onChange={(e) => setReviewMonth(e.target.value)}
-                    placeholder="2026-07"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
                     required
-                  />
+                  >
+                    {cycleType === 'monthly' && getMonthlyOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {cycleType === 'quarterly' && getQuarterOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {cycleType === 'annual' && getAnnualOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[9px] text-slate-400 mt-0.5">
+                    {cycleType === 'monthly' && 'Select the target month.'}
+                    {cycleType === 'quarterly' && 'Select Q1, Q2, Q3, or Q4. Dates will pre-populate automatically.'}
+                    {cycleType === 'annual' && 'Select the target review year.'}
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -409,6 +518,8 @@ const ReviewCycles = () => {
                   />
                 </div>
               </div>
+
+
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
                 <button

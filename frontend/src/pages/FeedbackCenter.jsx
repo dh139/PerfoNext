@@ -160,6 +160,23 @@ const FeedbackCenter = () => {
       return;
     }
 
+    if (requestForm.relationship === 'peer') {
+      const subject = users.find(u => u._id === requestForm.employeeId);
+      const reviewer = users.find(u => u._id === requestForm.reviewerId);
+      if (subject && reviewer) {
+        if (subject.role !== reviewer.role) {
+          setError('For Peer feedback, both employees must have the same tier (role).');
+          return;
+        }
+        const subDept = subject.departmentId?._id?.toString() || subject.departmentId?.toString();
+        const revDept = reviewer.departmentId?._id?.toString() || reviewer.departmentId?.toString();
+        if (subDept !== revDept) {
+          setError('For Peer feedback, both employees must belong to the same department.');
+          return;
+        }
+      }
+    }
+
     try {
       setLoading(true);
       await api.post('/api/feedback/requests', requestForm);
@@ -506,7 +523,9 @@ const FeedbackCenter = () => {
                 <span>
                   {(() => {
                     const selected = users.find(u => u._id === requestForm.employeeId);
-                    return selected ? `${selected.firstName} ${selected.lastName} (${selected.role.toUpperCase()})` : 'Select Subject...';
+                    return selected 
+                      ? `${selected.firstName} ${selected.lastName} [${selected.employeeCode}] (${selected.role.toUpperCase()}) - ${selected.departmentId?.departmentName || 'N/A'}` 
+                      : 'Select Subject...';
                   })()}
                 </span>
                 <span className="text-slate-400 text-[10px]">▼</span>
@@ -528,7 +547,12 @@ const FeedbackCenter = () => {
                       />
                     </div>
                     <div className="space-y-0.5">
-                      {users.filter(u => `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(subjSearchQuery.toLowerCase())).map(u => (
+                      {users.filter(u => {
+                        const deptName = u.departmentId?.departmentName || '';
+                        const code = u.employeeCode || '';
+                        const searchStr = `${u.firstName} ${u.lastName} ${u.role} ${deptName} ${code}`.toLowerCase();
+                        return searchStr.includes(subjSearchQuery.toLowerCase());
+                      }).map(u => (
                         <button
                           key={u._id}
                           type="button"
@@ -542,7 +566,12 @@ const FeedbackCenter = () => {
                             requestForm.employeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
                           }`}
                         >
-                          <span>{u.firstName} {u.lastName}</span>
+                          <div className="flex flex-col">
+                            <span className="font-semibold">{u.firstName} {u.lastName}</span>
+                            <span className="text-[10px] text-slate-400 mt-0.5">
+                              {u.employeeCode} • {u.departmentId?.departmentName || 'N/A'}
+                            </span>
+                          </div>
                           <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
                         </button>
                       ))}
@@ -563,7 +592,9 @@ const FeedbackCenter = () => {
                 <span>
                   {(() => {
                     const selected = users.find(u => u._id === requestForm.reviewerId);
-                    return selected ? `${selected.firstName} ${selected.lastName} (${selected.role.toUpperCase()})` : 'Select Reviewer...';
+                    return selected 
+                      ? `${selected.firstName} ${selected.lastName} [${selected.employeeCode}] (${selected.role.toUpperCase()}) - ${selected.departmentId?.departmentName || 'N/A'}` 
+                      : 'Select Reviewer...';
                   })()}
                 </span>
                 <span className="text-slate-400 text-[10px]">▼</span>
@@ -586,7 +617,25 @@ const FeedbackCenter = () => {
                     </div>
                     <div className="space-y-0.5">
                       {users
-                        .filter(u => u._id !== requestForm.employeeId && `${u.firstName} ${u.lastName} ${u.role}`.toLowerCase().includes(revSearchQuery.toLowerCase()))
+                        .filter(u => {
+                          if (u._id === requestForm.employeeId) return false;
+                          
+                          const subject = users.find(sub => sub._id === requestForm.employeeId);
+                          if (subject && requestForm.relationship === 'peer') {
+                            // Rule 1: Same Tier (role)
+                            if (u.role !== subject.role) return false;
+                            
+                            // Rule 2: Same Department
+                            const uDept = u.departmentId?._id?.toString() || u.departmentId?.toString();
+                            const subDept = subject.departmentId?._id?.toString() || subject.departmentId?.toString();
+                            if (uDept !== subDept) return false;
+                          }
+
+                          const deptName = u.departmentId?.departmentName || '';
+                          const code = u.employeeCode || '';
+                          const searchStr = `${u.firstName} ${u.lastName} ${u.role} ${deptName} ${code}`.toLowerCase();
+                          return searchStr.includes(revSearchQuery.toLowerCase());
+                        })
                         .map(u => (
                           <button
                             key={u._id}
@@ -601,7 +650,12 @@ const FeedbackCenter = () => {
                               requestForm.reviewerId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
                             }`}
                           >
-                            <span>{u.firstName} {u.lastName}</span>
+                            <div className="flex flex-col">
+                              <span className="font-semibold">{u.firstName} {u.lastName}</span>
+                              <span className="text-[10px] text-slate-400 mt-0.5">
+                                {u.employeeCode} • {u.departmentId?.departmentName || 'N/A'}
+                              </span>
+                            </div>
                             <span className="text-[8px] font-extrabold uppercase px-1 rounded bg-slate-100 text-slate-500">{u.role}</span>
                           </button>
                         ))}

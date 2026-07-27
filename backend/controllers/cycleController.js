@@ -73,9 +73,40 @@ const getReviewCycleById = async (req, res) => {
   }
 };
 
+const normalizeReviewMonth = (reviewMonth, cycleType) => {
+  if (!reviewMonth) return reviewMonth;
+  reviewMonth = reviewMonth.trim();
+  
+  if (cycleType === 'quarterly') {
+    if (/^\d{4}-Q[1-4]$/.test(reviewMonth)) {
+      return reviewMonth;
+    }
+    const match = reviewMonth.match(/^(\d{4})-(\d{2})$/);
+    if (match) {
+      const year = match[1];
+      const month = parseInt(match[2], 10);
+      const q = Math.ceil(month / 3);
+      return `${year}-Q${q}`;
+    }
+  }
+
+  if (cycleType === 'annual') {
+    if (/^\d{4}$/.test(reviewMonth)) {
+      return reviewMonth;
+    }
+    const match = reviewMonth.match(/^(\d{4})/);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return reviewMonth;
+};
+
 const createReviewCycle = async (req, res) => {
   try {
     let { reviewMonth, startDate, endDate, status, kpiTemplateId, cycleType, targetRole } = req.body;
+    reviewMonth = normalizeReviewMonth(reviewMonth, cycleType);
 
     // Default targetRole: if created by executive (CEO), target managers; otherwise target employees
     if (!targetRole) {
@@ -128,6 +159,11 @@ const updateReviewCycle = async (req, res) => {
     const oldCycle = await ReviewCycle.findById(id);
     if (!oldCycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+
+    if (req.body.reviewMonth) {
+      const type = req.body.cycleType || oldCycle.cycleType;
+      req.body.reviewMonth = normalizeReviewMonth(req.body.reviewMonth, type);
     }
 
     const updatedCycle = await ReviewCycle.findByIdAndUpdate(id, req.body, { new: true });

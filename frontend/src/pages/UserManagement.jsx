@@ -183,6 +183,7 @@ const UserManagement = () => {
   const userLevel = determineLevel(role, selectedDesignationName);
 
   const eligibleManagers = users.filter(u => {
+    if (u.role === 'employee') return false; // Employees cannot be managers
     if (editUser && u._id === editUser._id) return false;
     if (u.employmentStatus !== 'active') return false;
     if (role === 'hr' || role === 'admin') return u.role === 'executive';

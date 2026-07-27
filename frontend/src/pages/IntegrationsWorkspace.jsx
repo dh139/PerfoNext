@@ -44,6 +44,7 @@ const IntegrationsWorkspace = () => {
   const [tableMonthFilter, setTableMonthFilter] = useState('all');
   const [tableDeptFilter, setTableDeptFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [attendanceModalUser, setAttendanceModalUser] = useState(null);
 
   // Teams Webhook state
   const [teamsForm, setTeamsForm] = useState({
@@ -359,23 +360,61 @@ const IntegrationsWorkspace = () => {
           return matchesDept && matchesSearch;
         });
 
-        // Filter attendance table records
-        const filteredAttendanceRecords = attendanceRecords.filter(rec => {
-          const emp = rec.employeeId || {};
-          const empName = `${emp.firstName || ''} ${emp.lastName || ''} ${emp.employeeCode || ''}`.toLowerCase();
-          const deptName = (emp.departmentId?.departmentName || '').toLowerCase();
-          const desigName = (emp.designationId?.designationName || '').toLowerCase();
+        // Filter users for the attendance registry table
+        const filteredAttendanceRecords = users.filter(u => {
+          if (u.role === 'admin') return false; // skip system admins
           
-          const matchesSearch = empName.includes(tableSearch.toLowerCase()) ||
+          const fullName = `${u.firstName || ''} ${u.lastName || ''} ${u.employeeCode || ''}`.toLowerCase();
+          const deptName = (u.departmentId?.departmentName || '').toLowerCase();
+          const desigName = (u.designationId?.designationName || '').toLowerCase();
+          
+          const matchesSearch = fullName.includes(tableSearch.toLowerCase()) ||
                                 deptName.includes(tableSearch.toLowerCase()) ||
                                 desigName.includes(tableSearch.toLowerCase());
 
-          const matchesMonth = tableMonthFilter === 'all' || rec.month === tableMonthFilter;
-
-          const deptId = emp.departmentId?._id || emp.departmentId;
+          const deptId = u.departmentId?._id || u.departmentId;
           const matchesDept = tableDeptFilter === 'all' || (deptId && deptId.toString() === tableDeptFilter.toString());
 
-          return matchesSearch && matchesMonth && matchesDept;
+          // If a specific month is selected, verify user has a record for that month
+          if (tableMonthFilter !== 'all') {
+            const hasRecordForMonth = attendanceRecords.some(rec => {
+              const recEmpId = rec.employeeId?._id || rec.employeeId;
+              return recEmpId && recEmpId.toString() === u._id.toString() && rec.month === tableMonthFilter;
+            });
+            if (!hasRecordForMonth) return false;
+          }
+
+          return matchesSearch && matchesDept;
+        }).map(u => {
+          // Find all attendance records for this user
+          const records = attendanceRecords.filter(rec => {
+            const recEmpId = rec.employeeId?._id || rec.employeeId;
+            return recEmpId && recEmpId.toString() === u._id.toString();
+          });
+
+          // Sort records descending by month
+          records.sort((a, b) => b.month.localeCompare(a.month));
+
+          if (tableMonthFilter !== 'all') {
+            const specificRecord = records.find(r => r.month === tableMonthFilter);
+            return {
+              ...u,
+              records,
+              specificRecord,
+              displayPercent: specificRecord ? specificRecord.attendancePercentage : 0
+            };
+          }
+
+          const avgAttendance = records.length > 0 
+            ? Math.round((records.reduce((sum, r) => sum + r.attendancePercentage, 0) / records.length) * 100) / 100
+            : null;
+
+          return {
+            ...u,
+            records,
+            avgAttendance,
+            displayPercent: avgAttendance
+          };
         });
 
         const uniqueMonths = Array.from(new Set(attendanceRecords.map(r => r.month))).sort().reverse();
@@ -743,7 +782,7 @@ const IntegrationsWorkspace = () => {
                     <span>Enterprise Attendance Registry</span>
                   </h3>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    Searchable attendance records ({filteredAttendanceRecords.length} records found)
+                    Searchable attendance registry ({filteredAttendanceRecords.length} employees found)
                   </p>
                 </div>
 
@@ -801,7 +840,7 @@ const IntegrationsWorkspace = () => {
               {filteredAttendanceRecords.length === 0 ? (
                 <div className="py-12 text-center space-y-2">
                   <Clock size={32} className="mx-auto text-slate-300" />
-                  <p className="text-slate-400 italic">No attendance records matching your filter criteria.</p>
+                  <p className="text-slate-400 italic">No employees matching your filter criteria.</p>
                   {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
                     <button
                       onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
@@ -821,17 +860,20 @@ const IntegrationsWorkspace = () => {
                           <th className="pb-2.5">Department & Designation</th>
                           <th className="pb-2.5">Month</th>
                           <th className="pb-2.5">Present / Total</th>
-                          <th className="pb-2.5 pr-1">Attendance %</th>
+                          <th className="pb-2.5">Attendance %</th>
+                          <th className="pb-2.5 pr-1 text-right">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs">
-                        {paginatedRecords.map(rec => {
-                          const emp = rec.employeeId || {};
+                        {paginatedRecords.map(emp => {
                           const deptName = emp.departmentId?.departmentName || 'General';
                           const desigName = emp.designationId?.designationName || '-';
 
+                          const totalWorking = emp.records?.reduce((sum, r) => sum + r.totalWorkingDays, 0) || 0;
+                          const totalPresent = emp.records?.reduce((sum, r) => sum + r.daysPresent, 0) || 0;
+
                           return (
-                            <tr key={rec._id} className="hover:bg-slate-50/60 transition-colors">
+                            <tr key={emp._id} className="hover:bg-slate-50/60 transition-colors">
                               <td className="py-3 pl-1">
                                 <div>
                                   <p className="font-bold text-slate-800">
@@ -847,21 +889,44 @@ const IntegrationsWorkspace = () => {
                                 <p className="text-[10px] text-slate-400">{desigName}</p>
                               </td>
                               <td className="py-3 text-slate-600 font-medium">
-                                <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] border border-slate-200">
-                                  {rec.month}
-                                </span>
+                                {tableMonthFilter === 'all' ? (
+                                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-[11px] border border-sky-200">
+                                    {emp.records?.length || 0} months logged
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] border border-slate-200">
+                                    {tableMonthFilter}
+                                  </span>
+                                )}
                               </td>
                               <td className="py-3 text-slate-600 font-medium">
-                                {rec.daysPresent} / {rec.totalWorkingDays} days
+                                {tableMonthFilter === 'all' ? (
+                                  <span>{totalPresent} / {totalWorking} days</span>
+                                ) : (
+                                  <span>{emp.specificRecord?.daysPresent || 0} / {emp.specificRecord?.totalWorkingDays || 0} days</span>
+                                )}
                               </td>
-                              <td className="py-3 pr-1">
-                                <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
-                                  rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                  rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                  'bg-rose-50 text-rose-700 border border-rose-200'
-                                }`}>
-                                  {rec.attendancePercentage}%
-                                </span>
+                              <td className="py-3">
+                                {emp.displayPercent !== null ? (
+                                  <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
+                                    emp.displayPercent >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                    emp.displayPercent >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                    'bg-rose-50 text-rose-700 border border-rose-200'
+                                  }`}>
+                                    {emp.displayPercent}%
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-400 italic">No records</span>
+                                )}
+                              </td>
+                              <td className="py-3 pr-1 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => setAttendanceModalUser(emp)}
+                                  className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold rounded-lg border border-sky-200 transition-colors text-[10px] cursor-pointer"
+                                >
+                                  View Attendance
+                                </button>
                               </td>
                             </tr>
                           );
@@ -1192,6 +1257,95 @@ const IntegrationsWorkspace = () => {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {attendanceModalUser && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-5 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm">
+                  Attendance History
+                </h3>
+                <p className="text-[11px] text-sky-600 font-bold mt-0.5">
+                  {attendanceModalUser.firstName} {attendanceModalUser.lastName} [{attendanceModalUser.employeeCode}]
+                </p>
+              </div>
+              <button 
+                onClick={() => setAttendanceModalUser(null)} 
+                className="text-slate-400 hover:text-slate-655 cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <div>
+                  <span className="text-slate-400 block text-[9px] uppercase font-extrabold">Department</span>
+                  <span className="font-bold text-slate-700">
+                    {attendanceModalUser.departmentId?.departmentName || 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[9px] uppercase font-extrabold">Designation</span>
+                  <span className="font-bold text-slate-700">
+                    {attendanceModalUser.designationId?.designationName || 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-xl">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-55 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase">
+                      <th className="p-3">Month</th>
+                      <th className="p-3">Present / Working Days</th>
+                      <th className="p-3 text-right">Attendance %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {attendanceModalUser.records && attendanceModalUser.records.length > 0 ? (
+                      attendanceModalUser.records.map(rec => (
+                        <tr key={rec._id} className="hover:bg-slate-50/50">
+                          <td className="p-3 font-bold text-slate-700">{rec.month}</td>
+                          <td className="p-3 text-slate-650 font-medium">
+                            {rec.daysPresent} / {rec.totalWorkingDays} days
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
+                              rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {rec.attendancePercentage}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="3" className="p-6 text-center text-slate-400 italic">
+                          No attendance records found for this employee.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setAttendanceModalUser(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
