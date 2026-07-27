@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const Profile = () => {
   const { updateProfile } = useAuthStore();
@@ -83,6 +84,33 @@ const Profile = () => {
     }
   };
 
+  const handleProfilePhotoUpload = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      setSaving(true);
+      setError('');
+      setSuccess('');
+      const res = await api.patch('/api/users/me/profile-photo', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setProfile(res.data);
+      updateProfile({ profilePhoto: res.data.profilePhoto });
+      setSuccess('Profile photo uploaded successfully!');
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Failed to upload profile photo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -95,12 +123,25 @@ const Profile = () => {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-full bg-sky-100 flex items-center justify-center text-sky-700 font-bold text-lg uppercase">
-            {profile?.firstName?.[0]}{profile?.lastName?.[0]}
+          <div className="relative group">
+            <img
+              src={getUserAvatarUrl(profile)}
+              alt="Avatar"
+              className="w-16 h-16 rounded-full object-cover ring-2 ring-slate-100 bg-slate-50"
+            />
+            <label className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white">
+              <Camera size={16} />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePhotoUpload}
+                className="hidden"
+              />
+            </label>
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-800">{profile?.firstName} {profile?.lastName}</h3>
-            <p className="text-xs text-slate-500">{profile?.employeeCode}</p>
+            <p className="text-xs text-slate-500 font-mono">{profile?.employeeCode}</p>
           </div>
         </div>
 

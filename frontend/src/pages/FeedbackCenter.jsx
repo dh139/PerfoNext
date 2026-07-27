@@ -41,6 +41,7 @@ const FeedbackCenter = () => {
   const [summaryEmployeeId, setSummaryEmployeeId] = useState('');
   const [summaryCycleId, setSummaryCycleId] = useState('');
   const [summaryData, setSummaryData] = useState(null);
+  const [availableSummaries, setAvailableSummaries] = useState([]);
 
   // Searchable dropdown states
   const [subjDropdownOpen, setSubjDropdownOpen] = useState(false);
@@ -91,7 +92,17 @@ const FeedbackCenter = () => {
   useEffect(() => {
     fetchPendingRequests();
     fetchMetadata();
+    fetchAvailableSummaries();
   }, []);
+
+  const fetchAvailableSummaries = async () => {
+    try {
+      const res = await api.get('/api/feedback/available-summaries');
+      setAvailableSummaries(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchPendingRequests = async () => {
     try {
@@ -212,6 +223,7 @@ const FeedbackCenter = () => {
       setComments('');
       setRatings({ workQuality: 5, productivity: 5, technical: 5, communication: 5, ownership: 5, learning: 5 });
       fetchPendingRequests();
+      fetchAvailableSummaries();
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Submission failed.');
@@ -715,6 +727,114 @@ const FeedbackCenter = () => {
 
       {activeTab === 'summary' && (
         <div className="space-y-6">
+          
+          {/* Available Summaries Dashboard List */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <Users size={16} className="text-sky-600" />
+                <span>Available Anonymized 360° Feedback Summaries</span>
+              </h3>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Quickly select and analyze aggregated anonymized feedback summaries for employees
+              </p>
+            </div>
+
+            {availableSummaries.length === 0 ? (
+              <div className="py-8 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+                <p className="text-slate-400 italic text-xs">No feedback responses recorded for any employees in any cycles yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                      <th className="p-3">Employee</th>
+                      <th className="p-3">Department & Designation</th>
+                      <th className="p-3">Review Cycle</th>
+                      <th className="p-3">Aggregated Feedback Count</th>
+                      <th className="p-3 pr-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {availableSummaries.map(s => {
+                      const emp = s.employee || {};
+                      const cycle = s.cycle || {};
+                      const deptName = emp.departmentId?.departmentName || 'General';
+                      const desigName = emp.designationId?.designationName || '-';
+
+                      const isSelected = summaryEmployeeId === emp._id && summaryCycleId === cycle._id;
+
+                      return (
+                        <tr key={`${emp._id}_${cycle._id}`} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/30' : ''}`}>
+                          <td className="p-3">
+                            <div>
+                              <p className="font-bold text-slate-800">
+                                {emp.firstName} {emp.lastName}
+                              </p>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                {emp.employeeCode || 'EMP-N/A'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <p className="font-semibold text-slate-700">{deptName}</p>
+                            <p className="text-[10px] text-slate-400">{desigName}</p>
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-medium text-slate-600">
+                              {cycle.reviewMonth} ({cycle.cycleType})
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded text-[10px] font-bold">
+                                Peer: {s.peerCount}
+                              </span>
+                              <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded text-[10px] font-bold">
+                                Subordinate: {s.subordinateCount}
+                              </span>
+                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[10px] font-bold">
+                                Manager: {s.managerCount}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-3 pr-4 text-right">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setSummaryEmployeeId(emp._id);
+                                setSummaryCycleId(cycle._id);
+                                try {
+                                  setLoading(true);
+                                  setError('');
+                                  const res = await api.get(`/api/feedback/summary/${emp._id}?cycleId=${cycle._id}`);
+                                  setSummaryData(res.data);
+                                } catch (err) {
+                                  console.error(err);
+                                  setError('Failed to load anonymized summary.');
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                              className={`px-3 py-1.5 font-bold rounded-xl text-[11px] transition-colors cursor-pointer border ${
+                                isSelected 
+                                  ? 'bg-sky-600 border-sky-600 text-white hover:bg-sky-700' 
+                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                              }`}
+                            >
+                              {isSelected ? 'Selected' : 'Analyze Feedback'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Selector Card */}
           <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-end">
             <div className="space-y-1 flex-1 relative">
@@ -749,22 +869,25 @@ const FeedbackCenter = () => {
                       />
                     </div>
                     <div className="space-y-0.5">
-                      {users.filter(u => `${u.firstName} ${u.lastName}`.toLowerCase().includes(sumSearchQuery.toLowerCase())).map(u => (
-                        <button
-                          key={u._id}
-                          type="button"
-                          onClick={() => {
-                            setSummaryEmployeeId(u._id);
-                            setSumDropdownOpen(false);
-                            setSumSearchQuery('');
-                          }}
-                          className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
-                            summaryEmployeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          <span>{u.firstName} {u.lastName}</span>
-                        </button>
-                      ))}
+                      {users
+                        .filter(u => availableSummaries.some(s => s.employee?._id?.toString() === u._id.toString()))
+                        .filter(u => `${u.firstName} ${u.lastName}`.toLowerCase().includes(sumSearchQuery.toLowerCase()))
+                        .map(u => (
+                          <button
+                            key={u._id}
+                            type="button"
+                            onClick={() => {
+                              setSummaryEmployeeId(u._id);
+                              setSumDropdownOpen(false);
+                              setSumSearchQuery('');
+                            }}
+                            className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
+                              summaryEmployeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
+                            }`}
+                          >
+                            <span>{u.firstName} {u.lastName}</span>
+                          </button>
+                        ))}
                     </div>
                   </div>
                 </>

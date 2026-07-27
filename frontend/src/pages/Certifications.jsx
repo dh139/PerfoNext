@@ -24,6 +24,9 @@ const Certifications = () => {
   const [users, setUsers] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(user?.id);
   const [activeCycleExists, setActiveCycleExists] = useState(true);
+  const [departments, setDepartments] = useState([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [userDeptFilter, setUserDeptFilter] = useState('all');
 
   const fetchActiveCycleStatus = async () => {
     try {
@@ -59,8 +62,12 @@ const Certifications = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get('/api/users');
-      let allUsers = res.data || [];
+      const [usersRes, deptsRes] = await Promise.all([
+        api.get('/api/users'),
+        api.get('/api/departments')
+      ]);
+      let allUsers = usersRes.data || [];
+      setDepartments(deptsRes.data || []);
 
       // Exclude system admin accounts
       allUsers = allUsers.filter(u => u.role !== 'admin');
@@ -137,6 +144,19 @@ const Certifications = () => {
     return c.name.toLowerCase().includes(term) || c.issuer.toLowerCase().includes(term);
   });
 
+  const filteredUsers = users.filter(u => {
+    const term = userSearch.toLowerCase();
+    const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+    const code = (u.employeeCode || '').toLowerCase();
+    const dept = (u.departmentId?.departmentName || '').toLowerCase();
+    const matchesSearch = fullName.includes(term) || code.includes(term) || dept.includes(term);
+
+    const deptId = u.departmentId?._id || u.departmentId;
+    const matchesDept = userDeptFilter === 'all' || (deptId && deptId.toString() === userDeptFilter.toString());
+
+    return matchesSearch && matchesDept;
+  });
+
   const selectedUserObj = users.find(u => u._id === selectedEmployeeId) || (selectedEmployeeId === user?.id ? user : null);
   const totalCertsCount = certs.length;
   const activeIssuersCount = new Set(certs.map(c => c.issuer)).size;
@@ -169,24 +189,7 @@ const Certifications = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Staff Selector */}
-            {user?.role !== 'employee' && (
-              <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 p-2 px-3 rounded-2xl text-xs font-bold text-white shadow-md">
-                <User size={14} className="text-sky-400" />
-                <span className="text-[9px] text-slate-400 uppercase tracking-wider">Staff:</span>
-                <select
-                  value={selectedEmployeeId}
-                  onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                  className="bg-transparent font-extrabold text-sky-200 outline-none cursor-pointer"
-                >
-                  {users.map(u => (
-                    <option key={u._id} value={u._id} className="bg-slate-900 text-white">
-                      {u.firstName} {u.lastName} ({u.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+
 
             <button
               onClick={() => setShowUploadModal(true)}
@@ -257,6 +260,106 @@ const Certifications = () => {
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-800 flex items-center gap-2 font-bold text-xs">
           <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
           <span>{success}</span>
+        </div>
+      )}
+
+      {/* Staff Selection Roster Table (Managers/HR/Execs only) */}
+      {user?.role !== 'employee' && (
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                <span>Staff Credentials Directory</span>
+                <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
+                  {users.length} Employees
+                </span>
+              </h3>
+              <p className="text-slate-550 text-xs mt-0.5">Search and select any employee to view and manage their credential vault</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <div className="relative flex-1 md:w-56">
+                <input
+                  type="text"
+                  placeholder="Search name, code, dept..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-800 pl-3 pr-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <select
+                value={userDeptFilter}
+                onChange={(e) => setUserDeptFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500 font-semibold cursor-pointer"
+              >
+                <option value="all">All Departments</option>
+                {departments.map(d => (
+                  <option key={d._id} value={d._id}>{d.departmentName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                  <th className="p-3">Employee Code</th>
+                  <th className="p-3">Employee Name</th>
+                  <th className="p-3">Department</th>
+                  <th className="p-3">Designation</th>
+                  <th className="p-3">Role</th>
+                  <th className="p-3 pr-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-400 italic">
+                      No employees match your search query.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map(u => {
+                    const isSelected = selectedEmployeeId === u._id;
+                    const deptName = u.departmentId?.departmentName || 'General';
+                    const desigName = u.designationId?.designationName || '-';
+
+                    return (
+                      <tr key={u._id} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/30 font-bold' : ''}`}>
+                        <td className="p-3 font-mono text-[10px] font-bold text-slate-555">{u.employeeCode || 'EMP-N/A'}</td>
+                        <td className="p-3 text-slate-800">
+                          {u.firstName} {u.lastName}
+                          {isSelected && (
+                            <span className="ml-2 px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 rounded text-[9px] font-black uppercase tracking-wider">
+                              Selected
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-600">{deptName}</td>
+                        <td className="p-3 text-slate-600">{desigName}</td>
+                        <td className="p-3 uppercase text-[10px] text-slate-500 font-bold">{u.role}</td>
+                        <td className="p-3 pr-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEmployeeId(u._id)}
+                            className={`px-3 py-1.5 font-bold rounded-xl text-[11px] transition-colors cursor-pointer border ${
+                              isSelected 
+                                ? 'bg-sky-600 border-sky-600 text-white hover:bg-sky-700' 
+                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            {isSelected ? 'Viewing' : 'View Vault'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

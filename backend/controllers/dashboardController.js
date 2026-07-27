@@ -434,14 +434,14 @@ const getDashboardData = async (req, res) => {
 
       const uniqueScores = Array.from(uniqueEmployeeLatestScores.values());
 
-      const employeeScores = uniqueScores.filter(s => s.employeeId?.role === 'employee');
-      const managerScores = uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role));
+      const employeeScores = allReviewScores.filter(s => s.employeeId?.role === 'employee');
+      const managerScores = allReviewScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role));
 
-      const topEmployeesRanking = [...employeeScores].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
-      const topManagersRanking = [...managerScores].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+      const topEmployeesRanking = [...uniqueScores.filter(s => s.employeeId?.role === 'employee')].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+      const topManagersRanking = [...uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role))].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
 
-      const lowestEmployeesRanking = [...employeeScores].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
-      const lowestManagersRanking = [...managerScores].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
+      const lowestEmployeesRanking = [...uniqueScores.filter(s => s.employeeId?.role === 'employee')].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
+      const lowestManagersRanking = [...uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role))].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
 
       return res.json({
         role,

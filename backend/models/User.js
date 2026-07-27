@@ -79,6 +79,16 @@ const userSchema = new mongoose.Schema(
       enum: [1, 2, 3, 4, 5, 6],
       default: 5
     },
+    gender: {
+      type: String,
+      enum: ['male', 'female'],
+      default: 'male',
+      required: true
+    },
+    profilePhoto: {
+      type: String,
+      default: null
+    },
     refreshToken: {
       type: String,
       default: null

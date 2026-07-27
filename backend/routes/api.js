@@ -41,6 +41,7 @@ router.get('/auth/managers', userController.getPublicManagers);
 router.get('/users', verifyToken, userController.getUsers);
 router.get('/users/me', verifyToken, userController.getMyProfile);
 router.patch('/users/me', verifyToken, userController.updateMyProfile);
+router.patch('/users/me/profile-photo', verifyToken, upload.single('file'), userController.uploadProfilePhoto);
 router.get('/users/:id', verifyToken, userController.getUserById);
 router.post('/users', verifyToken, authorizeRoles('admin', 'hr'), userController.createUser);
 router.patch('/users/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateUser);
@@ -129,6 +130,7 @@ router.get('/feedback/requests', verifyToken, feedbackController.getFeedbackRequ
 router.post('/feedback/requests', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), feedbackController.createFeedbackRequest);
 router.post('/feedback/responses', verifyToken, feedbackController.submitFeedbackResponse);
 router.get('/feedback/summary/:employeeId', verifyToken, feedbackController.getFeedbackSummary);
+router.get('/feedback/available-summaries', verifyToken, feedbackController.getAvailableSummaries);
 
 // Skill Matrix Routes
 router.get('/skills', verifyToken, skillController.getSkills);

@@ -186,9 +186,82 @@ const getFeedbackSummary = async (req, res) => {
   }
 };
 
+const getAvailableSummaries = async (req, res) => {
+  try {
+    const isPrivileged = ['admin', 'hr', 'executive'].includes(req.user.role);
+    
+    // Fetch all feedback responses
+    const responses = await FeedbackResponse.find()
+      .populate({
+        path: 'employeeId',
+        select: 'firstName lastName employeeCode managerId departmentId designationId',
+        populate: { path: 'departmentId designationId' }
+      })
+      .populate({
+        path: 'cycleId',
+        select: 'reviewMonth cycleType kpiTemplateId',
+        populate: {
+          path: 'kpiTemplateId',
+          populate: { path: 'departmentId' }
+        }
+      });
+
+    // Filter responses based on access permissions
+    const visibleResponses = [];
+    for (const resp of responses) {
+      if (!resp.employeeId) continue;
+      
+      const isSelf = req.user.id === resp.employeeId._id.toString();
+      let isDirectManager = false;
+      if (req.user.role === 'manager') {
+        const empMgrId = resp.employeeId.managerId?._id || resp.employeeId.managerId;
+        if (empMgrId && empMgrId.toString() === req.user.id) {
+          isDirectManager = true;
+        }
+      }
+
+      if (isSelf || isPrivileged || isDirectManager) {
+        visibleResponses.push(resp);
+      }
+    }
+
+    // Group by employeeId and cycleId to count feedback per type
+    const summaryMap = new Map();
+    visibleResponses.forEach(resp => {
+      const empId = resp.employeeId._id.toString();
+      const cycleId = resp.cycleId?._id?.toString();
+      if (!cycleId) return;
+
+      const key = `${empId}_${cycleId}`;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, {
+          employee: resp.employeeId,
+          cycle: resp.cycleId,
+          peerCount: 0,
+          subordinateCount: 0,
+          managerCount: 0,
+          totalCount: 0
+        });
+      }
+
+      const item = summaryMap.get(key);
+      item.totalCount += 1;
+      if (resp.relationship === 'peer') item.peerCount += 1;
+      else if (resp.relationship === 'subordinate') item.subordinateCount += 1;
+      else if (resp.relationship === 'manager') item.managerCount += 1;
+    });
+
+    res.json(Array.from(summaryMap.values()));
+  } catch (error) {
+    console.error('getAvailableSummaries error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getFeedbackRequests,
   createFeedbackRequest,
   submitFeedbackResponse,
-  getFeedbackSummary
+  getFeedbackSummary,
+  getAvailableSummaries
 };

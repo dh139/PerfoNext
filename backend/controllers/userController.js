@@ -134,7 +134,8 @@ const createUser = async (req, res) => {
       managerId,
       joiningDate,
       employmentStatus,
-      role
+      role,
+      gender
     } = req.body;
 
     if (!email || !firstName || !lastName || !role) {
@@ -226,7 +227,8 @@ const createUser = async (req, res) => {
       joiningDate: joiningDate || new Date(),
       employmentStatus: employmentStatus || 'active',
       role,
-      level: computedLevel
+      level: computedLevel,
+      gender: gender || 'male'
     });
 
     const userObj = newUser.toObject();
@@ -613,6 +615,27 @@ const deleteDepartment = async (req, res) => {
   }
 };
 
+const uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'Profile photo file upload is required.' });
+    }
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { profilePhoto: fileUrl },
+      { new: true }
+    ).select('-passwordHash -refreshToken');
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('uploadProfilePhoto error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getUsers,
   getUserById,
@@ -628,5 +651,6 @@ module.exports = {
   getDesignations,
   createDesignation,
   updateDesignation,
-  getPublicManagers
+  getPublicManagers,
+  uploadProfilePhoto
 };

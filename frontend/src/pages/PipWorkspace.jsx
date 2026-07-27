@@ -298,7 +298,7 @@ const PipWorkspace = () => {
             <h3 className="font-extrabold text-slate-900 text-sm">Performance Flagged Auto-Suggestions</h3>
           </div>
           <p className="text-slate-600 font-medium leading-relaxed text-xs">
-            The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in consecutive appraisal cycles.
+            The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in their latest appraisal cycle.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

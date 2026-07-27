@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 import {
   LayoutDashboard,
   Users,
@@ -110,10 +111,11 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           className="p-4 mx-4 my-4 bg-slate-800/50 hover:bg-slate-800 rounded-xl border border-slate-800 hover:border-slate-700 flex flex-col gap-2 transition-colors cursor-pointer"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 font-bold uppercase ring-2 ring-slate-800">
-              {user.firstName[0]}
-              {user.lastName[0]}
-            </div>
+            <img
+              src={getUserAvatarUrl(user)}
+              alt="Profile"
+              className="w-10 h-10 rounded-full object-cover ring-2 ring-slate-800"
+            />
             <div className="overflow-hidden">
               <h4 className="text-sm font-semibold text-slate-200 truncate leading-tight">
                 {user.firstName} {user.lastName}

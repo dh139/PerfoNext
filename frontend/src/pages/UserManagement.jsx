@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
 
@@ -75,6 +76,7 @@ const UserManagement = () => {
   const [managerId, setManagerId] = useState('');
   const [employmentStatus, setEmploymentStatus] = useState('active');
   const [joiningDate, setJoiningDate] = useState('');
+  const [gender, setGender] = useState('male');
 
   const fetchData = async () => {
     try {
@@ -113,6 +115,7 @@ const UserManagement = () => {
     setEditUser(null);
     setEmployeeCode(''); setFirstName(''); setLastName(''); setEmail(''); setMobile(''); setPassword('');
     setRole('employee'); setManagerId(''); setEmploymentStatus('active');
+    setGender('male');
     setJoiningDate(new Date().toISOString().split('T')[0]);
     if (departments.length > 0) setDepartmentId(departments[0]._id);
     setShowModal(true);
@@ -128,6 +131,7 @@ const UserManagement = () => {
     setRole(user.role); setDepartmentId(user.departmentId?._id || '');
     setDesignationId(user.designationId?._id || ''); setManagerId(user.managerId?._id || '');
     setEmploymentStatus(user.employmentStatus);
+    setGender(user.gender || 'male');
     setJoiningDate(user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : '');
     setShowModal(true);
   };
@@ -137,7 +141,7 @@ const UserManagement = () => {
     setError('');
     setModalError('');
     setIsSubmitting(true);
-    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId, designationId, managerId: managerId || '', joiningDate, employmentStatus };
+    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId, designationId, managerId: managerId || '', joiningDate, employmentStatus, gender };
     if (password) payload.password = password;
     try {
       if (editUser) {
@@ -381,9 +385,11 @@ const UserManagement = () => {
                   >
                     <td className="p-3 pl-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-xs ${
-                          u.role === 'manager' ? 'bg-emerald-700 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}>{u.firstName?.[0]}{u.lastName?.[0]}</div>
+                        <img
+                          src={getUserAvatarUrl(u)}
+                          alt="Avatar"
+                          className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                        />
                         <div>
                           <p className="font-extrabold text-slate-800 text-xs">{u.firstName} {u.lastName}</p>
                           <div className="flex items-center gap-1.5 text-[10px] mt-0.5">
@@ -670,7 +676,7 @@ const UserManagement = () => {
                 )}
 
                 {/* 12. Joining Date */}
-                <div className={`space-y-1.5 ${role === 'executive' ? 'md:col-span-2' : ''}`}>
+                <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Joining Date *</label>
                   <input
                     type="date"
@@ -679,6 +685,20 @@ const UserManagement = () => {
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
                     required
                   />
+                </div>
+
+                {/* 13. Gender */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Gender *</label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-750 font-bold cursor-pointer"
+                    required
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
                 </div>
               </div>
 
