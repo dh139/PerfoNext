@@ -26,19 +26,26 @@ const DepartmentReports = () => {
         const activeDepts = deptRes.data.filter(d => d.status === 'active');
 
         let filteredDepts = activeDepts;
-        if (user?.role === 'manager') {
-          const empDeptId = user?.departmentId?._id || user?.departmentId;
-          if (empDeptId) {
-            filteredDepts = activeDepts.filter(d => d._id.toString() === empDeptId.toString());
-          }
+        const empDeptId = user?.departmentId?._id || user?.departmentId;
+        if (user?.role === 'manager' && empDeptId) {
+          filteredDepts = activeDepts.filter(d => d._id.toString() === empDeptId.toString());
         }
 
         setDepartments(filteredDepts);
         if (filteredDepts.length > 0) setSelectedDeptId(filteredDepts[0]._id);
 
         const cycleRes = await api.get('/api/review-cycles');
-        setCycles(cycleRes.data);
-        if (cycleRes.data.length > 0) setSelectedCycleId(cycleRes.data[0]._id);
+        let filteredCycles = cycleRes.data;
+
+        if (user?.role === 'manager' && empDeptId) {
+          filteredCycles = cycleRes.data.filter(c => {
+            const cDeptId = c.kpiTemplateId?.departmentId?._id || c.kpiTemplateId?.departmentId || c.departmentId?._id || c.departmentId;
+            return !cDeptId || cDeptId.toString() === empDeptId.toString();
+          });
+        }
+
+        setCycles(filteredCycles);
+        if (filteredCycles.length > 0) setSelectedCycleId(filteredCycles[0]._id);
       } catch (err) {
         console.error(err);
         setError('Failed to load departments or cycles list.');

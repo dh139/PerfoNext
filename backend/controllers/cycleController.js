@@ -19,7 +19,16 @@ const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 const getReviewCycles = async (req, res) => {
   try {
     await ReviewCycle.autoCloseExpiredCycles();
-    const cycles = await ReviewCycle.find().populate({
+    let query = {};
+    if (req.user && req.user.role === 'manager') {
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (mgrDeptId) {
+        const templates = await KpiTemplate.find({ departmentId: mgrDeptId }).select('_id');
+        const templateIds = templates.map(t => t._id);
+        query = { kpiTemplateId: { $in: templateIds } };
+      }
+    }
+    const cycles = await ReviewCycle.find(query).populate({
       path: 'kpiTemplateId',
       populate: { path: 'departmentId' }
     });
