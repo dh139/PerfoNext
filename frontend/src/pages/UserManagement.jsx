@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw, UserPlus } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { getUserAvatarUrl } from '../utils/avatar';
 import { toast } from '../store/toastStore';
@@ -99,9 +99,9 @@ const UserManagement = () => {
 
   useEffect(() => {
     const fetchDesignations = async () => {
-      if (!departmentId) return;
       try {
-        const res = await api.get(`/api/designations?departmentId=${departmentId}`);
+        const url = departmentId ? `/api/designations?departmentId=${departmentId}` : `/api/designations`;
+        const res = await api.get(url);
         setDesignations(res.data.filter(d => d.status === 'active'));
       } catch (err) { console.error(err); }
     };
@@ -141,7 +141,7 @@ const UserManagement = () => {
     setError('');
     setModalError('');
     setIsSubmitting(true);
-    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId, designationId, managerId: managerId || '', joiningDate, employmentStatus, gender };
+    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId: departmentId || null, designationId: designationId || null, managerId: managerId || '', joiningDate, employmentStatus, gender };
     if (password) payload.password = password;
     try {
       if (editUser) {
@@ -473,269 +473,339 @@ const UserManagement = () => {
 
       </div>
       {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl space-y-5 border border-slate-100">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
-              <h3 className="font-extrabold text-slate-900 text-sm">{editUser ? 'Modify Employee Profile' : 'Register New Employee'}</h3>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-50 flex justify-center items-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl border border-slate-100 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-sky-500/10 text-sky-400 rounded-xl border border-sky-500/20">
+                  <UserPlus size={20} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-white tracking-tight">
+                    {editUser ? 'Modify Employee Profile' : 'Register New Employee'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {editUser ? `Updating credentials & reporting line for ${editUser.employeeCode}` : 'Create a new organizational user account & set privileges'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
-            <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSubmit} className="p-6 space-y-6 text-xs max-h-[80vh] overflow-y-auto custom-scrollbar">
               {modalError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-center gap-2 font-bold text-xs">
-                  <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-center gap-2.5 font-bold text-xs">
+                  <AlertCircle size={18} className="text-rose-600 shrink-0" />
                   <span>{modalError}</span>
                 </div>
               )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* 1. First Name */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">First Name *</label>
-                  <input
-                    type="text"
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="Enter first name"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
-                    required
-                  />
+
+              {/* SECTION 1: Personal & Contact Details */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">
+                    Personal & Contact Details
+                  </h4>
                 </div>
 
-                {/* 2. Last Name */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Last Name *</label>
-                  <input
-                    type="text"
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="Enter last name"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
-                    required
-                  />
-                </div>
-
-                {/* 3. Email */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Email Address *</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. employee@epts.com"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
-                    required
-                  />
-                </div>
-
-                {/* 4. Mobile */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Mobile Contact *</label>
-                  <input
-                    type="text"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    placeholder="e.g. +91 9876543210"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
-                    required
-                  />
-                </div>
-
-                {/* 5. Employee Code (Edit mode) */}
-                {editUser && (
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Employee Code</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* First Name */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      First Name <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      value={employeeCode}
-                      disabled
-                      className="w-full bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-slate-500 cursor-not-allowed font-semibold"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Enter first name"
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
+                      required
                     />
                   </div>
-                )}
 
-                {/* 6. Access Privilege / Role */}
-                <div className={`space-y-1.5 ${editUser ? '' : 'md:col-span-2'}`}>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Access Privilege (Role) *</label>
-                  <select
-                    value={role}
-                    onChange={(e) => {
-                      setRole(e.target.value);
-                      if (e.target.value === 'executive') setManagerId('');
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
-                  >
-                    <option value="employee">Standard Employee</option>
-                    <option value="manager">Reporting Manager</option>
-                    <option value="hr">HR Manager</option>
-                    {currentUser?.role === 'admin' && (
-                      <>
-                        <option value="admin">Administrator</option>
-                        <option value="executive">CEO / Executive Management</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                {/* 7. Password */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">
-                    {editUser ? 'Password (leave blank to keep current)' : 'Account Password *'}
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={editUser ? '••••••••' : 'Enter password...'}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
-                    required={!editUser}
-                  />
-                </div>
-
-                {/* 8. Department */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Department</label>
-                    <span className={`text-[9px] font-bold ${role === 'executive' ? 'text-slate-400 font-normal' : 'text-rose-500'}`}>
-                      {role === 'executive' ? '(Optional)' : '* Required'}
-                    </span>
+                  {/* Last Name */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Last Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Enter last name"
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
+                      required
+                    />
                   </div>
-                  <select
-                    value={departmentId}
-                    onChange={(e) => setDepartmentId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
-                    required={role !== 'executive'}
-                  >
-                    <option value="">{role === 'executive' ? 'Select Department (Optional)' : 'Select Department *'}</option>
-                    {departments
-                      .filter(d => currentUser?.role === 'admin' || d.departmentName.toLowerCase() !== 'administration')
-                      .map(d => (
-                        <option key={d._id} value={d._id}>{d.departmentName}</option>
-                      ))}
-                  </select>
-                </div>
 
-                {/* 9. Designation */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Designation</label>
-                    <span className={`text-[9px] font-bold ${['admin', 'executive'].includes(role) ? 'text-slate-400 font-normal' : 'text-rose-500'}`}>
-                      {['admin', 'executive'].includes(role) ? '(Optional)' : '* Required'}
-                    </span>
+                  {/* Email */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Email Address <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. employee@epts.com"
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
+                      required
+                    />
                   </div>
-                  <select
-                    value={designationId}
-                    onChange={(e) => setDesignationId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
-                    required={!['admin', 'executive'].includes(role)}
-                  >
-                    <option value="">{['admin', 'executive'].includes(role) ? 'Select Designation (Optional)' : 'Select Designation *'}</option>
-                    {designations.map(d => (
-                      <option key={d._id} value={d._id}>{d.designationName}</option>
-                    ))}
-                  </select>
-                </div>
 
-                {/* 10. Employment Status (Edit mode) */}
-                {editUser && (
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Employment Status</label>
+                  {/* Mobile */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Mobile Contact <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value)}
+                      placeholder="e.g. +91 9876543210"
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* Gender */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Gender <span className="text-rose-500">*</span>
+                    </label>
                     <select
-                      value={employmentStatus}
-                      onChange={(e) => setEmploymentStatus(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-bold cursor-pointer"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-bold cursor-pointer transition-all"
+                      required
                     >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                      <option value="exited">Exited</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
                     </select>
                   </div>
-                )}
 
-                {/* 11. Direct Manager */}
-                {role !== 'executive' && (
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Direct Manager</label>
-                      <span className={`text-[9px] font-bold ${role === 'employee' ? 'text-rose-500' : 'text-slate-400 font-normal'}`}>
-                        {role === 'employee' ? '* Required for Employees' : '(Optional)'}
-                      </span>
-                    </div>
-                    <select
-                      value={managerId}
-                      onChange={(e) => setManagerId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
-                      required={role === 'employee'}
-                    >
-                      <option value="">{role === 'employee' ? 'Select Direct Manager *' : 'No reporting manager (Optional)'}</option>
-                      {eligibleManagers.map(m => (
-                        <option key={m._id} value={m._id}>
-                          {m.firstName} {m.lastName} ({m.role === 'executive' ? 'CEO' : m.designationId?.designationName || 'Manager'}) - Level {m.level}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Joining Date */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Joining Date <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={joiningDate}
+                      onChange={(e) => setJoiningDate(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
+                      required
+                    />
                   </div>
-                )}
-
-                {/* 12. Joining Date */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Joining Date *</label>
-                  <input
-                    type="date"
-                    value={joiningDate}
-                    onChange={(e) => setJoiningDate(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
-                    required
-                  />
-                </div>
-
-                {/* 13. Gender */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Gender *</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-750 font-bold cursor-pointer"
-                    required
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+              {/* SECTION 2: Role, Privileges & Account Credentials */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">
+                    Role & Account Access
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Employee Code (if Edit Mode) */}
+                  {editUser && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Employee Code
+                      </label>
+                      <input
+                        type="text"
+                        value={employeeCode}
+                        disabled
+                        className="w-full bg-slate-100 border border-slate-200 px-3 py-2.5 rounded-xl text-slate-500 cursor-not-allowed font-mono font-bold"
+                      />
+                    </div>
+                  )}
+
+                  {/* Role / Access Privilege */}
+                  <div className={`space-y-1 ${editUser ? '' : 'md:col-span-2'}`}>
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Access Privilege (Role) <span className="text-rose-500">*</span>
+                    </label>
+                    <select
+                      value={role}
+                      onChange={(e) => {
+                        setRole(e.target.value);
+                        if (e.target.value === 'executive') setManagerId('');
+                      }}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-bold cursor-pointer transition-all"
+                    >
+                      <option value="employee">Standard Employee</option>
+                      <option value="manager">Reporting Manager</option>
+                      <option value="hr">HR Manager</option>
+                      {currentUser?.role === 'admin' && (
+                        <>
+                          <option value="admin">Administrator</option>
+                          <option value="executive">CEO / Executive Management</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Password */}
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      {editUser ? 'Password (leave blank to keep current)' : 'Account Password'} {!editUser && <span className="text-rose-500">*</span>}
+                    </label>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={editUser ? '••••••••' : 'Enter password...'}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 transition-all"
+                      required={!editUser}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: Organization & Reporting Structure */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-800">
+                    Organizational Placement
+                  </h4>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Department */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Department {!['admin', 'executive'].includes(role) && <span className="text-rose-500">*</span>}
+                      {['admin', 'executive'].includes(role) && <span className="text-slate-400 font-normal lowercase ml-1">(optional)</span>}
+                    </label>
+                    <select
+                      value={departmentId}
+                      onChange={(e) => setDepartmentId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium cursor-pointer transition-all"
+                      required={!['admin', 'executive'].includes(role)}
+                    >
+                      <option value="">{['admin', 'executive'].includes(role) ? 'Select Department (Optional)' : 'Select Department *'}</option>
+                      {departments
+                        .filter(d => currentUser?.role === 'admin' || d.departmentName.toLowerCase() !== 'administration')
+                        .map(d => (
+                          <option key={d._id} value={d._id}>{d.departmentName}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Designation */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Designation {!['admin', 'executive'].includes(role) && <span className="text-rose-500">*</span>}
+                      {['admin', 'executive'].includes(role) && <span className="text-slate-400 font-normal lowercase ml-1">(optional)</span>}
+                    </label>
+                    <select
+                      value={designationId}
+                      onChange={(e) => setDesignationId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium cursor-pointer transition-all"
+                      required={!['admin', 'executive'].includes(role)}
+                    >
+                      <option value="">{['admin', 'executive'].includes(role) ? 'Select Designation (Optional)' : 'Select Designation *'}</option>
+                      {designations.map(d => (
+                        <option key={d._id} value={d._id}>{d.designationName}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Direct Manager */}
+                  {role !== 'executive' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Direct Manager {role === 'employee' && <span className="text-rose-500">*</span>}
+                        {role !== 'employee' && <span className="text-slate-400 font-normal lowercase ml-1">(optional)</span>}
+                      </label>
+                      <select
+                        value={managerId}
+                        onChange={(e) => setManagerId(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium cursor-pointer transition-all"
+                        required={role === 'employee'}
+                      >
+                        <option value="">{role === 'employee' ? 'Select Direct Manager *' : 'No reporting manager (Optional)'}</option>
+                        {eligibleManagers.map(m => (
+                          <option key={m._id} value={m._id}>
+                            {m.firstName} {m.lastName} ({m.role === 'executive' ? 'CEO' : m.designationId?.designationName || 'Manager'}) - Level {m.level}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Employment Status (if Edit Mode) */}
+                  {editUser && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Employment Status <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={employmentStatus}
+                        onChange={(e) => setEmploymentStatus(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-bold cursor-pointer transition-all"
+                      >
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="exited">Exited</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-5 border-t border-slate-100">
                 {editUser ? (
                   <button
                     type="button"
                     onClick={() => handleDeleteUser(editUser._id, `${firstName} ${lastName}`)}
-                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-xl border border-rose-200 transition-colors cursor-pointer"
+                    className="w-full sm:w-auto bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs px-4 py-2.5 rounded-xl border border-rose-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    Delete Account
+                    <Trash2 size={14} />
+                    <span>Delete Account</span>
                   </button>
                 ) : (
                   <div></div>
                 )}
-                <div className="flex gap-3">
+
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                   <button
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setShowModal(false)}
-                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2.5 rounded-xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isSubmitting ? (
-                      <>
-                        <RefreshCw size={14} className="animate-spin" />
-                        <span>Saving Profile...</span>
-                      </>
+                      <span className="flex items-center gap-2">
+                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        Saving...
+                      </span>
                     ) : (
-                      <span>Save Profile</span>
+                      <span>{editUser ? 'Save Profile' : 'Register Employee'}</span>
                     )}
                   </button>
                 </div>

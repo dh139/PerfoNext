@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { 
   AlertCircle, CheckCircle2, Clock, Send, Calendar, BookOpen, MessageSquare, Activity, 
   RefreshCw, Cpu, Check, AlertTriangle, Search, Users, Filter, ChevronLeft, ChevronRight, 
@@ -81,11 +82,26 @@ const IntegrationsWorkspace = () => {
         api.get('/api/users'),
         api.get('/api/departments')
       ]);
-      setUsers(usersRes.data);
-      setDepartments(deptsRes.data);
-      if (usersRes.data.length > 0) {
-        setAttendanceForm(prev => ({ ...prev, employeeId: usersRes.data[0]._id }));
-        setLmsForm(prev => ({ ...prev, employeeId: usersRes.data[0]._id }));
+      let allUsers = usersRes.data || [];
+      setDepartments(deptsRes.data || []);
+
+      // Scope users list based on role:
+      // 1. Employee: Only see self
+      // 2. Reporting Manager: Only see employees in assigned department
+      if (user?.role === 'employee') {
+        allUsers = allUsers.filter(u => u._id === user?.id);
+      } else if (user?.role === 'manager') {
+        const mgrDeptId = user?.departmentId?._id || user?.departmentId;
+        allUsers = allUsers.filter(u => {
+          const uDeptId = u.departmentId?._id || u.departmentId;
+          return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
+        });
+      }
+
+      setUsers(allUsers);
+      if (allUsers.length > 0) {
+        setAttendanceForm(prev => ({ ...prev, employeeId: allUsers[0]._id }));
+        setLmsForm(prev => ({ ...prev, employeeId: allUsers[0]._id }));
       }
     } catch (err) {
       console.error(err);
@@ -511,9 +527,11 @@ const IntegrationsWorkspace = () => {
                           const deptName = selected.departmentId?.departmentName || 'No Dept';
                           return (
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 rounded-full bg-sky-700 text-white font-black text-[10px] flex items-center justify-center shrink-0">
-                                {selected.firstName?.[0]}{selected.lastName?.[0]}
-                              </div>
+                              <img
+                                src={getUserAvatarUrl(selected)}
+                                alt="Avatar"
+                                className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                              />
                               <div className="min-w-0 flex-1">
                                 <span className="font-extrabold text-slate-900 block truncate">
                                   {selected.firstName} {selected.lastName}
@@ -551,34 +569,36 @@ const IntegrationsWorkspace = () => {
                               />
                             </div>
 
-                            {/* Department Quick Filter Pills */}
-                            <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
-                              <button
-                                type="button"
-                                onClick={() => setFormDeptFilter('all')}
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
-                                  formDeptFilter === 'all'
-                                    ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                                }`}
-                              >
-                                All ({users.length})
-                              </button>
-                              {departments.map(d => (
+                            {/* Department Quick Filter Pills (HR / Admin only) */}
+                            {(user?.role === 'hr' || user?.role === 'admin') && (
+                              <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
                                 <button
-                                  key={d._id}
                                   type="button"
-                                  onClick={() => setFormDeptFilter(d._id)}
+                                  onClick={() => setFormDeptFilter('all')}
                                   className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
-                                    formDeptFilter.toString() === d._id.toString()
+                                    formDeptFilter === 'all'
                                       ? 'bg-sky-100 text-sky-800 border-sky-300'
                                       : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                                   }`}
                                 >
-                                  {d.departmentName}
+                                  All ({users.length})
                                 </button>
-                              ))}
-                            </div>
+                                {departments.map(d => (
+                                  <button
+                                    key={d._id}
+                                    type="button"
+                                    onClick={() => setFormDeptFilter(d._id)}
+                                    className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                                      formDeptFilter.toString() === d._id.toString()
+                                        ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                                    }`}
+                                  >
+                                    {d.departmentName}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
 
                             {/* Searchable Options List */}
                             <div className="max-h-60 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
@@ -606,11 +626,11 @@ const IntegrationsWorkspace = () => {
                                       }`}
                                     >
                                       <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
-                                          isSelected ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'
-                                        }`}>
-                                          {u.firstName?.[0]}{u.lastName?.[0]}
-                                        </div>
+                                        <img
+                                          src={getUserAvatarUrl(u)}
+                                          alt="Avatar"
+                                          className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                        />
                                         <div className="min-w-0">
                                           <p className="font-extrabold text-slate-900 text-xs truncate">
                                             {u.firstName} {u.lastName}
@@ -812,17 +832,19 @@ const IntegrationsWorkspace = () => {
                     ))}
                   </select>
 
-                  {/* Department Filter */}
-                  <select
-                    value={tableDeptFilter}
-                    onChange={(e) => { setTableDeptFilter(e.target.value); setCurrentPage(1); }}
-                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
-                  >
-                    <option value="all">All Depts</option>
-                    {departments.map(d => (
-                      <option key={d._id} value={d._id}>{d.departmentName}</option>
-                    ))}
-                  </select>
+                  {/* Department Filter (HR / Admin only) */}
+                  {(user?.role === 'hr' || user?.role === 'admin') && (
+                    <select
+                      value={tableDeptFilter}
+                      onChange={(e) => { setTableDeptFilter(e.target.value); setCurrentPage(1); }}
+                      className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                    >
+                      <option value="all">All Depts</option>
+                      {departments.map(d => (
+                        <option key={d._id} value={d._id}>{d.departmentName}</option>
+                      ))}
+                    </select>
+                  )}
 
                   {/* Reset Filters */}
                   {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
@@ -875,13 +897,20 @@ const IntegrationsWorkspace = () => {
                           return (
                             <tr key={emp._id} className="hover:bg-slate-50/60 transition-colors">
                               <td className="py-3 pl-1">
-                                <div>
-                                  <p className="font-bold text-slate-800">
-                                    {emp.firstName} {emp.lastName}
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 font-mono">
-                                    {emp.employeeCode || 'EMP-N/A'}
-                                  </p>
+                                <div className="flex items-center gap-2.5">
+                                  <img
+                                    src={getUserAvatarUrl(emp)}
+                                    alt="Avatar"
+                                    className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-slate-800">
+                                      {emp.firstName} {emp.lastName}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 font-mono">
+                                      {emp.employeeCode || 'EMP-N/A'}
+                                    </p>
+                                  </div>
                                 </div>
                               </td>
                               <td className="py-3">

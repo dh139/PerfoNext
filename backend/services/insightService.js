@@ -11,9 +11,6 @@ const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-
 // Helper to calculate months in range
 const getMonthsInRange = (startDate, endDate) => {
   const start = new Date(startDate);
@@ -33,24 +30,36 @@ const calculateCyclePeriodBounds = (cycle) => {
   let startBound;
   let endBound;
 
-  if (cycle.cycleType === 'quarterly' && cycle.reviewMonth) {
-    const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/);
+  if ((cycle.cycleType === 'quarterly' || /^\d{4}-Q[1-4]$/i.test(cycle.reviewMonth)) && cycle.reviewMonth) {
+    const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/i);
     if (match) {
       const year = parseInt(match[1], 10);
       const q = parseInt(match[2], 10);
-      const startMonth = (q - 1) * 3; // 0 for Q1, 3 for Q2, 6 for Q3, 9 for Q4
+      const startMonth = (q - 1) * 3;
       startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
-      endBound = new Date(Date.UTC(year, startMonth + 3, 0, 12, 0, 0));
+      endBound = new Date(Date.UTC(year, startMonth + 3, 0, 23, 59, 59));
       return { startBound, endBound };
     }
   }
 
-  if (cycle.cycleType === 'annual' && cycle.reviewMonth) {
-    const match = cycle.reviewMonth.match(/^(\d{4})$/);
+  if ((cycle.cycleType === 'half_yearly' || /^\d{4}-H[1-2]$/i.test(cycle.reviewMonth)) && cycle.reviewMonth) {
+    const match = cycle.reviewMonth.match(/^(\d{4})-H([1-2])$/i);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const h = parseInt(match[2], 10);
+      const startMonth = (h - 1) * 6;
+      startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
+      endBound = new Date(Date.UTC(year, startMonth + 6, 0, 23, 59, 59));
+      return { startBound, endBound };
+    }
+  }
+
+  if (['yearly', 'annual'].includes(cycle.cycleType) || (cycle.reviewMonth && /^\d{4}$/.test(cycle.reviewMonth))) {
+    const match = (cycle.reviewMonth || '').match(/^(\d{4})/);
     if (match) {
       const year = parseInt(match[1], 10);
       startBound = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-      endBound = new Date(Date.UTC(year, 12, 0, 12, 0, 0));
+      endBound = new Date(Date.UTC(year, 12, 0, 23, 59, 59));
       return { startBound, endBound };
     }
   }
@@ -58,19 +67,12 @@ const calculateCyclePeriodBounds = (cycle) => {
   if (cycle.reviewMonth && /^\d{4}-\d{2}$/.test(cycle.reviewMonth)) {
     const [year, month] = cycle.reviewMonth.split('-').map(Number);
     startBound = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    endBound = new Date(Date.UTC(year, month, 0, 12, 0, 0));
+    endBound = new Date(Date.UTC(year, month, 0, 23, 59, 59));
   } else {
     startBound = new Date(cycle.startDate);
     startBound.setUTCHours(0, 0, 0, 0);
     endBound = new Date(cycle.endDate);
-    endBound.setUTCHours(12, 0, 0, 0);
-
-    if (endBound.getTime() - startBound.getTime() < 86400000 * 2) {
-      const year = startBound.getUTCFullYear();
-      const month = startBound.getUTCMonth();
-      startBound = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-      endBound = new Date(Date.UTC(year, month + 1, 0, 12, 0, 0));
-    }
+    endBound.setUTCHours(23, 59, 59, 999);
   }
 
   return { startBound, endBound };
@@ -275,19 +277,34 @@ Performance Review Scores for this period:
     });
   }
 
-  // Call Groq LLM API
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || '').trim();
+  let modelName = (process.env.CHATGPT_MODEL || process.env.GROQ_MODEL || 'chatgpt-5.6-terra').trim();
+  
+  let targetUrl = (process.env.CHATGPT_API_URL || process.env.GROQ_API_URL || '').trim();
+  if (!targetUrl) {
+    if (apiKey.startsWith('gsk_')) {
+      targetUrl = 'https://api.groq.com/openai/v1/chat/completions';
+      if (modelName === 'chatgpt-5.6-terra') {
+        modelName = 'llama-3.3-70b-versatile';
+      }
+    } else {
+      targetUrl = 'https://api.openai.com/v1/chat/completions';
+    }
+  }
+
+  // Call ChatGPT 5.6 Terra LLM API
+  const response = await fetch(targetUrl, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: GROQ_MODEL,
+      model: modelName,
       messages: [
         {
           role: 'system',
-          content: `You are a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
+          content: `You are ChatGPT 5.6 Terra, a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
 
 CRITICAL CYCLE-SCOPED RULES:
 1. STRICT PERIOD BOUNDARY: You must ONLY analyze performance metrics, reviews, attendance, awards, and certifications that occurred strictly within the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
@@ -317,7 +334,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
 
   if (!response.ok) {
     const errText = await response.text();
-    console.warn('Groq API responded with error, utilizing local analytics engine:', errText);
+    console.warn('ChatGPT 5.6 Terra API responded with error, utilizing local analytics engine:', errText);
     const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards);
 
     await AIReport.findOneAndUpdate(
@@ -336,7 +353,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
         reviewMonth: cycle.reviewMonth,
         prompt: historyContext,
         responseRaw: 'LOCAL_FALLBACK_ENGINED_GENERATION: ' + errText,
-        modelUsed: 'local-analytics-fallback',
+        modelUsed: modelName,
         status: 'COMPLETED',
         generatedAt: new Date()
       },
@@ -368,7 +385,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
       reviewMonth: cycle.reviewMonth,
       prompt: historyContext,
       responseRaw: contentText,
-      modelUsed: GROQ_MODEL,
+      modelUsed: modelName,
       status: 'COMPLETED',
       generatedAt: now
     },

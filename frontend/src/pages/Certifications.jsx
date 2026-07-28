@@ -3,6 +3,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye, RefreshCw } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const Certifications = () => {
   const { user } = useAuthStore();
@@ -330,12 +331,23 @@ const Certifications = () => {
                       <tr key={u._id} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/30 font-bold' : ''}`}>
                         <td className="p-3 font-mono text-[10px] font-bold text-slate-555">{u.employeeCode || 'EMP-N/A'}</td>
                         <td className="p-3 text-slate-800">
-                          {u.firstName} {u.lastName}
-                          {isSelected && (
-                            <span className="ml-2 px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 rounded text-[9px] font-black uppercase tracking-wider">
-                              Selected
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2.5">
+                            <img
+                              src={getUserAvatarUrl(u)}
+                              alt="Avatar"
+                              className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-800">
+                                {u.firstName} {u.lastName}
+                              </span>
+                              {isSelected && (
+                                <span className="ml-2 px-2 py-0.5 bg-sky-100 text-sky-800 border border-sky-300 rounded text-[9px] font-black uppercase tracking-wider">
+                                  Selected
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="p-3 text-slate-600">{deptName}</td>
                         <td className="p-3 text-slate-600">{desigName}</td>

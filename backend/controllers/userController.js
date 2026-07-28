@@ -483,10 +483,11 @@ const updateMyProfile = async (req, res) => {
     delete before.passwordHash;
     delete before.refreshToken;
 
-    const { firstName, lastName, mobile, currentPassword, newPassword } = req.body;
+    const { firstName, lastName, mobile, currentPassword, newPassword, gender } = req.body;
 
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
+    if (gender && ['male', 'female'].includes(gender)) user.gender = gender;
     if (mobile && mobile.trim() !== user.mobile) {
       const mobileExists = await User.findOne({ mobile: mobile.trim(), _id: { $ne: user._id } });
       if (mobileExists) {

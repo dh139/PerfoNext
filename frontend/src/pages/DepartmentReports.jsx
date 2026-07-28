@@ -6,6 +6,7 @@ import { AlertCircle, Calendar, Layers, Activity, FileText, ArrowUpRight, Sparkl
 import { useTableControls } from '../hooks/useTableControls';
 import TablePagination from '../components/TablePagination';
 import { exportToCsv } from '../utils/csvExport';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const DepartmentReports = () => {
   const { user } = useAuthStore();
@@ -361,17 +362,24 @@ const DepartmentReports = () => {
                         <td className="py-4 px-4 font-bold text-slate-800">
                           <Link
                             to={`/reports/employee/${s.employeeId?._id}`}
-                            className="hover:underline inline-flex items-center gap-1.5 font-bold"
+                            className="hover:underline flex items-center gap-2.5 font-bold"
                           >
-                            <span className={s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive' ? 'text-emerald-700 font-extrabold' : 'text-sky-700'}>
-                              {s.employeeId?.firstName} {s.employeeId?.lastName}
-                            </span>
-                            {(s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive') && (
-                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[9px] font-black uppercase tracking-wider">
-                                Reporting Manager
+                            <img
+                              src={getUserAvatarUrl(s.employeeId)}
+                              alt="Avatar"
+                              className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                            />
+                            <div>
+                              <span className={s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive' ? 'text-emerald-700 font-extrabold flex items-center gap-1' : 'text-sky-700 flex items-center gap-1'}>
+                                <span>{s.employeeId?.firstName} {s.employeeId?.lastName}</span>
+                                <ArrowUpRight size={12} className="text-sky-600 shrink-0" />
                               </span>
-                            )}
-                            <ArrowUpRight size={12} className="text-sky-600 shrink-0" />
+                              {(s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr' || s.employeeId?.role === 'executive') && (
+                                <span className="mt-0.5 inline-block px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[8px] font-black uppercase tracking-wider">
+                                  Reporting Manager
+                                </span>
+                              )}
+                            </div>
                           </Link>
                         </td>
                         <td className="py-4 px-4 font-bold text-sky-700 text-sm">{s.finalScore}</td>

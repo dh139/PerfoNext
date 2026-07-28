@@ -20,7 +20,7 @@ const getAttendance = async (req, res) => {
     const records = await Attendance.find(filter)
       .populate({
         path: 'employeeId',
-        select: 'firstName lastName employeeCode email departmentId designationId',
+        select: 'firstName lastName employeeCode email departmentId designationId profilePhoto gender role',
         populate: { path: 'departmentId designationId' }
       })
       .sort('-month');
@@ -197,14 +197,12 @@ const getLmsRecords = async (req, res) => {
     const { employeeId } = req.query;
     const filter = {};
 
-    if (req.user.role === 'employee') {
-      filter.employeeId = req.user.id;
-    } else if (employeeId) {
+    if (employeeId) {
       filter.employeeId = employeeId;
     }
 
     const records = await LmsRecord.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode email' })
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode email profilePhoto gender role departmentId designationId', populate: { path: 'departmentId designationId' } })
       .sort('-completionDate');
 
     res.json(records);

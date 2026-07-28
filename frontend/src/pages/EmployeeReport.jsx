@@ -5,6 +5,7 @@ import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
 import { exportToCsv } from '../utils/csvExport';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const EmployeeReport = () => {
   const { id: employeeId } = useParams();
@@ -176,8 +177,8 @@ const EmployeeReport = () => {
     let startBound = new Date(cycle.startDate);
     let endBound = new Date(cycle.endDate);
 
-    if (cycle.cycleType === 'quarterly' && cycle.reviewMonth) {
-      const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/);
+    if ((cycle.cycleType === 'quarterly' || /^\d{4}-Q[1-4]$/i.test(cycle.reviewMonth)) && cycle.reviewMonth) {
+      const match = cycle.reviewMonth.match(/^(\d{4})-Q([1-4])$/i);
       if (match) {
         const year = parseInt(match[1], 10);
         const q = parseInt(match[2], 10);
@@ -185,8 +186,17 @@ const EmployeeReport = () => {
         startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
         endBound = new Date(Date.UTC(year, startMonth + 3, 0, 23, 59, 59));
       }
-    } else if (cycle.cycleType === 'annual' && cycle.reviewMonth) {
-      const match = cycle.reviewMonth.match(/^(\d{4})$/);
+    } else if ((cycle.cycleType === 'half_yearly' || /^\d{4}-H[1-2]$/i.test(cycle.reviewMonth)) && cycle.reviewMonth) {
+      const match = cycle.reviewMonth.match(/^(\d{4})-H([1-2])$/i);
+      if (match) {
+        const year = parseInt(match[1], 10);
+        const h = parseInt(match[2], 10);
+        const startMonth = (h - 1) * 6;
+        startBound = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0));
+        endBound = new Date(Date.UTC(year, startMonth + 6, 0, 23, 59, 59));
+      }
+    } else if (['yearly', 'annual'].includes(cycle.cycleType) || (cycle.reviewMonth && /^\d{4}$/.test(cycle.reviewMonth))) {
+      const match = (cycle.reviewMonth || '').match(/^(\d{4})/);
       if (match) {
         const year = parseInt(match[1], 10);
         startBound = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
@@ -281,9 +291,11 @@ const EmployeeReport = () => {
       {/* Employee Profile Header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 bg-slate-800 text-white rounded-full flex items-center justify-center font-bold text-lg uppercase ring-4 ring-slate-100">
-            {employee.firstName[0]}{employee.lastName[0]}
-          </div>
+          <img
+            src={getUserAvatarUrl(employee)}
+            alt="Avatar"
+            className="w-14 h-14 rounded-full object-cover ring-4 ring-slate-100 shadow-sm shrink-0"
+          />
           <div>
             <h2 className="text-lg font-bold text-slate-800 leading-snug">
               {employee.firstName} {employee.lastName}
@@ -629,8 +641,8 @@ const EmployeeReport = () => {
             </div>
           )}
 
-          {/* Recognitions, Certifications & Documents Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+          {/* Recognitions & Certifications Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
             {/* 1. Recognitions List */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
               <div>
@@ -687,47 +699,6 @@ const EmployeeReport = () => {
                             <span>Proof</span>
                           </button>
                         )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 3. Documents Repository */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    <FileText size={18} className="text-indigo-500" />
-                    <h3 className="font-bold text-slate-800 text-sm">Documentation Repository</h3>
-                  </div>
-                  
-                  {/* Upload Button */}
-                  <label className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] px-3.5 py-2 rounded-xl cursor-pointer transition-colors shrink-0 shadow-sm inline-flex items-center gap-1.5">
-                    <span>{uploading ? 'Uploading...' : '+ Upload'}</span>
-                    <input type="file" onChange={handleFileUpload} className="hidden" disabled={uploading} />
-                  </label>
-                </div>
-
-                {documents.length === 0 ? (
-                  <p className="text-slate-400 text-xs italic py-6 text-center">No documents uploaded yet.</p>
-                ) : (
-                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                    {documents.map(doc => (
-                      <div key={doc._id} className="bg-slate-50 border border-slate-150 p-2.5 rounded-lg flex justify-between items-center text-xs gap-3">
-                        <div className="overflow-hidden">
-                          <p className="font-bold text-slate-700 truncate">{doc.fileName}</p>
-                          <p className="text-[9px] text-slate-405 mt-0.5">
-                            Uploaded: {new Date(doc.createdAt).toLocaleDateString()} | By: {doc.uploadedBy?.firstName || 'HR'}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => setPreviewDoc(doc)}
-                          className="font-bold text-indigo-600 hover:text-indigo-800 shrink-0 select-none cursor-pointer bg-transparent border-0 outline-none"
-                        >
-                          Preview
-                        </button>
                       </div>
                     ))}
                   </div>

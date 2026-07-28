@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { AlertCircle, Plus, Award, Calendar, MessageSquare, Search } from 'lucide-react';
 import { toast } from '../store/toastStore';
 
@@ -285,11 +286,18 @@ const RecognitionsWorkspace = () => {
                     </span>
                   </div>
 
-                  <div>
-                    <h4 className="font-extrabold text-slate-800 text-sm">
-                      {rec.employeeId?.firstName} {rec.employeeId?.lastName}
-                    </h4>
-                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Code: {rec.employeeId?.employeeCode}</p>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={getUserAvatarUrl(rec.employeeId)}
+                      alt="Avatar"
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-200 shrink-0"
+                    />
+                    <div>
+                      <h4 className="font-extrabold text-slate-800 text-sm">
+                        {rec.employeeId?.firstName} {rec.employeeId?.lastName}
+                      </h4>
+                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">Code: {rec.employeeId?.employeeCode}</p>
+                    </div>
                   </div>
 
                   <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 italic text-slate-700 text-xs leading-relaxed shadow-3xs">
@@ -340,9 +348,11 @@ const RecognitionsWorkspace = () => {
                     const deptName = selected.departmentId?.departmentName || 'No Dept';
                     return (
                       <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-[10px] flex items-center justify-center shrink-0">
-                          {selected.firstName?.[0]}{selected.lastName?.[0]}
-                        </div>
+                        <img
+                          src={getUserAvatarUrl(selected)}
+                          alt="Avatar"
+                          className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                        />
                         <div className="min-w-0 flex-1">
                           <span className="font-extrabold text-slate-900 block truncate">
                             {selected.firstName} {selected.lastName}
@@ -430,11 +440,11 @@ const RecognitionsWorkspace = () => {
                                 }`}
                               >
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
-                                    isSelected ? 'bg-amber-500 text-slate-950' : 'bg-slate-200 text-slate-700'
-                                  }`}>
-                                    {e.firstName?.[0]}{e.lastName?.[0]}
-                                  </div>
+                                  <img
+                                    src={getUserAvatarUrl(e)}
+                                    alt="Avatar"
+                                    className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                  />
                                   <div className="min-w-0">
                                     <p className="font-extrabold text-slate-900 text-xs truncate">
                                       {e.firstName} {e.lastName}

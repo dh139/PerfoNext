@@ -76,9 +76,9 @@ const Register = () => {
         setError('First Name, Last Name, Email, Mobile, Password, Department, Designation, and Reporting Manager are required for Employees.');
         return;
       }
-    } else if (role === 'executive') {
-      if (!firstName || !lastName || !email || !mobile || !password || !designationId) {
-        setError('First Name, Last Name, Email, Mobile, Password, and Designation are required for CEO / Management.');
+    } else if (['admin', 'executive'].includes(role)) {
+      if (!firstName || !lastName || !email || !mobile || !password) {
+        setError('First Name, Last Name, Email, Mobile, and Password are required.');
         return;
       }
     } else {
@@ -296,18 +296,18 @@ const Register = () => {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label className="text-[10px] font-semibold text-slate-300 tracking-wide uppercase">Department</label>
-                <span className={`text-[9px] font-bold ${role === 'executive' ? 'text-slate-500 font-normal' : 'text-rose-400'}`}>
-                  {role === 'executive' ? '(Optional)' : '* Required'}
+                <span className={`text-[9px] font-bold ${['admin', 'executive'].includes(role) ? 'text-slate-500 font-normal' : 'text-rose-400'}`}>
+                  {['admin', 'executive'].includes(role) ? '(Optional)' : '* Required'}
                 </span>
               </div>
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
                 className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 p-2.5 rounded-xl outline-none font-semibold text-xs transition-all"
-                required={role !== 'executive'}
+                required={!['admin', 'executive'].includes(role)}
               >
                 <option value="" className="bg-slate-900 text-slate-400">
-                  {role === 'executive' ? 'Select Department (Optional)' : 'Select Department *'}
+                  {['admin', 'executive'].includes(role) ? 'Select Department (Optional)' : 'Select Department *'}
                 </option>
                 {departments.map(d => (
                   <option key={d._id} value={d._id} className="bg-slate-900 text-slate-200">{d.departmentName}</option>

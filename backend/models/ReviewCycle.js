@@ -24,8 +24,8 @@ const reviewCycleSchema = new mongoose.Schema(
     },
     cycleType: {
       type: String,
-      enum: ['monthly', 'quarterly', 'annual'],
-      default: 'monthly',
+      enum: ['monthly', 'quarterly', 'half_yearly', 'yearly', 'annual'],
+      default: 'quarterly',
       required: true
     },
     kpiTemplateId: {

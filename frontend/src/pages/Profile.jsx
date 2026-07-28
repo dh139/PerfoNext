@@ -15,6 +15,7 @@ const Profile = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
+  const [gender, setGender] = useState('male');
 
   const [showPasswordFields, setShowPasswordFields] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -29,6 +30,7 @@ const Profile = () => {
       setFirstName(res.data.firstName || '');
       setLastName(res.data.lastName || '');
       setMobile(res.data.mobile || '');
+      setGender(res.data.gender || 'male');
     } catch (err) {
       console.error(err);
       setError('Failed to load profile.');
@@ -61,7 +63,7 @@ const Profile = () => {
       }
     }
 
-    const payload = { firstName, lastName, mobile };
+    const payload = { firstName, lastName, mobile, gender };
     if (showPasswordFields && newPassword) {
       payload.currentPassword = currentPassword;
       payload.newPassword = newPassword;
@@ -71,7 +73,12 @@ const Profile = () => {
       setSaving(true);
       const res = await api.patch('/api/users/me', payload);
       setProfile(res.data);
-      updateProfile({ firstName: res.data.firstName, lastName: res.data.lastName });
+      updateProfile({
+        firstName: res.data.firstName,
+        lastName: res.data.lastName,
+        gender: res.data.gender,
+        profilePhoto: res.data.profilePhoto
+      });
       setSuccess('Profile updated successfully.');
       setShowPasswordFields(false);
       setCurrentPassword('');
@@ -210,7 +217,7 @@ const Profile = () => {
                 required
               />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-1.5">
               <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Mobile Number</label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
@@ -224,6 +231,18 @@ const Profile = () => {
                   required
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Gender (Avatar Preference)</label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all cursor-pointer font-medium"
+                required
+              >
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
             </div>
           </div>
 

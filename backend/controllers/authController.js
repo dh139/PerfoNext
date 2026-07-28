@@ -52,6 +52,8 @@ const login = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         role: user.role,
+        gender: user.gender || 'male',
+        profilePhoto: user.profilePhoto || null,
         department: user.departmentId ? user.departmentId.departmentName : null,
         departmentId: user.departmentId ? user.departmentId._id : null,
         designation: user.designationId ? user.designationId.designationName : null,
@@ -135,7 +137,7 @@ const logout = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, mobile, password, departmentId, designationId, managerId, role } = req.body;
+    const { firstName, lastName, email, mobile, password, departmentId, designationId, managerId, role, gender } = req.body;
 
     const targetRole = role || 'employee';
 
@@ -143,9 +145,9 @@ const register = async (req, res) => {
       if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId || !managerId) {
         return res.status(400).json({ message: 'First name, last name, email, mobile, password, department, designation, and reporting manager are required for Employees.' });
       }
-    } else if (targetRole === 'executive') {
-      if (!firstName || !lastName || !email || !mobile || !password || !designationId) {
-        return res.status(400).json({ message: 'First name, last name, email, mobile, password, and designation are required for CEO / Management.' });
+    } else if (['admin', 'executive'].includes(targetRole)) {
+      if (!firstName || !lastName || !email || !mobile || !password) {
+        return res.status(400).json({ message: 'First name, last name, email, mobile, and password are required for Admin / Management.' });
       }
     } else {
       if (!firstName || !lastName || !email || !mobile || !password || !departmentId || !designationId) {
@@ -189,10 +191,11 @@ const register = async (req, res) => {
       mobile,
       passwordHash,
       departmentId: departmentId || null,
-      designationId,
+      designationId: designationId || null,
       managerId: targetRole === 'executive' ? null : (managerId || null),
       joiningDate: new Date(),
       role: targetRole,
+      gender: gender || 'male',
       employmentStatus: 'active'
     });
 

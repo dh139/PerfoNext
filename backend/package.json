@@ -7,7 +7,11 @@
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
     "cleanup": "node scripts/cleanupMockData.js",
-    "seed:users": "node scripts/seedUsersOnly.js"
+    "seed:users": "node scripts/seedUsersOnly.js",
+    "create-admin": "node scripts/createAdminUser.js",
+    "seed:dept-desig": "node scripts/seedDepartmentsAndDesignations.js",
+    "seed:kpis": "node scripts/seedKpiTemplates.js",
+    "seed:skills": "node scripts/seedSkills.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

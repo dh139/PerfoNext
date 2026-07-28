@@ -6,6 +6,7 @@ import {
   Search, Building2, Filter, RefreshCw, Briefcase, UserCheck, Calendar
 } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const PipWorkspace = () => {
   const { user } = useAuthStore();
@@ -30,6 +31,11 @@ const PipWorkspace = () => {
   const [goals, setGoals] = useState([{ description: '', targetDate: '', status: 'pending' }]);
   const [hrList, setHrList] = useState([]);
   const [selectedHrId, setSelectedHrId] = useState('');
+  
+  // Enterprise Combobox State for Employee Selection
+  const [empComboboxOpen, setEmpComboboxOpen] = useState(false);
+  const [empSearchQuery, setEmpSearchQuery] = useState('');
+  const [empDeptFilter, setEmpDeptFilter] = useState('all');
 
   const fetchData = async () => {
     try {
@@ -462,19 +468,28 @@ const PipWorkspace = () => {
                     {/* PIP Card Header */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-200/60 pb-3">
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-extrabold text-slate-800 text-sm">
-                            {emp.firstName} {emp.lastName}
-                          </h4>
-                          <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md">
-                            {emp.employeeCode || 'EMP-N/A'}
-                          </span>
-                          <span className="text-[9px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
-                            {deptName}
-                          </span>
-                          <span className="text-[9px] font-semibold text-slate-500">
-                            {desigName}
-                          </span>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <img
+                            src={getUserAvatarUrl(emp)}
+                            alt="Avatar"
+                            className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 text-sm">
+                              {emp.firstName} {emp.lastName}
+                            </h4>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md">
+                                {emp.employeeCode || 'EMP-N/A'}
+                              </span>
+                              <span className="text-[9px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
+                                {deptName}
+                              </span>
+                              <span className="text-[9px] font-semibold text-slate-500">
+                                {desigName}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
@@ -574,9 +589,11 @@ const PipWorkspace = () => {
               {selectedSug ? (
                 <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-2xl flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-slate-900 text-white font-extrabold text-xs flex items-center justify-center uppercase">
-                      {selectedSug.employee.firstName[0]}{selectedSug.employee.lastName[0]}
-                    </div>
+                    <img
+                      src={getUserAvatarUrl(selectedSug.employee)}
+                      alt="Avatar"
+                      className="w-9 h-9 rounded-full object-cover ring-2 ring-amber-300 shrink-0"
+                    />
                     <div>
                       <p className="font-bold text-slate-800">{selectedSug.employee.firstName} {selectedSug.employee.lastName}</p>
                       <p className="text-[10px] text-slate-500 font-mono">
@@ -589,24 +606,162 @@ const PipWorkspace = () => {
                   </span>
                 </div>
               ) : (
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Select Target Employee</label>
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-bold text-slate-700 text-xs"
-                    required
+                <div className="space-y-1.5 relative">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Select Target Employee *</label>
+                    <span className="text-[9px] font-extrabold text-sky-600">
+                      {allUsers.length} Eligible Staff
+                    </span>
+                  </div>
+
+                  {/* Combobox Trigger Button */}
+                  <button
+                    type="button"
+                    onClick={() => setEmpComboboxOpen(!empComboboxOpen)}
+                    className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
                   >
-                    {allUsers.map(u => {
-                      const deptName = u.departmentId?.departmentName || 'General';
-                      const desigName = u.designationId?.designationName || '';
+                    {(() => {
+                      const selected = allUsers.find(u => u._id === selectedEmployeeId);
+                      if (!selected) {
+                        return <span className="text-slate-400 italic">Click to search & select target employee...</span>;
+                      }
+                      const deptName = selected.departmentId?.departmentName || 'General';
+                      const desigName = selected.designationId?.designationName || '';
                       return (
-                        <option key={u._id} value={u._id}>
-                          {u.firstName} {u.lastName} ({u.employeeCode}) — {deptName}{desigName ? ` (${desigName})` : ''}
-                        </option>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <img
+                            src={getUserAvatarUrl(selected)}
+                            alt="Avatar"
+                            className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <span className="font-extrabold text-slate-900 block truncate">
+                              {selected.firstName} {selected.lastName}
+                            </span>
+                            <span className="text-[9px] text-slate-400 block truncate">
+                              {selected.employeeCode} • {deptName}{desigName ? ` (${desigName})` : ''}
+                            </span>
+                          </div>
+                        </div>
                       );
-                    })}
-                  </select>
+                    })()}
+                    <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
+                  </button>
+
+                  {/* Enterprise Searchable Combobox Popover */}
+                  {empComboboxOpen && (
+                    <>
+                      <div className="fixed inset-0 z-20" onClick={() => setEmpComboboxOpen(false)} />
+                      <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
+                        {/* Live Search Input */}
+                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
+                          <Search size={14} className="text-slate-400 shrink-0" />
+                          <input
+                            type="text"
+                            value={empSearchQuery}
+                            onChange={(e) => setEmpSearchQuery(e.target.value)}
+                            placeholder="Search name, code (EMP004), designation..."
+                            className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
+                            autoFocus
+                          />
+                        </div>
+
+                        {/* Department Quick Filter Pills */}
+                        <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
+                          <button
+                            type="button"
+                            onClick={() => setEmpDeptFilter('all')}
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                              empDeptFilter === 'all'
+                                ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            All ({allUsers.length})
+                          </button>
+                          {departments.map(d => (
+                            <button
+                              key={d._id}
+                              type="button"
+                              onClick={() => setEmpDeptFilter(d._id)}
+                              className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
+                                empDeptFilter.toString() === d._id.toString()
+                                  ? 'bg-sky-100 text-sky-800 border-sky-300'
+                                  : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {d.departmentName}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Searchable Employee List */}
+                        <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                          {(() => {
+                            const filteredList = allUsers.filter(u => {
+                              const deptId = u.departmentId?._id || u.departmentId;
+                              const matchesDept = empDeptFilter === 'all' || (deptId && deptId.toString() === empDeptFilter.toString());
+                              const desigName = u.designationId?.designationName || '';
+                              const text = `${u.firstName} ${u.lastName} ${u.employeeCode} ${desigName}`.toLowerCase();
+                              return matchesDept && text.includes(empSearchQuery.toLowerCase());
+                            });
+
+                            if (filteredList.length === 0) {
+                              return (
+                                <div className="p-4 text-center text-slate-400 text-xs italic">
+                                  No employees match your search query.
+                                </div>
+                              );
+                            }
+
+                            return filteredList.map(u => {
+                              const isSelected = selectedEmployeeId === u._id;
+                              const deptName = u.departmentId?.departmentName || 'General';
+                              const desigName = u.designationId?.designationName || '';
+
+                              return (
+                                <button
+                                  key={u._id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedEmployeeId(u._id);
+                                    setEmpComboboxOpen(false);
+                                  }}
+                                  className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
+                                    isSelected
+                                      ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-xs'
+                                      : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <img
+                                      src={getUserAvatarUrl(u)}
+                                      alt="Avatar"
+                                      className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="font-extrabold text-slate-900 text-xs truncate">
+                                        {u.firstName} {u.lastName}
+                                      </p>
+                                      <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
+                                        <span className="font-mono text-slate-500 font-bold">{u.employeeCode || 'EMP'}</span>
+                                        <span>•</span>
+                                        <span className="truncate">{deptName}{desigName ? ` (${desigName})` : ''}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                                    {u.role}
+                                  </span>
+                                </button>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 

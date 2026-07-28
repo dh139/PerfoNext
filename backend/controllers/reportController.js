@@ -5,6 +5,7 @@ const ReviewCycle = require('../models/ReviewCycle');
 const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 const ReviewScore = require('../models/ReviewScore');
+const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 
 const getEmployeeReport = async (req, res) => {
   try {
@@ -197,10 +198,14 @@ const getReviewCompletionReport = async (req, res) => {
     }
 
     // Get all active eligible employees in target department
-    const employees = await User.find(filter)
+    let employees = await User.find(filter)
       .populate('departmentId designationId')
       .populate({ path: 'managerId', select: 'firstName lastName email' })
       .select('-passwordHash -refreshToken');
+
+    employees = employees.filter(emp =>
+      isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)
+    );
 
     const completionDetails = [];
 

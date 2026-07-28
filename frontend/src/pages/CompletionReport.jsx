@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useTableControls } from '../hooks/useTableControls';
 import TablePagination from '../components/TablePagination';
 import { exportToCsv } from '../utils/csvExport';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const CompletionReport = () => {
   const [cycles, setCycles] = useState([]);
@@ -421,14 +422,23 @@ const CompletionReport = () => {
                     <tr key={item.employee._id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="py-4 px-4 font-bold text-slate-500">{item.employee.employeeCode}</td>
                       <td className="py-4 px-4 font-bold text-slate-800">
-                        <span className={item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive' ? 'text-emerald-700 font-extrabold' : 'text-slate-800'}>
-                          {item.employee.firstName} {item.employee.lastName}
-                        </span>
-                        {(item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive') && (
-                          <span className="ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md text-[9px] font-black uppercase tracking-wider">
-                            Reporting Manager
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={getUserAvatarUrl(item.employee)}
+                            alt="Avatar"
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                          <div>
+                            <span className={item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive' ? 'text-emerald-700 font-extrabold block' : 'text-slate-800 block'}>
+                              {item.employee.firstName} {item.employee.lastName}
+                            </span>
+                            {(item.employee.role === 'manager' || item.employee.role === 'hr' || item.employee.role === 'executive') && (
+                              <span className="mt-0.5 inline-block px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[8px] font-black uppercase tracking-wider">
+                                Reporting Manager
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-slate-600">{item.employee.departmentId?.departmentName}</td>
                       <td className="py-4 px-4 text-slate-600">

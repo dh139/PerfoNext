@@ -12,36 +12,7 @@ const {
   sendSelfAssessmentSubmittedEmail,
   sendFinalReportGeneratedEmail
 } = require('../services/emailService');
-
-const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDate) => {
-  if (!joiningDate) return false;
-  
-  const jd = new Date(joiningDate);
-  const cycleStart = startDate ? new Date(startDate) : new Date();
-  const diffTime = cycleStart - jd;
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-  if (cycleType === 'quarterly') {
-    // Must have at least 90 days of experience
-    return diffDays >= 90;
-  }
-
-  if (cycleType === 'annual') {
-    // Must have at least 365 days of experience
-    return diffDays >= 365;
-  }
-
-  // default 'monthly'
-  const yearMatch = reviewMonth.match(/^(\d{4})/);
-  if (!yearMatch) return true;
-  const year = parseInt(yearMatch[1], 10);
-
-  const monthMatch = reviewMonth.match(/-(\d{2})/);
-  if (!monthMatch) return true;
-  const month = parseInt(monthMatch[1], 10);
-  const startOfMonth = new Date(year, month - 1, 1);
-  return jd <= startOfMonth;
-};
+const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 
 // ==================== REVIEW CYCLE CONTROLLERS ====================
 
@@ -90,7 +61,20 @@ const normalizeReviewMonth = (reviewMonth, cycleType) => {
     }
   }
 
-  if (cycleType === 'annual') {
+  if (cycleType === 'half_yearly') {
+    if (/^\d{4}-H[1-2]$/.test(reviewMonth)) {
+      return reviewMonth;
+    }
+    const match = reviewMonth.match(/^(\d{4})-(\d{2})$/);
+    if (match) {
+      const year = match[1];
+      const month = parseInt(match[2], 10);
+      const h = month <= 6 ? 1 : 2;
+      return `${year}-H${h}`;
+    }
+  }
+
+  if (['yearly', 'annual'].includes(cycleType)) {
     if (/^\d{4}$/.test(reviewMonth)) {
       return reviewMonth;
     }
@@ -210,7 +194,11 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
       baseFilter.role = 'employee';
     }
 
-    const targetUsers = await User.find(baseFilter);
+    let targetUsers = await User.find(baseFilter);
+    // Filter strictly by eligibility based on joining date
+    targetUsers = targetUsers.filter(u =>
+      isEmployeeEligibleForCycle(u.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)
+    );
     if (targetUsers.length === 0) return;
 
     // In-app notifications for targeted users

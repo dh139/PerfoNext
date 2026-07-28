@@ -9,36 +9,7 @@ const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
 const EmployeeSkill = require('../models/EmployeeSkill');
 const Certification = require('../models/Certification');
-
-const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDate) => {
-  if (!joiningDate) return false;
-  
-  const jd = new Date(joiningDate);
-  const cycleStart = startDate ? new Date(startDate) : new Date();
-  const diffTime = cycleStart - jd;
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-
-  if (cycleType === 'quarterly') {
-    // Must have at least 90 days of experience
-    return diffDays >= 90;
-  }
-
-  if (cycleType === 'annual') {
-    // Must have at least 365 days of experience
-    return diffDays >= 365;
-  }
-
-  // default 'monthly'
-  const yearMatch = reviewMonth.match(/^(\d{4})/);
-  if (!yearMatch) return true;
-  const year = parseInt(yearMatch[1], 10);
-
-  const monthMatch = reviewMonth.match(/-(\d{2})/);
-  if (!monthMatch) return true;
-  const month = parseInt(monthMatch[1], 10);
-  const startOfMonth = new Date(year, month - 1, 1);
-  return jd <= startOfMonth;
-};
+const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 
 const getDashboardData = async (req, res) => {
   try {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { AlertCircle, CheckCircle2, Star, Layers, Activity, Award, Plus, User, Trash2, Edit, Search } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 
@@ -518,11 +519,11 @@ const SkillMatrix = () => {
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-[10px] shrink-0 ${
-                        isSelected ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {u.firstName?.[0]}{u.lastName?.[0]}
-                      </div>
+                      <img
+                        src={getUserAvatarUrl(u)}
+                        alt="Avatar"
+                        className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                      />
                       <div className="min-w-0">
                         <p className="font-extrabold text-xs text-slate-900 truncate">{u.firstName} {u.lastName}</p>
                         <span className="text-[9px] font-mono text-slate-400 block truncate">{u.employeeCode}</span>

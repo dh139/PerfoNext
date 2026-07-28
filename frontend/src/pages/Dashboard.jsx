@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 import {
   User,
   Calendar,
@@ -820,7 +821,17 @@ const HRDashboard = ({ data, user }) => {
       )}
 
       {/* Tabbed HR Control Navigation Bar */}
-      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto">
+      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setActiveTab('tree')}
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'tree' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Layers size={16} />
+          <span>Org Tree Hierarchy</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('cycles')}
           className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
@@ -871,6 +882,9 @@ const HRDashboard = ({ data, user }) => {
           <span>Audit Trail & Activity</span>
         </button>
       </div>
+
+      {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
+      {activeTab === 'tree' && <OrgTreeHierarchy />}
 
       {/* TAB 1: ACTIVE REVIEW CYCLES PROGRESS */}
       {activeTab === 'cycles' && (
@@ -1418,6 +1432,354 @@ const HRDashboard = ({ data, user }) => {
   );
 };
 
+// ==================== ORGANIZATIONAL TREE HIERARCHY ====================
+
+const OrgTreeHierarchy = () => {
+  const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedDept, setSelectedDept] = useState('all');
+  const [collapsedManagers, setCollapsedManagers] = useState({});
+
+  useEffect(() => {
+    const fetchTreeData = async () => {
+      try {
+        setLoading(true);
+        const [usersRes, deptsRes] = await Promise.all([
+          api.get('/api/users'),
+          api.get('/api/departments')
+        ]);
+        setUsers(usersRes.data || []);
+        setDepartments(deptsRes.data || []);
+      } catch (err) {
+        console.error('Failed to load tree hierarchy data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTreeData();
+  }, []);
+
+  const toggleManager = (mgrId) => {
+    setCollapsedManagers(prev => ({ ...prev, [mgrId]: !prev[mgrId] }));
+  };
+
+  if (loading) {
+    return (
+      <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p className="text-slate-500 font-medium text-xs">Building Organizational Tree Hierarchy...</p>
+      </div>
+    );
+  }
+
+  // Filter users by search term & department
+  const filteredUsers = users.filter(u => {
+    const fullName = `${u.firstName} ${u.lastName} ${u.employeeCode} ${u.email} ${u.designationId?.designationName || ''}`.toLowerCase();
+    const matchesSearch = fullName.includes(search.toLowerCase());
+    const uDeptId = u.departmentId?._id || u.departmentId;
+    const matchesDept = selectedDept === 'all' || (uDeptId && uDeptId.toString() === selectedDept.toString());
+    return matchesSearch && matchesDept;
+  });
+
+  // Level 1: Executive & CEO Leadership (role === 'executive' or 'admin')
+  const executives = filteredUsers.filter(u => u.role === 'executive' || u.role === 'admin');
+
+  // Level 2: Department Managers & HR Managers (role === 'manager' or 'hr')
+  const managers = filteredUsers.filter(u => u.role === 'manager' || u.role === 'hr');
+
+  // Level 3: Helper to get employees reporting to a manager
+  const getSubordinatesForManager = (mgr) => {
+    return filteredUsers.filter(u => {
+      if (u.role !== 'employee') return false;
+      const mgrId = u.managerId?._id || u.managerId;
+      if (mgrId) {
+        return mgrId.toString() === mgr._id.toString();
+      }
+      // Fallback matching by department
+      const uDeptId = u.departmentId?._id || u.departmentId;
+      const mgrDeptId = mgr.departmentId?._id || mgr.departmentId;
+      return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
+    });
+  };
+
+  // Unassigned employees (not under any manager)
+  const allManagedEmpIds = new Set(
+    managers.flatMap(m => getSubordinatesForManager(m).map(e => e._id.toString()))
+  );
+  const unassignedEmployees = filteredUsers.filter(u =>
+    u.role === 'employee' && !allManagedEmpIds.has(u._id.toString())
+  );
+
+  return (
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      {/* Header & Controls Bar */}
+      <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+            <Layers className="text-sky-600" size={18} />
+            <span>Organizational Tree Hierarchy</span>
+            <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
+              {users.length} Total Members
+            </span>
+          </h3>
+          <p className="text-slate-500 text-xs mt-0.5">
+            Interactive multi-level reporting structure: CEO & Executive Management &rarr; Reporting Managers & HR &rarr; Department Employees
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Search Bar */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full md:w-64">
+            <Search size={14} className="text-slate-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search member, code, role..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
+            />
+          </div>
+
+          {/* Department Filter Dropdown */}
+          <select
+            value={selectedDept}
+            onChange={(e) => setSelectedDept(e.target.value)}
+            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+          >
+            <option value="all">All Departments ({departments.length})</option>
+            {departments.map(d => (
+              <option key={d._id} value={d._id}>{d.departmentName}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* TREE DIAGRAM CONTAINER */}
+      <div className="bg-slate-900/5 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-8 overflow-x-auto">
+        
+        {/* LEVEL 1: EXECUTIVE & CEO LEVEL */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-center">
+            <span className="px-3 py-1 bg-slate-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-sky-400" />
+              <span>Level 1: Executive & CEO Leadership</span>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-4">
+            {executives.length === 0 ? (
+              <p className="text-slate-400 italic text-center py-4">No executive management found matching search.</p>
+            ) : (
+              executives.map(exec => (
+                <div
+                  key={exec._id}
+                  className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-xl min-w-[280px] max-w-sm flex items-center justify-between gap-4 transition-all hover:scale-[1.02]"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={getUserAvatarUrl(exec)}
+                      alt="Avatar"
+                      className="w-11 h-11 rounded-full object-cover ring-2 ring-sky-400 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-black text-sm text-white truncate">
+                          {exec.firstName} {exec.lastName}
+                        </h4>
+                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded font-mono">
+                          {exec.role === 'executive' ? 'CEO' : 'ADMIN'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-sky-300 font-semibold truncate mt-0.5">
+                        {exec.role === 'executive' ? 'Chief Executive Officer' : 'System Administrator'}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-mono">{exec.employeeCode} • {exec.email}</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/reports/employee/${exec._id}`}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-xl transition-colors shrink-0"
+                    title="View Profile Report"
+                  >
+                    <Eye size={14} />
+                  </Link>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* CONNECTING VERTICAL LINE */}
+        <div className="flex justify-center">
+          <div className="w-0.5 h-8 bg-slate-300"></div>
+        </div>
+
+        {/* LEVEL 2: REPORTING MANAGERS & HR MANAGERS */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-center">
+            <span className="px-3 py-1 bg-emerald-700 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+              <Users size={12} className="text-emerald-200" />
+              <span>Level 2: Department Leadership (Reporting Managers & HR)</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {managers.map(mgr => {
+              const subs = getSubordinatesForManager(mgr);
+              const isCollapsed = !!collapsedManagers[mgr._id];
+
+              return (
+                <div key={mgr._id} className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md">
+                  {/* Manager Card Header */}
+                  <div className="bg-slate-800 text-white p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
+                        mgr.role === 'hr' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                      }`}>
+                        {mgr.role === 'hr' ? 'HR Manager' : 'Reporting Manager'}
+                      </span>
+                      <span className="text-[9px] font-bold bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
+                        {mgr.departmentId?.departmentName || 'General'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={getUserAvatarUrl(mgr)}
+                        alt="Avatar"
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-400 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-extrabold text-xs text-white truncate">
+                          {mgr.firstName} {mgr.lastName}
+                        </h4>
+                        <p className="text-[10px] text-slate-300 truncate mt-0.5">
+                          {mgr.designationId?.designationName || 'Department Lead'}
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-mono">{mgr.employeeCode}</p>
+                      </div>
+                      <Link
+                        to={`/reports/employee/${mgr._id}`}
+                        className="p-1.5 bg-slate-700 hover:bg-slate-600 text-sky-300 rounded-lg transition-colors shrink-0"
+                        title="View Profile Report"
+                      >
+                        <Eye size={13} />
+                      </Link>
+                    </div>
+
+                    {/* Direct Subordinates Count & Toggle */}
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-700/80 text-[10px]">
+                      <span className="font-bold text-emerald-400 flex items-center gap-1">
+                        <Users size={12} />
+                        <span>{subs.length} Direct Subordinates</span>
+                      </span>
+                      {subs.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleManager(mgr._id)}
+                          className="text-slate-300 hover:text-white font-bold underline cursor-pointer"
+                        >
+                          {isCollapsed ? `Expand (${subs.length}) ↓` : 'Collapse ↑'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* LEVEL 3: DIRECT SUBORDINATES (EMPLOYEES) */}
+                  {!isCollapsed && (
+                    <div className="p-4 bg-slate-50/50 space-y-2.5 flex-1 border-t border-slate-100">
+                      {subs.length === 0 ? (
+                        <p className="text-slate-400 italic text-center py-4 text-[11px]">No direct reportees assigned.</p>
+                      ) : (
+                        subs.map(emp => (
+                          <div
+                            key={emp._id}
+                            className="bg-white border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <img
+                                src={getUserAvatarUrl(emp)}
+                                alt="Avatar"
+                                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-800 text-xs truncate">
+                                  {emp.firstName} {emp.lastName}
+                                </p>
+                                <div className="flex items-center gap-1 text-[9px] text-slate-500">
+                                  <span className="font-mono text-slate-600 font-bold">{emp.employeeCode}</span>
+                                  <span>•</span>
+                                  <span className="truncate">{emp.designationId?.designationName || 'Staff'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Link
+                              to={`/reports/employee/${emp._id}`}
+                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-lg transition-colors shrink-0"
+                              title="View Performance Report"
+                            >
+                              <Eye size={12} />
+                            </Link>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* UNASSIGNED STAFF BRANCH */}
+        {unassignedEmployees.length > 0 && (
+          <div className="pt-6 border-t border-slate-200 space-y-4">
+            <div className="flex items-center justify-center">
+              <span className="px-3 py-1 bg-sky-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+                <User size={12} className="text-sky-300" />
+                <span>Direct Executive / Unassigned Employees ({unassignedEmployees.length})</span>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {unassignedEmployees.map(emp => (
+                <div
+                  key={emp._id}
+                  className="bg-white border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={getUserAvatarUrl(emp)}
+                      alt="Avatar"
+                      className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800 text-xs truncate">
+                        {emp.firstName} {emp.lastName}
+                      </p>
+                      <p className="text-[9px] text-slate-500 font-mono">{emp.employeeCode} • {emp.departmentId?.departmentName || 'Unassigned'}</p>
+                    </div>
+                  </div>
+                  <Link
+                    to={`/reports/employee/${emp._id}`}
+                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-lg transition-colors shrink-0"
+                  >
+                    <Eye size={12} />
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+};
+
 // ==================== SUB-DASHBOARD: EXECUTIVE (CEO) ====================
 
 const ExecutiveDashboard = ({ data, user }) => {
@@ -1613,7 +1975,17 @@ const ExecutiveDashboard = ({ data, user }) => {
       </div>
 
       {/* Tabbed Executive Navigation Bar */}
-      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto">
+      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setActiveTab('tree')}
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'tree' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Layers size={16} />
+          <span>Org Tree Hierarchy</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('grading')}
           className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
@@ -1659,6 +2031,9 @@ const ExecutiveDashboard = ({ data, user }) => {
           <span>Audit Trail & Activity</span>
         </button>
       </div>
+
+      {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
+      {activeTab === 'tree' && <OrgTreeHierarchy />}
 
       {/* TAB 1: DIRECT SUBORDINATES GRADING TABLE */}
       {activeTab === 'grading' && (
