@@ -144,7 +144,7 @@ const LandingPage = () => {
               <Activity size={18} />
             </div>
             <div>
-              <span className="font-black text-sm text-slate-100 tracking-tight group-hover:text-sky-400 transition-colors">EPTS</span>
+              <span className="font-black text-sm text-slate-100 tracking-tight group-hover:text-sky-400 transition-colors">PerformNext</span>
               <span className="text-[9px] text-sky-400 font-semibold uppercase tracking-wider block -mt-0.5">Platform</span>
             </div>
           </div>
@@ -272,7 +272,7 @@ const LandingPage = () => {
         </h1>
 
         <p className="text-slate-400 text-sm sm:text-base max-w-2xl mx-auto mb-10 leading-relaxed font-normal">
-          EPTS connects multi-role performance reviews, 360-degree feedback, Llama-3.3 AI predictive insights, KPI frameworks, and HRMS/LMS ecosystem integrations in one unified platform.
+          PerformNext connects multi-role performance reviews, 360-degree feedback, Llama-3.3 AI predictive insights, KPI frameworks, and HRMS/LMS ecosystem integrations in one unified platform.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
@@ -319,7 +319,7 @@ const LandingPage = () => {
         <div className="text-center max-w-3xl mx-auto mb-12">
           <h2 className="text-xs font-bold text-sky-400 uppercase tracking-widest mb-2">Tailored Workspaces</h2>
           <p className="text-3xl font-black text-slate-100">Designed for Every Organization Stakeholder</p>
-          <p className="text-slate-400 text-xs mt-2">Explore how EPTS empowers each of the 5 core system roles with specialized tools.</p>
+          <p className="text-slate-400 text-xs mt-2">Explore how PerformNext empowers each of the 5 core system roles with specialized tools.</p>
         </div>
 
         {/* Role Tabs */}
@@ -381,7 +381,7 @@ const LandingPage = () => {
                   <div className="w-3 h-3 rounded-full bg-amber-500"></div>
                   <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                 </div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">EPTS Workspace Live</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PerformNext Workspace Live</span>
               </div>
 
               <div className="space-y-3">
@@ -549,9 +549,9 @@ const LandingPage = () => {
             <div className="p-1.5 bg-sky-600 rounded-full text-white">
               <Activity size={16} />
             </div>
-            <span className="font-bold text-slate-300">EPTS Performance System</span>
+            <span className="font-bold text-slate-300">PerformNext Performance System</span>
           </div>
-          <p className="text-[11px]">© 2026 EPTS Inc. All rights reserved. Enterprise Performance Tracking System.</p>
+          <p className="text-[11px]">© 2026 PerformNext Inc. All rights reserved. Enterprise Performance Tracking System.</p>
           <div className="flex items-center gap-4 text-slate-400 font-medium">
             <Link to="/login" className="hover:text-slate-200 transition-colors">Portal Login</Link>
             <Link to="/register" className="hover:text-slate-200 transition-colors">Register</Link>

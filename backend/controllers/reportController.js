@@ -103,7 +103,10 @@ const getDepartmentReport = async (req, res) => {
     }
 
     // Get all eligible employees of the department for this target role
-    const employees = await User.find(employeeFilter);
+    const employees = await User.find(employeeFilter)
+      .populate('designationId departmentId')
+      .select('firstName lastName employeeCode designationId departmentId role avatar');
+
     const employeeIds = employees.map(emp => emp._id);
 
     const matchFilter = { employeeId: { $in: employeeIds } };
@@ -113,10 +116,42 @@ const getDepartmentReport = async (req, res) => {
 
     // Get scores for these employees
     const scores = await ReviewScore.find(matchFilter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId role' })
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId role avatar' })
       .populate({ path: 'reviewCycleId', select: 'reviewMonth targetRole' });
 
-    // Calculate aggregated department averages
+    // Build map of existing scores
+    const scoreMap = new Map();
+    scores.forEach(s => {
+      if (s.employeeId?._id) {
+        scoreMap.set(s.employeeId._id.toString(), s);
+      }
+    });
+
+    // Merge employees without scores as Pending Evaluation
+    const allScores = employees.map(emp => {
+      const existingScore = scoreMap.get(emp._id.toString());
+      if (existingScore) {
+        return existingScore;
+      }
+      return {
+        _id: `pending-${emp._id}`,
+        employeeId: emp,
+        reviewCycleId: reviewCycleId || null,
+        finalScore: null,
+        rating: 'Pending Evaluation',
+        isPending: true,
+        categoryScores: {
+          workQuality: 0,
+          productivity: 0,
+          technical: 0,
+          communication: 0,
+          ownership: 0,
+          learning: 0
+        }
+      };
+    });
+
+    // Calculate aggregated department averages based on computed scores
     let avgFinalScore = 0;
     let avgWorkQuality = 0;
     let avgProductivity = 0;
@@ -128,12 +163,12 @@ const getDepartmentReport = async (req, res) => {
     if (scores.length > 0) {
       scores.forEach(s => {
         avgFinalScore += s.finalScore;
-        avgWorkQuality += s.categoryScores.workQuality || 0;
-        avgProductivity += s.categoryScores.productivity || 0;
-        avgTechnical += s.categoryScores.technical || 0;
-        avgCommunication += s.categoryScores.communication || 0;
-        avgOwnership += s.categoryScores.ownership || 0;
-        avgLearning += s.categoryScores.learning || 0;
+        avgWorkQuality += s.categoryScores?.workQuality || 0;
+        avgProductivity += s.categoryScores?.productivity || 0;
+        avgTechnical += s.categoryScores?.technical || 0;
+        avgCommunication += s.categoryScores?.communication || 0;
+        avgOwnership += s.categoryScores?.ownership || 0;
+        avgLearning += s.categoryScores?.learning || 0;
       });
 
       const count = scores.length;
@@ -150,7 +185,7 @@ const getDepartmentReport = async (req, res) => {
       department: dept,
       employeeCount: employees.length,
       scoresCount: scores.length,
-      scores,
+      scores: allScores,
       averages: {
         finalScore: avgFinalScore,
         categoryScores: {

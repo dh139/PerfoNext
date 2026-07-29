@@ -36,7 +36,7 @@ const PromotionsWorkspace = () => {
       const promoRes = await api.get('/api/promotions');
       setPromotions(promoRes.data);
 
-      if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') {
+      if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') {
         const empRes = await api.get('/api/users?role=employee');
         let empData = empRes.data || [];
 
@@ -340,7 +340,7 @@ const PromotionsWorkspace = () => {
                       </span>
                     </td>
                     <td className="py-4 px-4 text-right">
-                      {promo.status === 'proposed' && (user?.role === 'hr' || user?.role === 'admin') ? (
+                      {promo.status === 'proposed' && (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') ? (
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => handleApprovePromo(promo._id, true)}
@@ -359,7 +359,7 @@ const PromotionsWorkspace = () => {
                         </div>
                       ) : (
                         <span className="text-slate-400 italic text-[10px] font-bold">
-                          {promo.status !== 'proposed' ? `Finalized by ${promo.approvedBy?.firstName || 'HR'}` : '-'}
+                          {promo.status !== 'proposed' ? `Finalized by ${promo.approvedBy?.firstName || 'Leadership'}` : '-'}
                         </span>
                       )}
                     </td>
@@ -559,9 +559,23 @@ const PromotionsWorkspace = () => {
                     required
                   >
                     <option value="">Select Upgrade Role</option>
-                    {designations.filter(d => d._id !== currentDesignation?._id).map(d => (
-                      <option key={d._id} value={d._id}>{d.designationName}</option>
-                    ))}
+                    {(() => {
+                      const selectedEmp = employees.find(e => e._id === selectedEmpId);
+                      const empDeptId = selectedEmp?.departmentId?._id || selectedEmp?.departmentId;
+
+                      const deptDesignations = designations.filter(d => {
+                        if (d._id === currentDesignation?._id) return false;
+                        const desigDeptId = d.departmentId?._id || d.departmentId;
+                        if (empDeptId && desigDeptId) {
+                          return desigDeptId.toString() === empDeptId.toString();
+                        }
+                        return true;
+                      });
+
+                      return deptDesignations.map(d => (
+                        <option key={d._id} value={d._id}>{d.designationName}</option>
+                      ));
+                    })()}
                   </select>
                 </div>
               </div>

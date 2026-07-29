@@ -50,7 +50,7 @@ const IntegrationsWorkspace = () => {
   // Teams Webhook state
   const [teamsForm, setTeamsForm] = useState({
     webhookUrl: '',
-    title: 'EPTS Performance Cycle Reminder',
+    title: 'PerformNext Performance Cycle Reminder',
     message: 'Attention Team! The July 2026 Monthly Performance Review Cycle is closing soon. Please complete all pending assessments.'
   });
 
@@ -253,13 +253,13 @@ const IntegrationsWorkspace = () => {
               <span>Ecosystem Integration Hub</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Automated data pipelines connecting HRMS Attendance, MS Teams Webhook notifications, & LMS Training credentials.
+              Automated data pipelines connecting HRMS Attendance & Sync Audit Logs.
             </p>
           </div>
         </div>
 
         {/* Summary Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-800/80 max-w-2xl">
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Synced HRMS Logs</p>
@@ -268,28 +268,6 @@ const IntegrationsWorkspace = () => {
             </div>
             <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
               <Clock size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">MS Teams Status</p>
-              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">Webhook Ready</h2>
-              <span className="text-[9px] text-emerald-400 font-medium">Real-time alerts active</span>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <Send size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">LMS Certifications</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{lmsRecords.length}</h2>
-              <span className="text-[9px] text-indigo-400 font-medium">Completed courses</span>
-            </div>
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <BookOpen size={20} />
             </div>
           </div>
 
@@ -318,27 +296,7 @@ const IntegrationsWorkspace = () => {
           <span>Attendance HRMS Sync</span>
         </button>
 
-        <button
-          onClick={() => { setActiveTab('teams'); setError(''); setSuccess(''); }}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'teams' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Send size={16} />
-          <span>MS Teams Connector</span>
-        </button>
-
-        <button
-          onClick={() => { setActiveTab('lms'); setError(''); setSuccess(''); }}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'lms' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <BookOpen size={16} />
-          <span>LMS Training Records</span>
-        </button>
-
-        {(user?.role === 'hr' || user?.role === 'admin') && (
+        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
           <button
             onClick={() => { setActiveTab('logs'); setError(''); setSuccess(''); fetchLogs(); }}
             className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
@@ -1006,247 +964,8 @@ const IntegrationsWorkspace = () => {
         );
       })()}
 
-      {/* Tab 2: MS Teams Connector */}
-      {activeTab === 'teams' && (
-        <form onSubmit={handleTeamsDispatch} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-5 max-w-2xl mx-auto">
-          <div className="border-b pb-3">
-            <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-              <Send className="text-indigo-600" size={16} />
-              <span>Microsoft Teams Webhook Connector</span>
-            </h3>
-            <p className="text-slate-400 mt-1">Send automated Adaptive Card notifications to MS Teams channel URLs</p>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase">MS Teams Incoming Webhook URL (Optional)</label>
-            <input
-              type="url"
-              value={teamsForm.webhookUrl}
-              onChange={(e) => setTeamsForm({ ...teamsForm, webhookUrl: e.target.value })}
-              placeholder="https://outlook.office.com/webhook/..."
-              className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 font-mono text-[11px]"
-            />
-            <p className="text-[9px] text-slate-400 mt-1">Leave empty to run a simulated Adaptive Card dispatch test.</p>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase">Card Title</label>
-            <input
-              type="text"
-              value={teamsForm.title}
-              onChange={(e) => setTeamsForm({ ...teamsForm, title: e.target.value })}
-              className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 font-bold"
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-500 uppercase">Notification Message Content</label>
-            <textarea
-              value={teamsForm.message}
-              onChange={(e) => setTeamsForm({ ...teamsForm, message: e.target.value })}
-              rows={4}
-              className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl outline-none focus:border-sky-500 text-xs"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl cursor-pointer shadow-md transition-colors uppercase text-[10px]"
-          >
-            Dispatch Adaptive Card Webhook
-          </button>
-        </form>
-      )}
-
-      {/* Tab 3: LMS Training Records */}
-      {activeTab === 'lms' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Sync Form */}
-          {(user?.role === 'hr' || user?.role === 'admin') && (
-            <form onSubmit={handleLmsSync} className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
-              <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">Register LMS Course Completion</h3>
-
-              {/* Searchable Enterprise Employee Combobox */}
-              <div className="space-y-1 relative">
-                <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center justify-between">
-                  <span>Select Employee</span>
-                  <span className="text-[9px] text-sky-600 font-extrabold">{users.length} Total</span>
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => setLmsComboboxOpen(!lmsComboboxOpen)}
-                  className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
-                >
-                  {(() => {
-                    const selected = users.find(u => u._id === lmsForm.employeeId);
-                    if (!selected) {
-                      return <span className="text-slate-400 italic">Click to select employee...</span>;
-                    }
-                    const deptName = selected.departmentId?.departmentName || 'No Dept';
-                    return (
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-indigo-700 text-white font-black text-[10px] flex items-center justify-center shrink-0">
-                          {selected.firstName?.[0]}{selected.lastName?.[0]}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="font-extrabold text-slate-900 block truncate">
-                            {selected.firstName} {selected.lastName}
-                          </span>
-                          <span className="text-[9px] text-slate-400 block truncate">{selected.employeeCode} • {deptName}</span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
-                </button>
-
-                {lmsComboboxOpen && (
-                  <>
-                    <div className="fixed inset-0 z-20" onClick={() => setLmsComboboxOpen(false)} />
-                    <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2 animate-fade-in text-slate-800">
-                      <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
-                        <Search size={14} className="text-slate-400 shrink-0" />
-                        <input
-                          type="text"
-                          value={lmsUserSearch}
-                          onChange={(e) => setLmsUserSearch(e.target.value)}
-                          placeholder="Search employee by name, code..."
-                          className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
-                          autoFocus
-                        />
-                      </div>
-
-                      <div className="max-h-52 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                        {users
-                          .filter(u => `${u.firstName} ${u.lastName} ${u.employeeCode} ${u.role}`.toLowerCase().includes(lmsUserSearch.toLowerCase()))
-                          .map(u => (
-                            <button
-                              key={u._id}
-                              type="button"
-                              onClick={() => {
-                                setLmsForm(prev => ({ ...prev, employeeId: u._id }));
-                                setLmsComboboxOpen(false);
-                              }}
-                              className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
-                                lmsForm.employeeId === u._id ? 'bg-indigo-50 text-indigo-950 font-bold border-indigo-300' : 'hover:bg-slate-50 text-slate-700 border-slate-100'
-                              }`}
-                            >
-                              <div>
-                                <p className="font-extrabold text-slate-900">{u.firstName} {u.lastName}</p>
-                                <span className="text-[9px] text-slate-400">{u.employeeCode} • {u.departmentId?.departmentName || 'No Dept'}</span>
-                              </div>
-                              <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{u.role}</span>
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Course Title</label>
-                <input
-                  type="text"
-                  value={lmsForm.courseName}
-                  onChange={(e) => setLmsForm({ ...lmsForm, courseName: e.target.value })}
-                  placeholder="e.g. Microservices Architecture with Node"
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">LMS Provider</label>
-                <select
-                  value={lmsForm.provider}
-                  onChange={(e) => setLmsForm({ ...lmsForm, provider: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-                  required
-                >
-                  <option value="Coursera">Coursera Enterprise</option>
-                  <option value="Udemy">Udemy Business</option>
-                  <option value="Pluralsight">Pluralsight</option>
-                  <option value="Internal LMS">Company Internal LMS</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Completion Date</label>
-                  <input
-                    type="date"
-                    value={lmsForm.completionDate}
-                    onChange={(e) => setLmsForm({ ...lmsForm, completionDate: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Test Score (%)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={lmsForm.score}
-                    onChange={(e) => setLmsForm({ ...lmsForm, score: +e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-sky-700 hover:bg-sky-850 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer uppercase text-[10px]"
-              >
-                Log LMS Completion
-              </button>
-            </form>
-          )}
-
-          {/* LMS Table */}
-          <div className={`${(user?.role === 'hr' || user?.role === 'admin') ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4`}>
-            <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">Completed Training Catalog</h3>
-
-            {lmsRecords.length === 0 ? (
-              <p className="text-slate-400 italic text-center py-8">No completed LMS courses recorded.</p>
-            ) : (
-              <div className="space-y-3">
-                {lmsRecords.map(rec => (
-                  <div key={rec._id} className="bg-slate-50/60 border border-slate-100 p-4 rounded-xl flex justify-between items-center text-xs">
-                    <div>
-                      <h4 className="font-bold text-slate-800">{rec.courseName}</h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        Provider: <span className="font-semibold text-slate-655">{rec.provider}</span> | Staff: <span className="font-semibold text-slate-655">{rec.employeeId?.firstName} {rec.employeeId?.lastName}</span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-bold text-sky-700 bg-sky-50 border border-sky-100 px-2.5 py-1 rounded-lg block">
-                        Score: {rec.score}%
-                      </span>
-                      <span className="text-[9px] text-slate-400 mt-1 block">
-                        Completed: {new Date(rec.completionDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-      )}
-
-      {/* Tab 4: Integration Activity Logs */}
-      {activeTab === 'logs' && (user?.role === 'hr' || user?.role === 'admin') && (
+      {/* Tab 2: Integration Activity Logs */}
+      {activeTab === 'logs' && (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
         <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
           <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">System Integration Audit Logs</h3>
 

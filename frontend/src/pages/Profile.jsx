@@ -1,13 +1,71 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera, Award } from 'lucide-react';
 import { getUserAvatarUrl } from '../utils/avatar';
 
 const Profile = () => {
   const { updateProfile } = useAuthStore();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const getLevelBadge = (u) => {
+    if (!u) return null;
+    const jd = u.joiningDate ? new Date(u.joiningDate) : null;
+    let expText = 'New Joiner';
+    if (jd && !isNaN(jd.getTime())) {
+      const diffYears = Math.round((Math.abs(new Date() - jd) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
+      if (diffYears < 0.1) {
+        expText = '< 1 mo tenure';
+      } else if (diffYears < 1) {
+        const months = Math.round(diffYears * 12);
+        expText = `${months} mos tenure`;
+      } else {
+        expText = `${diffYears} yrs tenure`;
+      }
+    }
+
+    const lvl = u.level || 5;
+    let levelTitle = `L${lvl}`;
+    let badgeColor = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    switch (lvl) {
+      case 1:
+        levelTitle = 'L1 • Executive';
+        badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
+        break;
+      case 2:
+        levelTitle = 'L2 • Senior Lead';
+        badgeColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        break;
+      case 3:
+        levelTitle = 'L3 • Team Lead';
+        badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
+        break;
+      case 4:
+        levelTitle = 'L4 • Senior Staff';
+        badgeColor = 'bg-teal-100 text-teal-800 border-teal-200';
+        break;
+      case 5:
+        levelTitle = 'L5 • Mid-Level';
+        badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        break;
+      case 6:
+      default:
+        levelTitle = 'L6 • Associate';
+        badgeColor = 'bg-amber-100 text-amber-800 border-amber-200';
+        break;
+    }
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`inline-block text-[10px] font-black uppercase px-2.5 py-0.5 rounded border ${badgeColor}`}>
+          {levelTitle}
+        </span>
+        <span className="text-xs text-slate-500 font-medium">• {expText}</span>
+      </div>
+    );
+  };
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -148,7 +206,8 @@ const Profile = () => {
           </div>
           <div>
             <h3 className="text-base font-bold text-slate-800">{profile?.firstName} {profile?.lastName}</h3>
-            <p className="text-xs text-slate-500 font-mono">{profile?.employeeCode}</p>
+            <p className="text-xs text-slate-500 font-mono mb-1.5">{profile?.employeeCode}</p>
+            {getLevelBadge(profile)}
           </div>
         </div>
 
@@ -182,6 +241,10 @@ const Profile = () => {
           <div className="flex items-center gap-2 text-xs text-slate-600">
             <Shield size={14} className="text-slate-400" />
             <span className="capitalize">{profile?.role}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Award size={14} className="text-slate-400" />
+            <span>{getLevelBadge(profile)}</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-600">
             <Calendar size={14} className="text-slate-400" />

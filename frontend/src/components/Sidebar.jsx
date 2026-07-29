@@ -19,13 +19,38 @@ import {
   MessageSquare,
   Layers,
   Cpu,
-  X
+  X,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
   const { user, logout } = useAuthStore();
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Collapsible section states
+  const [workspaceOpen, setWorkspaceOpen] = React.useState(true);
+  const [performanceOpen, setPerformanceOpen] = React.useState(true);
+  const [developmentOpen, setDevelopmentOpen] = React.useState(true);
+  const [managementOpen, setManagementOpen] = React.useState(true);
+
+  // Auto-expand active route sections
+  React.useEffect(() => {
+    const p = location.pathname;
+    if (['/profile', '/skills', '/certifications', '/recognitions'].includes(p)) {
+      setWorkspaceOpen(true);
+    }
+    if (['/feedback'].includes(p) || p.startsWith('/reports/employee/')) {
+      setPerformanceOpen(true);
+    }
+    if (['/integrations', '/pips', '/promotions'].includes(p)) {
+      setDevelopmentOpen(true);
+    }
+    if (['/manager/reviews', '/reports/department', '/hr/kpi-templates', '/hr/kpis', '/hr/cycles', '/reports/completion', '/admin/users', '/admin/org', '/admin/audit'].includes(p)) {
+      setManagementOpen(true);
+    }
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -91,7 +116,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
               <Activity size={20} />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-wide uppercase text-white">EPTS</h1>
+              <h1 className="font-bold text-base tracking-wide uppercase text-white">PerformNext</h1>
             </div>
           </div>
 
@@ -139,148 +164,173 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
         </Link>
 
         {/* My Workspace Section */}
-        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
-          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">My Workspace</p>
+        <div className="pt-2 border-t border-slate-800/80 my-2">
+          <button
+            type="button"
+            onClick={() => setWorkspaceOpen(!workspaceOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <UserIcon size={14} className="text-sky-400" />
+              <span>My Workspace</span>
+            </div>
+            {workspaceOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+          </button>
+
+          {workspaceOpen && (
+            <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+              <Link to="/profile" className={linkClass('/profile')} onClick={handleNavClick}>
+                <UserIcon size={16} />
+                <span>Profile</span>
+              </Link>
+              <Link to="/skills" className={linkClass('/skills')} onClick={handleNavClick}>
+                <Layers size={16} />
+                <span>Skills</span>
+              </Link>
+              <Link to="/certifications" className={linkClass('/certifications')} onClick={handleNavClick}>
+                <Award size={16} />
+                <span>Certifications</span>
+              </Link>
+              <Link to="/recognitions" className={linkClass('/recognitions')} onClick={handleNavClick}>
+                <Award size={16} />
+                <span>Awards & Accolades</span>
+              </Link>
+            </div>
+          )}
         </div>
-
-        <Link to="/profile" className={linkClass('/profile')}>
-          <UserIcon size={18} />
-          <span>Profile</span>
-        </Link>
-
-        <Link to="/skills" className={linkClass('/skills')}>
-          <Layers size={18} />
-          <span>Skills</span>
-        </Link>
-
-        <Link to="/certifications" className={linkClass('/certifications')}>
-          <Award size={18} />
-          <span>Certifications</span>
-        </Link>
-
-        <Link to="/recognitions" className={linkClass('/recognitions')}>
-          <Award size={18} />
-          <span>Awards</span>
-        </Link>
 
         {/* Performance Section */}
-        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
-          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Performance</p>
+        <div className="pt-2 border-t border-slate-800/80 my-2">
+          <button
+            type="button"
+            onClick={() => setPerformanceOpen(!performanceOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <ClipboardList size={14} className="text-emerald-400" />
+              <span>Performance</span>
+            </div>
+            {performanceOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+          </button>
+
+          {performanceOpen && (
+            <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+              {user && (
+                <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)} onClick={handleNavClick}>
+                  <ClipboardList size={16} />
+                  <span>Current Review</span>
+                </Link>
+              )}
+              {user && (
+                <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)} onClick={handleNavClick}>
+                  <FileText size={16} />
+                  <span>Review History</span>
+                </Link>
+              )}
+              <Link to="/feedback" className={linkClass('/feedback')} onClick={handleNavClick}>
+                <MessageSquare size={16} />
+                <span>360° Feedback</span>
+              </Link>
+            </div>
+          )}
         </div>
-
-        {user && (
-          <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)}>
-            <ClipboardList size={18} />
-            <span>Current Review</span>
-          </Link>
-        )}
-
-        {user && (
-          <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)}>
-            <FileText size={18} />
-            <span>Review History</span>
-          </Link>
-        )}
-
-        <Link to="/feedback" className={linkClass('/feedback')}>
-          <MessageSquare size={18} />
-          <span>360° Feedback</span>
-        </Link>
 
         {/* Development Section */}
-        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
-          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Development</p>
+        <div className="pt-2 border-t border-slate-800/80 my-2">
+          <button
+            type="button"
+            onClick={() => setDevelopmentOpen(!developmentOpen)}
+            className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp size={14} className="text-amber-400" />
+              <span>Development</span>
+            </div>
+            {developmentOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+          </button>
+
+          {developmentOpen && (
+            <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+              <Link to="/integrations" className={linkClass('/integrations')} onClick={handleNavClick}>
+                <Cpu size={16} />
+                <span>Learning</span>
+              </Link>
+              <Link to="/pips" className={linkClass('/pips')} onClick={handleNavClick}>
+                <ClipboardList size={16} />
+                <span>PIP Workspace</span>
+              </Link>
+              <Link to="/promotions" className={linkClass('/promotions')} onClick={handleNavClick}>
+                <TrendingUp size={16} />
+                <span>Promotions</span>
+              </Link>
+            </div>
+          )}
         </div>
-
-        <Link to="/integrations" className={linkClass('/integrations')}>
-          <Cpu size={18} />
-          <span>Learning</span>
-        </Link>
-
-        <Link to="/pips" className={linkClass('/pips')}>
-          <ClipboardList size={18} />
-          <span>PIP Workspace</span>
-        </Link>
-
-        <Link to="/promotions" className={linkClass('/promotions')}>
-          <TrendingUp size={18} />
-          <span>Promotions</span>
-        </Link>
 
         {/* Communication Section */}
-        <div className="pt-3 pb-1 border-t border-slate-800/80 my-2">
-          <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Communication</p>
+        <div className="pt-2 border-t border-slate-800/80 my-2">
+          <Link to="/notifications" className={linkClass('/notifications')} onClick={handleNavClick}>
+            <Bell size={18} />
+            <span>Notifications</span>
+          </Link>
         </div>
 
-        <Link to="/notifications" className={linkClass('/notifications')}>
-          <Bell size={18} />
-          <span>Notifications</span>
-        </Link>
+        {/* Management & HR Desk Section */}
+        {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
+          <div className="pt-2 border-t border-slate-800/80 my-2">
+            <button
+              type="button"
+              onClick={() => setManagementOpen(!managementOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Shield size={14} className="text-purple-400" />
+                <span>Management & HR Desk</span>
+              </div>
+              {managementOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+            </button>
 
-        {/* Manager & Executive Links */}
-        {(user?.role === 'manager' || user?.role === 'executive') && (
-          <>
-            <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Management</p>
-            </div>
-            {user?.role === 'manager' && (
-              <Link to="/manager/reviews" className={linkClass('/manager/reviews')}>
-                <ClipboardList size={18} />
-                <span>Pending Reviews</span>
-              </Link>
-            )}
-            <Link to="/reports/department" className={linkClass('/reports/department')}>
-              <FileText size={18} />
-              <span>Team Reports</span>
-            </Link>
-            {user?.role === 'executive' && (
-              <>
-                <Link to="/reports/completion" className={linkClass('/reports/completion')}>
-                  <ClipboardList size={18} />
+            {managementOpen && (
+              <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+                {user?.role === 'manager' && (
+                  <Link to="/manager/reviews" className={linkClass('/manager/reviews')} onClick={handleNavClick}>
+                    <ClipboardList size={16} />
+                    <span>Pending Reviews</span>
+                  </Link>
+                )}
+                <Link to="/reports/department" className={linkClass('/reports/department')} onClick={handleNavClick}>
+                  <FileText size={16} />
+                  <span>Team Reports</span>
+                </Link>
+                <Link to="/hr/kpi-templates" className={linkClass('/hr/kpi-templates')} onClick={handleNavClick}>
+                  <Briefcase size={16} />
+                  <span>KPI Templates</span>
+                </Link>
+                <Link to="/hr/cycles" className={linkClass('/hr/cycles')} onClick={handleNavClick}>
+                  <Calendar size={16} />
+                  <span>Review Cycles</span>
+                </Link>
+                <Link to="/reports/completion" className={linkClass('/reports/completion')} onClick={handleNavClick}>
+                  <ClipboardList size={16} />
                   <span>Completion Report</span>
                 </Link>
-                <Link to="/admin/users" className={linkClass('/admin/users')}>
-                  <Users size={18} />
+                <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
+                  <Users size={16} />
                   <span>Users Database</span>
                 </Link>
-                <Link to="/admin/org" className={linkClass('/admin/org')}>
-                  <Shield size={18} />
+                <Link to="/admin/org" className={linkClass('/admin/org')} onClick={handleNavClick}>
+                  <Shield size={16} />
                   <span>Org Structure</span>
                 </Link>
-              </>
+                {(user?.role === 'admin' || user?.role === 'executive') && (
+                  <Link to="/admin/audit" className={linkClass('/admin/audit')} onClick={handleNavClick}>
+                    <FileText size={16} />
+                    <span>Audit Trails</span>
+                  </Link>
+                )}
+              </div>
             )}
-          </>
-        )}
-
-        {/* HR Desk */}
-        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
-          <>
-            <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">Management & HR Desk</p>
-            </div>
-            {user?.role !== 'executive' && (
-              <Link to="/admin/users" className={linkClass('/admin/users')}>
-                <Users size={18} />
-                <span>Users Database</span>
-              </Link>
-            )}
-            {user?.role !== 'executive' && (
-              <Link to="/hr/kpis" className={linkClass('/hr/kpis')}>
-                <Briefcase size={18} />
-                <span>KPI Templates</span>
-              </Link>
-            )}
-            <Link to="/hr/cycles" className={linkClass('/hr/cycles')}>
-              <Calendar size={18} />
-              <span>Review Cycles</span>
-            </Link>
-            {user?.role !== 'executive' && (
-              <Link to="/reports/completion" className={linkClass('/reports/completion')}>
-                <ClipboardList size={18} />
-                <span>Completion Report</span>
-              </Link>
-            )}
-          </>
+          </div>
         )}
 
         {/* Admin & System Administration */}

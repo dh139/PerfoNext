@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore';
 import { getUserAvatarUrl } from '../utils/avatar';
 import { AlertCircle, CheckCircle2, Star, Layers, Activity, Award, Plus, User, Trash2, Edit, Search } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
+import TablePagination from '../components/TablePagination';
 
 const SkillMatrix = () => {
   const { user } = useAuthStore();
@@ -31,6 +32,8 @@ const SkillMatrix = () => {
   const [employeeProfile, setEmployeeProfile] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 12;
   
   const [activeTab, setActiveTab] = useState('roster');
   const [skillSearchTerm, setSkillSearchTerm] = useState('');
@@ -473,7 +476,10 @@ const SkillMatrix = () => {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setUserPage(1);
+                  }}
                   placeholder="Search staff by name, code, dept..."
                   className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
                 />
@@ -493,55 +499,76 @@ const SkillMatrix = () => {
             </div>
           </div>
 
-          {/* Grid of Interactive Staff Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
-            {users
-              .filter(u => {
-                const name = `${u.firstName} ${u.lastName} ${u.employeeCode}`.toLowerCase();
-                const dept = (u.departmentId?.departmentName || '').toLowerCase();
-                const role = (u.role || '').toLowerCase();
-                const q = searchQuery.toLowerCase();
-                return name.includes(q) || dept.includes(q) || role.includes(q);
-              })
-              .map(u => {
-                const isSelected = selectedEmployeeId === u._id;
-                const deptName = u.departmentId?.departmentName || 'Global';
+          {/* Grid of Interactive Staff Cards with Pagination */}
+          {(() => {
+            const filteredStaffUsers = users.filter(u => {
+              const name = `${u.firstName} ${u.lastName} ${u.employeeCode}`.toLowerCase();
+              const dept = (u.departmentId?.departmentName || '').toLowerCase();
+              const role = (u.role || '').toLowerCase();
+              const q = searchQuery.toLowerCase();
+              return name.includes(q) || dept.includes(q) || role.includes(q);
+            });
 
-                return (
-                  <button
-                    key={u._id}
-                    type="button"
-                    onClick={() => setSelectedEmployeeId(u._id)}
-                    className={`text-left p-3 rounded-2xl transition-all cursor-pointer border flex flex-col justify-between space-y-2 ${
-                      isSelected
-                        ? 'bg-sky-50 text-sky-950 border-sky-500 shadow-md ring-2 ring-sky-500/20'
-                        : 'bg-slate-50/70 hover:bg-slate-100 text-slate-700 border-slate-200/80'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={getUserAvatarUrl(u)}
-                        alt="Avatar"
-                        className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="font-extrabold text-xs text-slate-900 truncate">{u.firstName} {u.lastName}</p>
-                        <span className="text-[9px] font-mono text-slate-400 block truncate">{u.employeeCode}</span>
-                      </div>
-                    </div>
+            const totalUserPages = Math.max(1, Math.ceil(filteredStaffUsers.length / USER_PAGE_SIZE));
+            const safeUserPage = Math.min(userPage, totalUserPages);
+            const paginatedStaffUsers = filteredStaffUsers.slice(
+              (safeUserPage - 1) * USER_PAGE_SIZE,
+              safeUserPage * USER_PAGE_SIZE
+            );
 
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[9px]">
-                      <span className="font-semibold text-slate-500 truncate max-w-[80px]">{deptName}</span>
-                      <span className={`font-black uppercase px-1.5 py-0.2 rounded text-[8px] ${
-                        u.role === 'manager' || u.role === 'hr' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-                      }`}>
-                        {u.role === 'manager' ? 'MGR' : u.role === 'hr' ? 'HR' : 'EMP'}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-          </div>
+            return (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {paginatedStaffUsers.map(u => {
+                    const isSelected = selectedEmployeeId === u._id;
+                    const deptName = u.departmentId?.departmentName || 'Global';
+
+                    return (
+                      <button
+                        key={u._id}
+                        type="button"
+                        onClick={() => setSelectedEmployeeId(u._id)}
+                        className={`text-left p-3 rounded-2xl transition-all cursor-pointer border flex flex-col justify-between space-y-2 ${
+                          isSelected
+                            ? 'bg-sky-50 text-sky-950 border-sky-500 shadow-md ring-2 ring-sky-500/20'
+                            : 'bg-slate-50/70 hover:bg-slate-100 text-slate-700 border-slate-200/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={getUserAvatarUrl(u)}
+                            alt="Avatar"
+                            className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-xs text-slate-900 truncate">{u.firstName} {u.lastName}</p>
+                            <span className="text-[9px] font-mono text-slate-400 block truncate">{u.employeeCode}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[9px]">
+                          <span className="font-semibold text-slate-550 truncate max-w-[80px]">{deptName}</span>
+                          <span className={`font-black uppercase px-1.5 py-0.2 rounded text-[8px] ${
+                            u.role === 'manager' || u.role === 'hr' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {u.role === 'manager' ? 'MGR' : u.role === 'hr' ? 'HR' : 'EMP'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <TablePagination
+                  page={safeUserPage}
+                  totalPages={totalUserPages}
+                  totalCount={filteredStaffUsers.length}
+                  pageSize={USER_PAGE_SIZE}
+                  onPageChange={(p) => setUserPage(p)}
+                />
+              </>
+            );
+          })()}
         </div>
       )}
 

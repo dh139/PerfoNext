@@ -62,16 +62,29 @@ const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDa
   const jd = new Date(Date.UTC(rawJd.getUTCFullYear(), rawJd.getUTCMonth(), rawJd.getUTCDate(), 0, 0, 0, 0));
   const { reviewStart, reviewEnd, minDaysRequired } = getCycleEvaluationPeriod(cycleType, reviewMonth, startDate, endDate);
 
-  // Effective Evaluation Start Date = Max(Joining Date, Review Start Date)
-  const evalStart = jd > reviewStart ? jd : reviewStart;
+  const now = new Date();
+  const nowUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
 
-  // If joining date is after the review period end, 0 days of service
-  if (evalStart > reviewEnd) {
+  // 1. Employee cannot be eligible if joining date is in the future relative to today
+  if (jd > nowUtc) {
     return false;
   }
 
-  // Calculate days of active service during the evaluation period
-  const diffMs = reviewEnd.getTime() - evalStart.getTime();
+  // 2. Employee cannot be eligible if joining date is after the review period ended
+  if (jd > reviewEnd) {
+    return false;
+  }
+
+  // 3. Calculate service window DURING the specific review cycle period
+  const evalStart = jd > reviewStart ? jd : reviewStart;
+  const evalEnd = nowUtc < reviewEnd ? nowUtc : reviewEnd;
+
+  if (evalStart > evalEnd) {
+    return false;
+  }
+
+  // 4. Calculate actual active service days accrued within the evaluation period
+  const diffMs = evalEnd.getTime() - evalStart.getTime();
   const serviceDays = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
 
   return serviceDays >= minDaysRequired;

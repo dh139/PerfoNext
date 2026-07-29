@@ -382,17 +382,19 @@ const PipWorkspace = () => {
               <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
             </div>
 
-            {/* Department Filter */}
-            <select
-              value={pipDeptFilter}
-              onChange={(e) => setPipDeptFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
-            >
-              <option value="all">All Departments</option>
-              {departments.map(d => (
-                <option key={d._id} value={d._id}>{d.departmentName}</option>
-              ))}
-            </select>
+            {/* Department Filter (Managers / HR / Leadership only) */}
+            {user?.role !== 'employee' && (
+              <select
+                value={pipDeptFilter}
+                onChange={(e) => setPipDeptFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+              >
+                <option value="all">All Departments</option>
+                {departments.map(d => (
+                  <option key={d._id} value={d._id}>{d.departmentName}</option>
+                ))}
+              </select>
+            )}
 
             {/* Status Filter */}
             <select

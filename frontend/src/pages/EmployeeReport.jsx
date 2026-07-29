@@ -18,7 +18,6 @@ const EmployeeReport = () => {
   
   // Phase 2 states
   const [recognitions, setRecognitions] = useState([]);
-  const [documents, setDocuments] = useState([]);
   const [certifications, setCertifications] = useState([]);
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -48,9 +47,6 @@ const EmployeeReport = () => {
       const recRes = await api.get(`/api/recognitions?employeeId=${employeeId}`);
       setRecognitions(recRes.data);
 
-      const docRes = await api.get(`/api/documents?employeeId=${employeeId}`);
-      setDocuments(docRes.data);
-
       const certRes = await api.get(`/api/certifications?employeeId=${employeeId}`);
       setCertifications(certRes.data);
 
@@ -58,33 +54,6 @@ const EmployeeReport = () => {
       setAttendanceRecords(attRes.data);
     } catch (err) {
       console.error('Failed to load addons:', err);
-    }
-  };
-
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('employeeId', employeeId);
-
-    try {
-      setUploading(true);
-      await api.post('/api/documents/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-      // Refresh documents
-      const docRes = await api.get(`/api/documents?employeeId=${employeeId}`);
-      setDocuments(docRes.data);
-      toast.success('Document uploaded successfully!');
-    } catch (err) {
-      console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to upload document.');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -229,7 +198,7 @@ const EmployeeReport = () => {
     });
 
     const fRecs = recognitions.filter(r => {
-      const awardDate = new Date(r.awardedAt);
+      const awardDate = new Date(r.awardedAt || r.createdAt);
       return awardDate >= startBound && awardDate <= endBound;
     });
 
@@ -275,6 +244,64 @@ const EmployeeReport = () => {
     return `${day}/${month}/${year}`;
   };
 
+  const getLevelBadge = (u) => {
+    if (!u) return null;
+    const jd = u.joiningDate ? new Date(u.joiningDate) : null;
+    let expText = 'New Joiner';
+    if (jd && !isNaN(jd.getTime())) {
+      const diffYears = Math.round((Math.abs(new Date() - jd) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
+      if (diffYears < 0.1) {
+        expText = '< 1 mo tenure';
+      } else if (diffYears < 1) {
+        const months = Math.round(diffYears * 12);
+        expText = `${months} mos tenure`;
+      } else {
+        expText = `${diffYears} yrs tenure`;
+      }
+    }
+
+    const lvl = u.level || 5;
+    let levelTitle = `L${lvl}`;
+    let badgeColor = 'bg-slate-100 text-slate-700 border-slate-200';
+
+    switch (lvl) {
+      case 1:
+        levelTitle = 'L1 • Executive';
+        badgeColor = 'bg-purple-100 text-purple-800 border-purple-200';
+        break;
+      case 2:
+        levelTitle = 'L2 • Senior Lead';
+        badgeColor = 'bg-indigo-100 text-indigo-800 border-indigo-200';
+        break;
+      case 3:
+        levelTitle = 'L3 • Team Lead';
+        badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
+        break;
+      case 4:
+        levelTitle = 'L4 • Senior Staff';
+        badgeColor = 'bg-teal-100 text-teal-800 border-teal-200';
+        break;
+      case 5:
+        levelTitle = 'L5 • Mid-Level';
+        badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        break;
+      case 6:
+      default:
+        levelTitle = 'L6 • Associate';
+        badgeColor = 'bg-amber-100 text-amber-800 border-amber-200';
+        break;
+    }
+
+    return (
+      <div className="flex items-center gap-2 mt-1.5">
+        <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded border ${badgeColor}`}>
+          {levelTitle}
+        </span>
+        <span className="text-[11px] text-slate-500 font-semibold">• {expText}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
       {/* Header Back Button */}
@@ -304,6 +331,7 @@ const EmployeeReport = () => {
               ID: {employee.employeeCode} | Department: <span className="font-semibold text-slate-700">{employee.departmentId?.departmentName}</span>
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">Designation: {employee.designationId?.designationName}</p>
+            {getLevelBadge(employee)}
           </div>
         </div>
 

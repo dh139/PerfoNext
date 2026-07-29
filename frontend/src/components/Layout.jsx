@@ -60,7 +60,7 @@ const Layout = () => {
     if (path === '/admin/users') return 'Employee Database';
     if (path === '/admin/org') return 'Organization Structure';
     if (path === '/admin/audit') return 'Security Audit Trail';
-    return 'EPTS Dashboard';
+    return 'PerformNext Dashboard';
   };
 
   return (

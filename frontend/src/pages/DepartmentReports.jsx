@@ -389,24 +389,36 @@ const DepartmentReports = () => {
                             </div>
                           </Link>
                         </td>
-                        <td className="py-4 px-4 font-bold text-sky-700 text-sm">{s.finalScore}</td>
+                        <td className="py-4 px-4 font-bold text-sky-700 text-sm">
+                          {s.isPending || s.finalScore === null ? '-' : s.finalScore}
+                        </td>
                         <td className="py-4 px-4">
-                          <span className={`inline-block font-semibold px-2 py-0.5 rounded-full text-[10px] ${
-                            s.finalScore >= 4.0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                            s.finalScore >= 3.0 ? 'bg-sky-50 text-sky-700 border-sky-100' :
-                            'bg-amber-50 text-amber-700 border-amber-100'
+                          <span className={`inline-block font-semibold px-2.5 py-0.5 rounded-full text-[10px] ${
+                            s.isPending || s.finalScore === null ? 'bg-amber-50 text-amber-800 border border-amber-200 font-extrabold' :
+                            s.finalScore >= 4.0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                            s.finalScore >= 3.0 ? 'bg-sky-50 text-sky-700 border border-sky-100' :
+                            'bg-rose-50 text-rose-700 border border-rose-100'
                           }`}>
                             {s.rating}
                           </span>
                         </td>
                         <td className="py-4 px-4 text-right">
-                          <Link
-                            to={`/reports/employee/${s.employeeId?._id}`}
-                            className="px-3 py-1.5 bg-sky-700 hover:bg-sky-850 text-white rounded-xl font-bold text-[10px] inline-flex items-center gap-1 shadow-sm transition-colors"
-                          >
-                            <Sparkles size={12} />
-                            <span>View AI Insights</span>
-                          </Link>
+                          {s.isPending || s.finalScore === null ? (
+                            <Link
+                              to={`/reports/employee/${s.employeeId?._id}`}
+                              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] inline-flex items-center gap-1 transition-colors"
+                            >
+                              <span>View Profile</span>
+                            </Link>
+                          ) : (
+                            <Link
+                              to={`/reports/employee/${s.employeeId?._id}`}
+                              className="px-3 py-1.5 bg-sky-700 hover:bg-sky-850 text-white rounded-xl font-bold text-[10px] inline-flex items-center gap-1 shadow-sm transition-colors"
+                            >
+                              <Sparkles size={12} />
+                              <span>View AI Insights</span>
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     ))}

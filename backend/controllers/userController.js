@@ -32,9 +32,10 @@ const determineUserLevel = (role, joiningDate) => {
   if (role === 'hr') return 2;
   if (role === 'admin') return 3;
 
-  // Calculate years of experience from joiningDate to now
-  const jd = joiningDate ? new Date(joiningDate) : new Date();
-  const diffTime = Math.abs(new Date() - jd);
+  // Calculate years of experience from joiningDate to now (0 if future)
+  const now = new Date();
+  const jd = joiningDate ? new Date(joiningDate) : now;
+  const diffTime = jd > now ? 0 : now - jd;
   const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
 
   if (role === 'manager') {
@@ -144,6 +145,15 @@ const createUser = async (req, res) => {
 
     if (!['admin', 'executive'].includes(role) && !designationId) {
       return res.status(400).json({ message: 'Designation is required for non-admin/executive roles.' });
+    }
+
+    if (joiningDate) {
+      const jdDate = new Date(joiningDate);
+      const now = new Date();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      if (jdDate > todayEnd) {
+        return res.status(400).json({ message: 'Joining date cannot be in the future.' });
+      }
     }
 
     // Validate email uniqueness
@@ -268,6 +278,15 @@ const updateUser = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (req.body.joiningDate) {
+      const jdDate = new Date(req.body.joiningDate);
+      const now = new Date();
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      if (jdDate > todayEnd) {
+        return res.status(400).json({ message: 'Joining date cannot be in the future.' });
+      }
     }
 
     const before = user.toObject();

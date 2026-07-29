@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight, CheckCircle2, Trash2 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import ConfirmModal from '../components/ConfirmModal';
+import TablePagination from '../components/TablePagination';
 
 const ReviewCycles = () => {
   const { user } = useAuthStore();
@@ -12,11 +13,20 @@ const ReviewCycles = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
+  const [pendingDeleteCycle, setPendingDeleteCycle] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [cyclePage, setCyclePage] = useState(1);
+
+  const getCurrentDefaultReviewMonth = () => {
+    const now = new Date();
+    const yr = now.getFullYear();
+    const q = Math.ceil((now.getMonth() + 1) / 3);
+    return `${yr}-Q${q}`;
+  };
 
   // Form State
-  const [reviewMonth, setReviewMonth] = useState('2026-07');
+  const [reviewMonth, setReviewMonth] = useState(getCurrentDefaultReviewMonth());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [kpiTemplateId, setKpiTemplateId] = useState('');
@@ -50,11 +60,11 @@ const ReviewCycles = () => {
 
   const getAnnualOptions = () => {
     const currentYear = new Date().getFullYear();
-    return [
-      { value: `${currentYear - 1}`, label: `${currentYear - 1} (Jan 01 - Dec 31)` },
-      { value: `${currentYear}`, label: `${currentYear} (Jan 01 - Dec 31)` },
-      { value: `${currentYear + 1}`, label: `${currentYear + 1} (Jan 01 - Dec 31)` }
-    ];
+    const years = [currentYear - 1, currentYear, currentYear + 1];
+    return years.map(yr => ({
+      value: `${yr}`,
+      label: `${yr} (Jan 01 - Dec 31)`
+    }));
   };
 
   // Reset default reviewMonth when cycleType changes
@@ -154,6 +164,20 @@ const ReviewCycles = () => {
     }
   };
 
+  const confirmDeleteCycle = async () => {
+    if (!pendingDeleteCycle) return;
+    const id = pendingDeleteCycle._id;
+    setPendingDeleteCycle(null);
+    try {
+      await api.delete(`/api/review-cycles/${id}`);
+      toast.success('Review cycle deleted successfully.');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to delete review cycle.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
@@ -162,13 +186,30 @@ const ReviewCycles = () => {
     );
   }
 
-  const filteredCycles = cycles.filter(c => {
+  const CYCLE_PAGE_SIZE = 10;
+
+  // Sort latest review cycles first (createdAt descending, or startDate descending)
+  const sortedCycles = [...cycles].sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.startDate ? new Date(a.startDate).getTime() : 0);
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.startDate ? new Date(b.startDate).getTime() : 0);
+    if (timeA !== timeB) return timeB - timeA;
+    return String(b._id || '').localeCompare(String(a._id || ''));
+  });
+
+  const filteredCycles = sortedCycles.filter(c => {
     const monthMatch = (c.reviewMonth || '').toLowerCase().includes(searchTerm.toLowerCase());
     const tNameMatch = (c.kpiTemplateId?.templateName || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSearch = monthMatch || tNameMatch;
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const totalCyclePages = Math.max(1, Math.ceil(filteredCycles.length / CYCLE_PAGE_SIZE));
+  const safeCyclePage = Math.min(cyclePage, totalCyclePages);
+  const paginatedCycles = filteredCycles.slice(
+    (safeCyclePage - 1) * CYCLE_PAGE_SIZE,
+    safeCyclePage * CYCLE_PAGE_SIZE
+  );
 
   const totalCyclesCount = cycles.length;
   const activeCyclesCount = cycles.filter(c => c.status === 'active').length;
@@ -279,7 +320,10 @@ const ReviewCycles = () => {
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCyclePage(1);
+              }}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
             >
               <option value="all">All Cycle Statuses</option>
@@ -292,7 +336,10 @@ const ReviewCycles = () => {
               type="text"
               placeholder="Search month or template..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCyclePage(1);
+              }}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none w-full sm:w-56 font-medium"
             />
           </div>
@@ -304,76 +351,98 @@ const ReviewCycles = () => {
             <p className="text-slate-500 font-bold text-xs">No review cycles found matching your query.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200 bg-slate-50/80">
-                  <th className="py-3 px-4 rounded-l-xl">Cycle Period</th>
-                  <th className="py-3 px-4">Target Audience</th>
-                  <th className="py-3 px-4">Cycle Type</th>
-                  <th className="py-3 px-4">KPI Template Pairing</th>
-                  <th className="py-3 px-4">Start Date</th>
-                  <th className="py-3 px-4">Due Date</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 rounded-r-xl text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredCycles.map(c => (
-                  <tr key={c._id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-4 px-4 font-black text-slate-900 text-xs">
-                       {c.reviewMonth}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className={`inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
-                        c.targetRole === 'manager'
-                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
-                          : 'bg-sky-100 text-sky-800 border border-sky-200'
-                      }`}>
-                        {c.targetRole === 'manager' ? 'Managers (CEO Review)' : 'Employees (Manager Review)'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 font-bold text-slate-600 capitalize">
-                      {c.cycleType === 'half_yearly' ? 'Half-Yearly' : c.cycleType === 'yearly' || c.cycleType === 'annual' ? 'Yearly' : c.cycleType === 'quarterly' ? 'Quarterly' : (c.cycleType || 'monthly')}
-                    </td>
-                    <td className="py-4 px-4 font-extrabold text-sky-800">
-                      {c.kpiTemplateId?.templateName || 'Org-Wide Core Leadership'}
-                    </td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">
-                      {new Date(c.startDate).toLocaleDateString()}
-                    </td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">
-                      {new Date(c.endDate).toLocaleDateString()}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${
-                        c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                        c.status === 'closed' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                        'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}>
-                        {c.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                        {c.status?.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      {c.status !== 'closed' ? (
-                        <button
-                          onClick={() => handleUpdateStatus(c._id, c.status)}
-                          className={`font-black text-xs px-3.5 py-1.5 rounded-xl border transition-colors cursor-pointer shadow-3xs ${
-                            c.status === 'draft' ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700' : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
-                          }`}
-                        >
-                          {c.status === 'draft' ? 'Activate Cycle' : 'Close Cycle'}
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-slate-400 font-bold italic">Archived</span>
-                      )}
-                    </td>
+          <>
+            <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-200 bg-slate-50/80">
+                    <th className="py-3 px-4 rounded-l-xl">Cycle Period</th>
+                    <th className="py-3 px-4">Target Audience</th>
+                    <th className="py-3 px-4">Cycle Type</th>
+                    <th className="py-3 px-4">KPI Template Pairing</th>
+                    <th className="py-3 px-4">Start Date</th>
+                    <th className="py-3 px-4">Due Date</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 rounded-r-xl text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedCycles.map(c => (
+                    <tr key={c._id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-4 px-4 font-black text-slate-900 text-xs">
+                         {c.reviewMonth}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full ${
+                          c.targetRole === 'manager'
+                            ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                            : 'bg-sky-100 text-sky-800 border border-sky-200'
+                        }`}>
+                          {c.targetRole === 'manager' ? 'Managers (CEO Review)' : 'Employees (Manager Review)'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 font-bold text-slate-600 capitalize">
+                        {c.cycleType === 'half_yearly' ? 'Half-Yearly' : c.cycleType === 'yearly' || c.cycleType === 'annual' ? 'Yearly' : c.cycleType === 'quarterly' ? 'Quarterly' : (c.cycleType || 'monthly')}
+                      </td>
+                      <td className="py-4 px-4 font-bold text-sky-800">
+                        {c.kpiTemplateId?.templateName || 'General KPI Template'}
+                      </td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">
+                        {new Date(c.startDate).toLocaleDateString()}
+                      </td>
+                      <td className="py-4 px-4 text-slate-500 font-medium">
+                        {new Date(c.endDate).toLocaleDateString()}
+                      </td>
+                      <td className="py-4 px-4">
+                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${
+                          c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          c.status === 'closed' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {c.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                          {c.status?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {c.status !== 'closed' ? (
+                            <button
+                              onClick={() => handleUpdateStatus(c._id, c.status)}
+                              className={`font-black text-xs px-3.5 py-1.5 rounded-xl border transition-colors cursor-pointer shadow-3xs ${
+                                c.status === 'draft' ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700' : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
+                              }`}
+                            >
+                              {c.status === 'draft' ? 'Activate Cycle' : 'Close Cycle'}
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 font-bold italic">Archived</span>
+                          )}
+
+                          {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
+                            <button
+                              onClick={() => setPendingDeleteCycle(c)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                              title="Delete Review Cycle"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <TablePagination
+              page={safeCyclePage}
+              totalPages={totalCyclePages}
+              totalCount={filteredCycles.length}
+              pageSize={CYCLE_PAGE_SIZE}
+              onPageChange={(p) => setCyclePage(p)}
+            />
+          </>
         )}
       </div>
 
@@ -517,6 +586,16 @@ const ReviewCycles = () => {
         danger={pendingStatusChange?.nextStatus === 'closed'}
         onConfirm={confirmUpdateStatus}
         onCancel={() => setPendingStatusChange(null)}
+      />
+
+      <ConfirmModal
+        open={!!pendingDeleteCycle}
+        title="Delete Review Cycle?"
+        message={`Are you sure you want to delete review cycle "${pendingDeleteCycle?.reviewMonth}" (${pendingDeleteCycle?.kpiTemplateId?.templateName || 'Cycle'})? This action will permanently remove associated self-assessments and evaluation scores.`}
+        confirmLabel="Delete Cycle"
+        danger={true}
+        onConfirm={confirmDeleteCycle}
+        onCancel={() => setPendingDeleteCycle(null)}
       />
 
     </div>

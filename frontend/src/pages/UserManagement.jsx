@@ -141,6 +141,16 @@ const UserManagement = () => {
     setError('');
     setModalError('');
     setIsSubmitting(true);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (joiningDate && joiningDate > todayStr) {
+      const errMsg = 'Joining date cannot be in the future.';
+      setModalError(errMsg);
+      toast.error(errMsg);
+      setIsSubmitting(false);
+      return;
+    }
+
     const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId: departmentId || null, designationId: designationId || null, managerId: managerId || '', joiningDate, employmentStatus, gender };
     if (password) payload.password = password;
     try {
@@ -299,11 +309,9 @@ const UserManagement = () => {
             </div>
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">Enterprise User & Privilege Directory</h1>
           </div>
-          {currentUser?.role !== 'executive' && (
-            <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-colors shrink-0 cursor-pointer">
-              <Plus size={18} /><span>Register Employee</span>
-            </button>
-          )}
+          <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-colors shrink-0 cursor-pointer">
+            <Plus size={18} /><span>Register Employee</span>
+          </button>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
@@ -368,7 +376,7 @@ const UserManagement = () => {
                   <th className="p-3">Level & Experience</th>
                   <th className="p-3">Reporting Line</th>
                   <th className="p-3 text-center">Status</th>
-                  {currentUser?.role !== 'executive' && <th className="p-3 pr-4 text-right">Actions</th>}
+                  <th className="p-3 pr-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -409,12 +417,10 @@ const UserManagement = () => {
                         {u.employmentStatus === 'active' ? <CheckCircle2 size={10} /> : <XCircle size={10} />} {u.employmentStatus}
                       </span>
                     </td>
-                    {currentUser?.role !== 'executive' && (
-                      <td className="p-3 pr-4 text-right flex justify-end gap-1.5">
-                        <button onClick={() => handleOpenEdit(u)} className="p-1.5 text-sky-700 hover:text-sky-900 bg-sky-50 rounded-lg border border-sky-100 cursor-pointer"><Edit2 size={13} /></button>
-                        <button onClick={() => handleDeleteUser(u._id, `${u.firstName} ${u.lastName}`)} className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 rounded-lg border border-rose-100 cursor-pointer"><Trash2 size={13} /></button>
-                      </td>
-                    )}
+                    <td className="p-3 pr-4 text-right flex justify-end gap-1.5">
+                      <button onClick={() => handleOpenEdit(u)} className="p-1.5 text-sky-700 hover:text-sky-900 bg-sky-50 rounded-lg border border-sky-100 cursor-pointer"><Edit2 size={13} /></button>
+                      <button onClick={() => handleDeleteUser(u._id, `${u.firstName} ${u.lastName}`)} className="p-1.5 text-rose-600 hover:text-rose-800 bg-rose-50 rounded-lg border border-rose-100 cursor-pointer"><Trash2 size={13} /></button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -602,6 +608,7 @@ const UserManagement = () => {
                     <input
                       type="date"
                       value={joiningDate}
+                      max={new Date().toISOString().split('T')[0]}
                       onChange={(e) => setJoiningDate(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required

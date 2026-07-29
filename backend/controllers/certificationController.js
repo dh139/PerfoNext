@@ -1,7 +1,7 @@
 const Certification = require('../models/Certification');
-const Document = require('../models/Document');
 const ReviewCycle = require('../models/ReviewCycle');
 const AIReport = require('../models/AIReport');
+const User = require('../models/User');
 const fs = require('fs');
 const pdf = require('pdf-parse');
 
@@ -36,14 +36,49 @@ const uploadCertification = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
-    // Check if there is an active review cycle
+    // Resolve target employee and department
+    const targetUser = await User.findById(targetEmployeeId).populate('departmentId');
+    if (!targetUser) {
+      return res.status(404).json({ message: 'Target employee not found.' });
+    }
+
+    // Check if there is an active review cycle applicable to this user's department and role
     await ReviewCycle.autoCloseExpiredCycles();
-    const activeCycle = await ReviewCycle.findOne({ status: 'active' });
-    if (!activeCycle) {
+    const activeCycles = await ReviewCycle.find({ status: 'active' }).populate('kpiTemplateId');
+
+    const userDeptId = targetUser.departmentId?._id
+      ? targetUser.departmentId._id.toString()
+      : targetUser.departmentId
+      ? targetUser.departmentId.toString()
+      : null;
+    const userRole = targetUser.role;
+
+    const isTargetCycleActive = activeCycles.some(c => {
+      const cycleDeptId = c.kpiTemplateId?.departmentId
+        ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
+        : null;
+      const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
+      const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
+
+      const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId);
+
+      let roleMatches = true;
+      if (c.targetRole === 'manager') {
+        roleMatches = userRole === 'manager' || userRole === 'hr';
+      } else if (c.targetRole === 'employee') {
+        roleMatches = userRole === 'employee';
+      }
+
+      return deptMatches && roleMatches;
+    });
+
+    if (!isTargetCycleActive) {
       if (req.file && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
-      return res.status(400).json({ message: 'Cannot add certification when there is no active review cycle.' });
+      return res.status(400).json({
+        message: `Cannot upload certification for ${targetUser.firstName} ${targetUser.lastName}. There is no active review cycle open for their department and role.`
+      });
     }
 
     if (!req.file) {

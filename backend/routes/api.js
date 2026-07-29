@@ -14,8 +14,16 @@ const auditController = require('../controllers/auditController');
 const pipController = require('../controllers/pipController');
 const promotionController = require('../controllers/promotionController');
 const recognitionController = require('../controllers/recognitionController');
-const documentController = require('../controllers/documentController');
-const upload = require('../middlewares/upload');
+const { upload, verifyFileMagicBytes } = require('../middlewares/upload');
+const {
+  validateLogin,
+  validateRegister,
+  validateForgotPassword,
+  validateResetPassword,
+  validateRecognition,
+  validateReviewCycle
+} = require('../middlewares/validators');
+
 const insightController = require('../controllers/insightController');
 const feedbackController = require('../controllers/feedbackController');
 const skillController = require('../controllers/skillController');
@@ -23,13 +31,13 @@ const certificationController = require('../controllers/certificationController'
 const integrationController = require('../controllers/integrationController');
 
 // ==================== AUTH ROUTES ====================
-router.post('/auth/login', authController.login);
+router.post('/auth/login', validateLogin, authController.login);
 router.post('/auth/refresh', authController.refresh);
 router.post('/auth/logout', authController.logout);
-router.post('/auth/register', authController.register);
-router.post('/auth/forgot-password', authController.forgotPassword);
+router.post('/auth/register', validateRegister, authController.register);
+router.post('/auth/forgot-password', validateForgotPassword, authController.forgotPassword);
 router.post('/auth/verify-otp', authController.verifyOtp);
-router.post('/auth/reset-password', authController.resetPassword);
+router.post('/auth/reset-password', validateResetPassword, authController.resetPassword);
 
 // Public metadata routes for registration
 router.get('/auth/departments', userController.getDepartments);
@@ -41,11 +49,11 @@ router.get('/auth/managers', userController.getPublicManagers);
 router.get('/users', verifyToken, userController.getUsers);
 router.get('/users/me', verifyToken, userController.getMyProfile);
 router.patch('/users/me', verifyToken, userController.updateMyProfile);
-router.patch('/users/me/profile-photo', verifyToken, upload.single('file'), userController.uploadProfilePhoto);
+router.patch('/users/me/profile-photo', verifyToken, upload.single('file'), verifyFileMagicBytes, userController.uploadProfilePhoto);
 router.get('/users/:id', verifyToken, userController.getUserById);
-router.post('/users', verifyToken, authorizeRoles('admin', 'hr'), userController.createUser);
-router.patch('/users/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateUser);
-router.delete('/users/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.deleteUser);
+router.post('/users', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.createUser);
+router.patch('/users/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.updateUser);
+router.delete('/users/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.deleteUser);
 
 // Department Management
 router.get('/departments', verifyToken, userController.getDepartments);
@@ -61,14 +69,15 @@ router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr'), us
 // KPI Templates
 router.get('/kpi-templates', verifyToken, kpiController.getKpiTemplates);
 router.get('/kpi-templates/:id', verifyToken, kpiController.getKpiTemplateById);
-router.post('/kpi-templates', verifyToken, authorizeRoles('admin', 'hr'), kpiController.createKpiTemplate);
-router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr'), kpiController.updateKpiTemplate);
+router.post('/kpi-templates', verifyToken, authorizeRoles('admin', 'hr', 'executive'), kpiController.createKpiTemplate);
+router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), kpiController.updateKpiTemplate);
 
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);
 router.get('/review-cycles/:id', verifyToken, cycleController.getReviewCycleById);
-router.post('/review-cycles', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.createReviewCycle);
+router.post('/review-cycles', verifyToken, authorizeRoles('admin', 'hr', 'executive'), validateReviewCycle, cycleController.createReviewCycle);
 router.patch('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.updateReviewCycle);
+router.delete('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.deleteReviewCycle);
 
 // Assessments & Reviews
 router.get('/self-assessments', verifyToken, cycleController.getSelfAssessments);
@@ -109,16 +118,12 @@ router.patch('/pips/:id', verifyToken, pipController.updatePip);
 
 // Promotion Routes
 router.get('/promotions', verifyToken, promotionController.getPromotions);
-router.post('/promotions', verifyToken, authorizeRoles('admin', 'hr', 'manager'), promotionController.createPromotion);
-router.patch('/promotions/:id/approve', verifyToken, authorizeRoles('admin', 'hr'), promotionController.approvePromotion);
+router.post('/promotions', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), promotionController.createPromotion);
+router.patch('/promotions/:id/approve', verifyToken, authorizeRoles('admin', 'hr', 'executive'), promotionController.approvePromotion);
 
 // Recognition Routes
 router.get('/recognitions', verifyToken, recognitionController.getRecognitions);
-router.post('/recognitions', verifyToken, authorizeRoles('admin', 'hr', 'manager'), recognitionController.createRecognition);
-
-// Document Routes
-router.get('/documents', verifyToken, documentController.getDocuments);
-router.post('/documents/upload', verifyToken, upload.single('file'), documentController.uploadDocument);
+router.post('/recognitions', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), validateRecognition, recognitionController.createRecognition);
 
 // AI Insights Routes
 router.get('/insights/:employeeId', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), insightController.getEmployeeInsights);
@@ -142,7 +147,7 @@ router.post('/employee-skills', verifyToken, skillController.updateEmployeeSkill
 
 // Certification Routes
 router.get('/certifications', verifyToken, certificationController.getCertifications);
-router.post('/certifications/upload', verifyToken, upload.single('file'), certificationController.uploadCertification);
+router.post('/certifications/upload', verifyToken, upload.single('file'), verifyFileMagicBytes, certificationController.uploadCertification);
 
 // Ecosystem Integration Routes
 router.get('/integrations/attendance', verifyToken, integrationController.getAttendance);

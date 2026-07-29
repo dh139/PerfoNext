@@ -29,8 +29,8 @@ const getEmailWrapper = (title, contentHtml) => {
         <!-- Header -->
         <tr>
           <td style="background-color: #0f172a; padding: 24px; text-align: center; border-bottom: 3px solid #0ea5e9;">
-            <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">EPTS</span>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Employee Performance Tracking System</div>
+            <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">PerformNext</span>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Enterprise Performance Platform</div>
           </td>
         </tr>
         
@@ -53,7 +53,7 @@ const getEmailWrapper = (title, contentHtml) => {
         <!-- Footer -->
         <tr>
           <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 11px; line-height: 1.5;">
-            <p style="margin: 0; font-weight: 600; color: #64748b;">EPTS Corporation</p>
+            <p style="margin: 0; font-weight: 600; color: #64748b;">PerformNext Corporation</p>
             <p style="margin: 4px 0 0 0;">This is an automated system notification. Please do not reply directly to this email.</p>
           </td>
         </tr>
@@ -63,13 +63,13 @@ const getEmailWrapper = (title, contentHtml) => {
 };
 
 const sendOtpEmail = async (toEmail, otp) => {
-  const subject = 'EPTS Password Reset OTP';
-  const text = `Your One-Time Password (OTP) to reset your EPTS account password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.`;
+  const subject = 'PerformNext Password Reset OTP';
+  const text = `Your One-Time Password (OTP) to reset your PerformNext account password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.`;
   const html = getEmailWrapper(
     'Password Reset Request',
     `
       <p style="margin-top: 0;">Hello,</p>
-      <p>We received a request to reset the password for your EPTS account. Use the One-Time Password (OTP) below to proceed:</p>
+      <p>We received a request to reset the password for your PerformNext account. Use the One-Time Password (OTP) below to proceed:</p>
       <div style="text-align: center; margin: 32px 0;">
         <div style="display: inline-block; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0ea5e9;">
           ${otp}
@@ -96,16 +96,16 @@ const sendOtpEmail = async (toEmail, otp) => {
 };
 
 const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password) => {
-  const subject = 'Welcome to EPTS - Account Created Successfully';
+  const subject = 'Welcome to PerformNext - Account Created Successfully';
   const roleTitle = role === 'admin' ? 'Administrator' : role === 'hr' ? 'HR Manager' : role === 'manager' ? 'Reporting Manager' : role === 'executive' ? 'CEO / Management' : 'Employee';
   
-  const text = `Hello ${firstName},\n\nWelcome to EPTS (Employee Performance Tracking System)!\nYour account has been created successfully.\n\nAccount Details:\n- Employee Code: ${employeeCode}\n- Registered Email: ${toEmail}\n- Temporary Password: ${password || 'EPTS2026!'}\n- System Role: ${roleTitle}\n\nYou can now log in to the EPTS portal.\n\nBest regards,\nEPTS Team`;
+  const text = `Hello ${firstName},\n\nWelcome to PerformNext (Enterprise Performance Platform)!\nYour account has been created successfully.\n\nAccount Details:\n- Employee Code: ${employeeCode}\n- Registered Email: ${toEmail}\n- Temporary Password: ${password || 'PerformNext2026!'}\n- System Role: ${roleTitle}\n\nYou can now log in to the PerformNext portal.\n\nBest regards,\nPerformNext Team`;
   
   const html = getEmailWrapper(
-    'Welcome to EPTS!',
+    'Welcome to PerformNext!',
     `
       <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
-      <p>Your account on the EPTS platform has been created successfully. Below are your login and configuration details:</p>
+      <p>Your account on the PerformNext platform has been created successfully. Below are your login and configuration details:</p>
       
       <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 24px 0;">
         <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
@@ -150,7 +150,7 @@ const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password
 
 const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endDate) => {
   const subject = `New Performance Review Cycle Started (${reviewMonth})`;
-  const text = `Hello ${firstName},\n\nA new performance review cycle for ${reviewMonth} has officially started.\nPlease complete and submit your self-assessment in the EPTS portal before ${new Date(endDate).toLocaleDateString()}.\n\nBest regards,\nEPTS Team`;
+  const text = `Hello ${firstName},\n\nA new performance review cycle for ${reviewMonth} has officially started.\nPlease complete and submit your self-assessment in the PerformNext portal before ${new Date(endDate).toLocaleDateString()}.\n\nBest regards,\nPerformNext Team`;
   const html = getEmailWrapper(
     'Performance Review Cycle Open',
     `
@@ -162,7 +162,7 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
         <span style="color: #1d4ed8; font-size: 20px; font-weight: 800; display: block;">${new Date(endDate).toLocaleDateString()}</span>
       </div>
 
-      <p>Log in to your EPTS Dashboard and select <strong>Continue Review</strong> to complete your scoring sheet.</p>
+      <p>Log in to your PerformNext Dashboard and select <strong>Continue Review</strong> to complete your scoring sheet.</p>
     `
   );
 
@@ -183,7 +183,7 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
 
 const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, employeeName, reviewMonth) => {
   const subject = `Self-Assessment Submitted: ${employeeName} (${reviewMonth})`;
-  const text = `Hello ${managerName},\n\n${employeeName} has submitted their self-assessment for the ${reviewMonth} review cycle.\nPlease log in to EPTS to conduct and submit your manager review.\n\nBest regards,\nEPTS Team`;
+  const text = `Hello ${managerName},\n\n${employeeName} has submitted their self-assessment for the ${reviewMonth} review cycle.\nPlease log in to PerformNext to conduct and submit your manager review.\n\nBest regards,\nPerformNext Team`;
   const html = getEmailWrapper(
     'Self-Assessment Action Required',
     `
@@ -215,7 +215,7 @@ const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, emplo
 
 const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, reviewMonth, finalScore, rating) => {
   const subject = `Performance Evaluation Summary Published (${reviewMonth})`;
-  const text = `Hello ${employeeName},\n\nYour performance review score for ${reviewMonth} has been computed.\nFinal Rating: ${finalScore} / 5.0 (${rating})\n\nYou can log in to EPTS to view your complete performance report.\n\nBest regards,\nEPTS Team`;
+  const text = `Hello ${employeeName},\n\nYour performance review score for ${reviewMonth} has been computed.\nFinal Rating: ${finalScore} / 5.0 (${rating})\n\nYou can log in to PerformNext to view your complete performance report.\n\nBest regards,\nPerformNext Team`;
   const html = getEmailWrapper(
     'Evaluation Summary Published',
     `

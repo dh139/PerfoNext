@@ -10,6 +10,7 @@ import {
   FileText,
   Users,
   ChevronRight,
+  ChevronLeft,
   Activity,
   Briefcase,
   Layers,
@@ -255,7 +256,7 @@ const EmployeeDashboard = ({ data, user }) => {
                 <BookOpen size={18} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-sm">Your EPTS Journey</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Your PerformNext Journey</h3>
                 <p className="text-[11px] text-slate-500">Track and complete your employee lifecycle tasks</p>
               </div>
             </div>
@@ -690,9 +691,9 @@ const HRDashboard = ({ data, user }) => {
     return Array.from(uniqueMap.values());
   };
 
-  // Dynamic Department-wise Top Rankings (Highest Scores)
-  const filteredEmployeesRanking = getUniqueLatest(filteredEmpPool).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
-  const filteredManagersRanking = getUniqueLatest(filteredMgrPool).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  // Dynamic Department-wise Top Rankings (Highest Scores >= 3.0 only)
+  const filteredEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore >= 3.0)).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  const filteredManagersRanking = getUniqueLatest(filteredMgrPool.filter(score => score.finalScore >= 3.0)).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
 
   // Dynamic Department-wise Needs Improvement Rankings (Lowest Scores below 3.0)
   const filteredLowestEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
@@ -1441,6 +1442,11 @@ const OrgTreeHierarchy = () => {
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('all');
   const [collapsedManagers, setCollapsedManagers] = useState({});
+  const [allCollapsed, setAllCollapsed] = useState(false);
+  const [viewMode, setViewMode] = useState('chart'); // 'chart' | 'directory'
+  const [subSearch, setSubSearch] = useState({});
+  const [subExpanded, setSubExpanded] = useState({});
+  const [subPage, setSubPage] = useState({});
 
   useEffect(() => {
     const fetchTreeData = async () => {
@@ -1465,16 +1471,28 @@ const OrgTreeHierarchy = () => {
     setCollapsedManagers(prev => ({ ...prev, [mgrId]: !prev[mgrId] }));
   };
 
+  const toggleAll = () => {
+    const nextState = !allCollapsed;
+    setAllCollapsed(nextState);
+    const newCollapsed = {};
+    if (nextState) {
+      users.filter(u => u.role === 'manager' || u.role === 'hr').forEach(m => {
+        newCollapsed[m._id] = true;
+      });
+    }
+    setCollapsedManagers(newCollapsed);
+  };
+
   if (loading) {
     return (
-      <div className="py-16 text-center bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
-        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p className="text-slate-500 font-medium text-xs">Building Organizational Tree Hierarchy...</p>
+      <div className="py-20 text-center bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+        <div className="w-10 h-10 border-4 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        <p className="text-slate-500 font-bold text-xs">Building Large-Scale Enterprise Tree Hierarchy...</p>
       </div>
     );
   }
 
-  // Filter users by search term & department
+  // Filter users by search & department
   const filteredUsers = users.filter(u => {
     const fullName = `${u.firstName} ${u.lastName} ${u.employeeCode} ${u.email} ${u.designationId?.designationName || ''}`.toLowerCase();
     const matchesSearch = fullName.includes(search.toLowerCase());
@@ -1483,13 +1501,15 @@ const OrgTreeHierarchy = () => {
     return matchesSearch && matchesDept;
   });
 
-  // Level 1: Executive & CEO Leadership (role === 'executive' or 'admin')
+  // Level 1: CEO & Admin Executive Leadership
   const executives = filteredUsers.filter(u => u.role === 'executive' || u.role === 'admin');
+  const ceoUser = executives.find(u => u.role === 'executive') || executives[0];
+  const adminUsers = executives.filter(u => u._id !== ceoUser?._id);
 
-  // Level 2: Department Managers & HR Managers (role === 'manager' or 'hr')
+  // Level 2: Managers & HR Leadership
   const managers = filteredUsers.filter(u => u.role === 'manager' || u.role === 'hr');
 
-  // Level 3: Helper to get employees reporting to a manager
+  // Subordinates helper
   const getSubordinatesForManager = (mgr) => {
     return filteredUsers.filter(u => {
       if (u.role !== 'employee') return false;
@@ -1497,14 +1517,13 @@ const OrgTreeHierarchy = () => {
       if (mgrId) {
         return mgrId.toString() === mgr._id.toString();
       }
-      // Fallback matching by department
       const uDeptId = u.departmentId?._id || u.departmentId;
       const mgrDeptId = mgr.departmentId?._id || mgr.departmentId;
       return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
     });
   };
 
-  // Unassigned employees (not under any manager)
+  // Unassigned employees
   const allManagedEmpIds = new Set(
     managers.flatMap(m => getSubordinatesForManager(m).map(e => e._id.toString()))
   );
@@ -1512,270 +1531,554 @@ const OrgTreeHierarchy = () => {
     u.role === 'employee' && !allManagedEmpIds.has(u._id.toString())
   );
 
+  // Department theme helper
+  const getDepartmentStyle = (deptName) => {
+    const dName = (deptName || '').toLowerCase();
+    if (dName.includes('engineering') || dName.includes('tech')) {
+      return {
+        badgeBg: 'bg-sky-500/20 text-sky-300 border-sky-400/30',
+        ringColor: 'ring-sky-400',
+        headerGradient: 'from-slate-900 via-sky-950 to-slate-900 border-sky-800/60',
+        accentText: 'text-sky-400',
+        subPillBg: 'bg-sky-50 text-sky-700 border-sky-100'
+      };
+    }
+    if (dName.includes('sales') || dName.includes('business')) {
+      return {
+        badgeBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30',
+        ringColor: 'ring-emerald-400',
+        headerGradient: 'from-slate-900 via-emerald-950 to-slate-900 border-emerald-800/60',
+        accentText: 'text-emerald-400',
+        subPillBg: 'bg-emerald-50 text-emerald-700 border-emerald-100'
+      };
+    }
+    if (dName.includes('hr') || dName.includes('human')) {
+      return {
+        badgeBg: 'bg-purple-500/20 text-purple-300 border-purple-400/30',
+        ringColor: 'ring-purple-400',
+        headerGradient: 'from-slate-900 via-purple-950 to-slate-900 border-purple-800/60',
+        accentText: 'text-purple-400',
+        subPillBg: 'bg-purple-50 text-purple-700 border-purple-100'
+      };
+    }
+    if (dName.includes('marketing')) {
+      return {
+        badgeBg: 'bg-amber-500/20 text-amber-300 border-amber-400/30',
+        ringColor: 'ring-amber-400',
+        headerGradient: 'from-slate-900 via-amber-950 to-slate-900 border-amber-800/60',
+        accentText: 'text-amber-400',
+        subPillBg: 'bg-amber-50 text-amber-700 border-amber-100'
+      };
+    }
+    return {
+      badgeBg: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30',
+      ringColor: 'ring-indigo-400',
+      headerGradient: 'from-slate-900 via-slate-800 to-slate-900 border-slate-700',
+      accentText: 'text-indigo-400',
+      subPillBg: 'bg-indigo-50 text-indigo-700 border-indigo-100'
+    };
+  };
+
   return (
     <div className="space-y-6 animate-fade-in text-xs text-slate-800">
-      {/* Header & Controls Bar */}
-      <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-            <Layers className="text-sky-600" size={18} />
-            <span>Organizational Tree Hierarchy</span>
-            <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
-              {users.length} Total Members
-            </span>
-          </h3>
-          <p className="text-slate-500 text-xs mt-0.5">
-            Interactive multi-level reporting structure: CEO & Executive Management &rarr; Reporting Managers & HR &rarr; Department Employees
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Search Bar */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full md:w-64">
-            <Search size={14} className="text-slate-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search member, code, role..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
-            />
+      {/* Top Header & Toolbar */}
+      <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <Layers className="text-sky-600" size={18} />
+              <span>Enterprise Organizational Tree Structure</span>
+              <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-extrabold border border-sky-100">
+                {users.length} Total Members
+              </span>
+            </h3>
+            <p className="text-slate-500 text-xs mt-0.5">
+              Scalable multi-department hierarchy for high-density teams (CEO &rarr; Leadership &rarr; Subordinates)
+            </p>
           </div>
 
-          {/* Department Filter Dropdown */}
-          <select
-            value={selectedDept}
-            onChange={(e) => setSelectedDept(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+            {/* View Mode Switcher */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setViewMode('chart')}
+                className={`px-3 py-1.5 rounded-lg font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'chart' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Layers size={13} />
+                <span>Tree Chart</span>
+              </button>
+              <button
+                onClick={() => setViewMode('directory')}
+                className={`px-3 py-1.5 rounded-lg font-extrabold text-xs transition-colors cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'directory' ? 'bg-white text-sky-700 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Users size={13} />
+                <span>Compact Directory</span>
+              </button>
+            </div>
+
+            {/* Global Search Input */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs w-full sm:w-52">
+              <Search size={14} className="text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="Search 200+ members..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-transparent text-xs text-slate-800 outline-none w-full font-medium"
+              />
+            </div>
+
+            {/* Expand/Collapse Toggle */}
+            <button
+              onClick={toggleAll}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors shrink-0 cursor-pointer"
+            >
+              {allCollapsed ? 'Expand All ↓' : 'Collapse All ↑'}
+            </button>
+          </div>
+        </div>
+
+        {/* Department Filter Pills Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100">
+          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Filter Dept:</span>
+          <button
+            onClick={() => setSelectedDept('all')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer ${
+              selectedDept === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
           >
-            <option value="all">All Departments ({departments.length})</option>
-            {departments.map(d => (
-              <option key={d._id} value={d._id}>{d.departmentName}</option>
-            ))}
-          </select>
+            All Departments ({users.length})
+          </button>
+          {departments.map(d => {
+            const deptMemberCount = users.filter(u => {
+              const uDeptId = u.departmentId?._id || u.departmentId;
+              return uDeptId && uDeptId.toString() === d._id.toString();
+            }).length;
+
+            return (
+              <button
+                key={d._id}
+                onClick={() => setSelectedDept(d._id)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                  selectedDept === d._id ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>{d.departmentName}</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold ${selectedDept === d._id ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                  {deptMemberCount}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* TREE DIAGRAM CONTAINER */}
-      <div className="bg-slate-900/5 border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-8 overflow-x-auto">
-        
-        {/* LEVEL 1: EXECUTIVE & CEO LEVEL */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-center">
-            <span className="px-3 py-1 bg-slate-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
-              <ShieldCheck size={12} className="text-sky-400" />
-              <span>Level 1: Executive & CEO Leadership</span>
+      {/* ================= VIEW MODE 1: VISUAL TREE CHART ================= */}
+      {viewMode === 'chart' ? (
+        <div className="bg-slate-50/70 border border-slate-200 rounded-3xl p-6 sm:p-10 space-y-10 overflow-x-auto min-w-[700px]">
+          
+          {/* LEVEL 1: EXECUTIVE ROOT NODE */}
+          <div className="flex flex-col items-center space-y-4">
+            <span className="px-3.5 py-1 bg-slate-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5 border border-slate-700">
+              <ShieldCheck size={12} className="text-amber-400" />
+              <span>Level 1: Chief Executive Officer (CEO)</span>
             </span>
-          </div>
 
-          <div className="flex flex-wrap justify-center gap-4">
-            {executives.length === 0 ? (
-              <p className="text-slate-400 italic text-center py-4">No executive management found matching search.</p>
-            ) : (
-              executives.map(exec => (
-                <div
-                  key={exec._id}
-                  className="bg-slate-900 text-white border border-slate-800 rounded-2xl p-4 shadow-xl min-w-[280px] max-w-sm flex items-center justify-between gap-4 transition-all hover:scale-[1.02]"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={getUserAvatarUrl(exec)}
-                      alt="Avatar"
-                      className="w-11 h-11 rounded-full object-cover ring-2 ring-sky-400 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-black text-sm text-white truncate">
-                          {exec.firstName} {exec.lastName}
-                        </h4>
-                        <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded font-mono">
-                          {exec.role === 'executive' ? 'CEO' : 'ADMIN'}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-sky-300 font-semibold truncate mt-0.5">
-                        {exec.role === 'executive' ? 'Chief Executive Officer' : 'System Administrator'}
-                      </p>
-                      <p className="text-[9px] text-slate-400 font-mono">{exec.employeeCode} • {exec.email}</p>
-                    </div>
+            <div className="flex justify-center items-center gap-6">
+              {ceoUser && (
+                <div className="bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white border-2 border-amber-400/80 rounded-3xl p-5 shadow-2xl min-w-[320px] max-w-md relative transition-transform hover:scale-[1.02]">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-950 font-black text-[9px] uppercase px-3 py-0.5 rounded-full shadow-md tracking-widest border border-amber-300">
+                    CHIEF EXECUTIVE OFFICER
                   </div>
-                  <Link
-                    to={`/reports/employee/${exec._id}`}
-                    className="p-2 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-xl transition-colors shrink-0"
-                    title="View Profile Report"
-                  >
-                    <Eye size={14} />
-                  </Link>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* CONNECTING VERTICAL LINE */}
-        <div className="flex justify-center">
-          <div className="w-0.5 h-8 bg-slate-300"></div>
-        </div>
-
-        {/* LEVEL 2: REPORTING MANAGERS & HR MANAGERS */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-center">
-            <span className="px-3 py-1 bg-emerald-700 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
-              <Users size={12} className="text-emerald-200" />
-              <span>Level 2: Department Leadership (Reporting Managers & HR)</span>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {managers.map(mgr => {
-              const subs = getSubordinatesForManager(mgr);
-              const isCollapsed = !!collapsedManagers[mgr._id];
-
-              return (
-                <div key={mgr._id} className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md">
-                  {/* Manager Card Header */}
-                  <div className="bg-slate-800 text-white p-4 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${
-                        mgr.role === 'hr' ? 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30' : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
-                      }`}>
-                        {mgr.role === 'hr' ? 'HR Manager' : 'Reporting Manager'}
-                      </span>
-                      <span className="text-[9px] font-bold bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
-                        {mgr.departmentId?.departmentName || 'General'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
+                  
+                  <div className="flex items-center justify-between gap-4 mt-1">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <img
-                        src={getUserAvatarUrl(mgr)}
+                        src={getUserAvatarUrl(ceoUser)}
                         alt="Avatar"
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-emerald-400 shrink-0"
+                        className="w-14 h-14 rounded-full object-cover ring-4 ring-amber-400/60 shadow-md shrink-0"
                       />
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-extrabold text-xs text-white truncate">
-                          {mgr.firstName} {mgr.lastName}
+                      <div className="min-w-0">
+                        <h4 className="font-black text-base text-white truncate">
+                          {ceoUser.firstName} {ceoUser.lastName}
                         </h4>
-                        <p className="text-[10px] text-slate-300 truncate mt-0.5">
-                          {mgr.designationId?.designationName || 'Department Lead'}
+                        <p className="text-xs text-sky-300 font-semibold truncate mt-0.5">
+                          Chief Executive Officer (CEO)
                         </p>
-                        <p className="text-[9px] text-slate-400 font-mono">{mgr.employeeCode}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-1">
+                          ID: {ceoUser.employeeCode} • {ceoUser.email}
+                        </p>
                       </div>
-                      <Link
-                        to={`/reports/employee/${mgr._id}`}
-                        className="p-1.5 bg-slate-700 hover:bg-slate-600 text-sky-300 rounded-lg transition-colors shrink-0"
-                        title="View Profile Report"
-                      >
-                        <Eye size={13} />
-                      </Link>
                     </div>
-
-                    {/* Direct Subordinates Count & Toggle */}
-                    <div className="flex justify-between items-center pt-2 border-t border-slate-700/80 text-[10px]">
-                      <span className="font-bold text-emerald-400 flex items-center gap-1">
-                        <Users size={12} />
-                        <span>{subs.length} Direct Subordinates</span>
-                      </span>
-                      {subs.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => toggleManager(mgr._id)}
-                          className="text-slate-300 hover:text-white font-bold underline cursor-pointer"
-                        >
-                          {isCollapsed ? `Expand (${subs.length}) ↓` : 'Collapse ↑'}
-                        </button>
-                      )}
-                    </div>
+                    <Link
+                      to={`/reports/employee/${ceoUser._id}`}
+                      className="p-2.5 bg-slate-800 hover:bg-slate-700 text-sky-400 rounded-2xl border border-slate-700 transition-colors shrink-0 shadow-xs"
+                      title="View CEO Report"
+                    >
+                      <Eye size={16} />
+                    </Link>
                   </div>
-
-                  {/* LEVEL 3: DIRECT SUBORDINATES (EMPLOYEES) */}
-                  {!isCollapsed && (
-                    <div className="p-4 bg-slate-50/50 space-y-2.5 flex-1 border-t border-slate-100">
-                      {subs.length === 0 ? (
-                        <p className="text-slate-400 italic text-center py-4 text-[11px]">No direct reportees assigned.</p>
-                      ) : (
-                        subs.map(emp => (
-                          <div
-                            key={emp._id}
-                            className="bg-white border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition-colors"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <img
-                                src={getUserAvatarUrl(emp)}
-                                alt="Avatar"
-                                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 text-xs truncate">
-                                  {emp.firstName} {emp.lastName}
-                                </p>
-                                <div className="flex items-center gap-1 text-[9px] text-slate-500">
-                                  <span className="font-mono text-slate-600 font-bold">{emp.employeeCode}</span>
-                                  <span>•</span>
-                                  <span className="truncate">{emp.designationId?.designationName || 'Staff'}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <Link
-                              to={`/reports/employee/${emp._id}`}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-lg transition-colors shrink-0"
-                              title="View Performance Report"
-                            >
-                              <Eye size={12} />
-                            </Link>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* UNASSIGNED STAFF BRANCH */}
-        {unassignedEmployees.length > 0 && (
-          <div className="pt-6 border-t border-slate-200 space-y-4">
+          {/* TREE STEM */}
+          <div className="relative py-2">
+            <div className="w-0.5 h-6 bg-slate-300 mx-auto"></div>
+            <div className="w-3 h-3 bg-sky-600 ring-4 ring-sky-100 rounded-full mx-auto -mt-1.5 shadow-xs"></div>
+          </div>
+
+          {/* LEVEL 2: DEPARTMENT LEADERSHIP (STRICT SINGLE HORIZONTAL ROW) */}
+          <div className="space-y-4">
             <div className="flex items-center justify-center">
-              <span className="px-3 py-1 bg-sky-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
-                <User size={12} className="text-sky-300" />
-                <span>Direct Executive / Unassigned Employees ({unassignedEmployees.length})</span>
+              <span className="px-3.5 py-1 bg-emerald-700 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+                <Users size={13} className="text-emerald-200" />
+                <span>Level 2: Department Leadership ({managers.length} Managers)</span>
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {unassignedEmployees.map(emp => (
-                <div
-                  key={emp._id}
-                  className="bg-white border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xs"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <img
-                      src={getUserAvatarUrl(emp)}
-                      alt="Avatar"
-                      className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-800 text-xs truncate">
-                        {emp.firstName} {emp.lastName}
-                      </p>
-                      <p className="text-[9px] text-slate-500 font-mono">{emp.employeeCode} • {emp.departmentId?.departmentName || 'Unassigned'}</p>
+            {/* Single Horizontal Row Container with Scrollbar */}
+            <div className="overflow-x-auto custom-scrollbar pb-6 pt-2">
+              {/* Connector horizontal line spanning single row */}
+              {managers.length > 1 && (
+                <div className="w-[88%] min-w-[1200px] h-0.5 bg-slate-300 mx-auto mb-2 rounded-full"></div>
+              )}
+
+              <div className="flex flex-nowrap items-stretch gap-6 min-w-max px-6 mx-auto justify-center">
+                {managers.map((mgr) => {
+                  const deptName = mgr.departmentId?.departmentName || 'General';
+                  const style = getDepartmentStyle(deptName);
+                  const allSubs = getSubordinatesForManager(mgr);
+                  const isCollapsed = !!collapsedManagers[mgr._id];
+
+                  // Mini filter & pagination inside card for large subordinate lists (50+ employees)
+                  const mgrSearch = subSearch[mgr._id] || '';
+                  const mgrPage = subPage[mgr._id] || 1;
+                  const SUB_PAGE_SIZE = 5;
+
+                  const filteredSubs = allSubs.filter(e =>
+                    `${e.firstName} ${e.lastName} ${e.employeeCode} ${e.designationId?.designationName || ''}`.toLowerCase().includes(mgrSearch.toLowerCase())
+                  );
+
+                  const totalSubPages = Math.max(1, Math.ceil(filteredSubs.length / SUB_PAGE_SIZE));
+                  const safeSubPage = Math.min(mgrPage, totalSubPages);
+                  const displaySubs = filteredSubs.slice((safeSubPage - 1) * SUB_PAGE_SIZE, safeSubPage * SUB_PAGE_SIZE);
+
+                  return (
+                    <div key={mgr._id} className="w-[290px] sm:w-[310px] relative flex flex-col shrink-0">
+                      <div className="w-0.5 h-4 bg-slate-300 mx-auto -mt-4 mb-0"></div>
+
+                      <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col justify-between transition-all hover:shadow-md border-t-4 border-t-sky-600 h-full">
+                      
+                      {/* Manager Header Bar */}
+                      <div className={`bg-gradient-to-r ${style.headerGradient} text-white p-4 space-y-3 border-b border-slate-800`}>
+                        <div className="flex justify-between items-start">
+                          <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded border ${style.badgeBg}`}>
+                            {mgr.role === 'hr' ? 'HR Manager' : 'Reporting Manager'}
+                          </span>
+                          <span className="text-[9px] font-black bg-slate-800/90 text-white px-2.5 py-0.5 rounded-full border border-slate-700 shadow-xs">
+                            {deptName}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={getUserAvatarUrl(mgr)}
+                            alt="Avatar"
+                            className={`w-11 h-11 rounded-full object-cover ring-2 ${style.ringColor} shrink-0 shadow-sm`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-black text-xs text-white truncate">
+                              {mgr.firstName} {mgr.lastName}
+                            </h4>
+                            <p className={`text-[10px] font-bold truncate mt-0.5 ${style.accentText}`}>
+                              {mgr.designationId?.designationName || 'Department Lead'}
+                            </p>
+                            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{mgr.employeeCode}</p>
+                          </div>
+                          <Link
+                            to={`/reports/employee/${mgr._id}`}
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-colors shrink-0"
+                            title="View Profile Report"
+                          >
+                            <Eye size={13} />
+                          </Link>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2.5 border-t border-slate-800 text-[10px]">
+                          <span className={`font-black flex items-center gap-1 ${style.accentText}`}>
+                            <Users size={12} />
+                            <span>{allSubs.length} Direct Reportees</span>
+                          </span>
+                          {allSubs.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => toggleManager(mgr._id)}
+                              className="text-slate-300 hover:text-white font-bold underline cursor-pointer"
+                            >
+                              {isCollapsed ? `Expand (${allSubs.length}) ↓` : 'Collapse ↑'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* LEVEL 3: DIRECT SUBORDINATES (HIGH DENSITY PAGINATED CONTAINER) */}
+                      {!isCollapsed && (
+                        <div className="p-4 bg-slate-50/50 space-y-2.5 flex-1 border-t border-slate-100 flex flex-col justify-between">
+                          <div className="space-y-2.5">
+                            {/* Subordinate Search for Large Teams (> 5 reportees) */}
+                            {allSubs.length > 5 && (
+                              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px]">
+                                <Search size={12} className="text-slate-400 shrink-0" />
+                                <input
+                                  type="text"
+                                  placeholder={`Search ${allSubs.length} reportees...`}
+                                  value={subSearch[mgr._id] || ''}
+                                  onChange={(e) => {
+                                    setSubSearch(prev => ({ ...prev, [mgr._id]: e.target.value }));
+                                    setSubPage(prev => ({ ...prev, [mgr._id]: 1 }));
+                                  }}
+                                  className="bg-transparent text-[11px] text-slate-800 outline-none w-full font-medium"
+                                />
+                              </div>
+                            )}
+
+                            {displaySubs.length === 0 ? (
+                              <p className="text-slate-400 italic text-center py-5 text-[11px]">
+                                {mgrSearch ? 'No reportees match filter.' : 'No direct reportees assigned.'}
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {displaySubs.map(emp => (
+                                  <div
+                                    key={emp._id}
+                                    className="bg-white border border-slate-200/90 p-2.5 rounded-2xl flex items-center justify-between gap-3 shadow-2xs hover:border-slate-300 transition-all hover:scale-[1.01]"
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <img
+                                        src={getUserAvatarUrl(emp)}
+                                        alt="Avatar"
+                                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                      />
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-slate-800 text-xs truncate">
+                                          {emp.firstName} {emp.lastName}
+                                        </p>
+                                        <div className="flex items-center gap-1 text-[9px] text-slate-500 mt-0.5">
+                                          <span className="font-mono text-slate-700 font-bold">{emp.employeeCode}</span>
+                                          <span>•</span>
+                                          <span className="truncate text-slate-600 font-semibold">{emp.designationId?.designationName || 'Staff'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <Link
+                                      to={`/reports/employee/${emp._id}`}
+                                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-xl transition-colors shrink-0"
+                                      title="View Performance Report"
+                                    >
+                                      <Eye size={13} />
+                                    </Link>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Pagination Controls for Large Teams (> 5 reportees) */}
+                          {filteredSubs.length > SUB_PAGE_SIZE && (
+                            <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-slate-200/80 text-[10px]">
+                              <span className="text-slate-500 font-bold">
+                                {(safeSubPage - 1) * SUB_PAGE_SIZE + 1}-{Math.min(safeSubPage * SUB_PAGE_SIZE, filteredSubs.length)} of {filteredSubs.length}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={safeSubPage <= 1}
+                                  onClick={() => setSubPage(prev => ({ ...prev, [mgr._id]: Math.max(1, safeSubPage - 1) }))}
+                                  className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Previous Page"
+                                >
+                                  <ChevronLeft size={12} />
+                                </button>
+                                <span className="font-bold text-slate-700 px-1">
+                                  {safeSubPage} / {totalSubPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={safeSubPage >= totalSubPages}
+                                  onClick={() => setSubPage(prev => ({ ...prev, [mgr._id]: Math.min(totalSubPages, safeSubPage + 1) }))}
+                                  className="p-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                  title="Next Page"
+                                >
+                                  <ChevronRight size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                     </div>
                   </div>
-                  <Link
-                    to={`/reports/employee/${emp._id}`}
-                    className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-lg transition-colors shrink-0"
-                  >
-                    <Eye size={12} />
-                  </Link>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
-        )}
+        </div>
 
-      </div>
+          {/* UNASSIGNED EMPLOYEES CONTAINER */}
+          {unassignedEmployees.length > 0 && (
+            <div className="pt-8 border-t border-slate-200 space-y-4">
+              <div className="flex items-center justify-center">
+                <span className="px-3.5 py-1 bg-sky-900 text-white rounded-full font-extrabold text-[10px] uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+                  <User size={12} className="text-sky-300" />
+                  <span>Direct Executive / Unassigned Employees ({unassignedEmployees.length})</span>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-80 overflow-y-auto custom-scrollbar pr-1">
+                {unassignedEmployees.map(emp => (
+                  <div
+                    key={emp._id}
+                    className="bg-white border border-slate-200 p-3 rounded-2xl flex items-center justify-between gap-3 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={getUserAvatarUrl(emp)}
+                        alt="Avatar"
+                        className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-800 text-xs truncate">
+                          {emp.firstName} {emp.lastName}
+                        </p>
+                        <p className="text-[9px] text-slate-500 font-mono">{emp.employeeCode} • {emp.departmentId?.departmentName || 'Unassigned'}</p>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/reports/employee/${emp._id}`}
+                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-sky-700 rounded-lg transition-colors shrink-0"
+                    >
+                      <Eye size={12} />
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      ) : (
+        /* ================= VIEW MODE 2: COMPACT HIGH-DENSITY DIRECTORY ================= */
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+          {departments.map(dept => {
+            const deptManagers = managers.filter(m => {
+              const mDeptId = m.departmentId?._id || m.departmentId;
+              return mDeptId && mDeptId.toString() === dept._id.toString();
+            });
+
+            if (selectedDept !== 'all' && selectedDept.toString() !== dept._id.toString()) {
+              return null;
+            }
+
+            return (
+              <div key={dept._id} className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-sky-400" />
+                    <h4 className="font-extrabold text-sm text-white">{dept.departmentName} Department</h4>
+                  </div>
+                  <span className="text-[10px] font-extrabold bg-sky-500/20 text-sky-300 border border-sky-400/30 px-2.5 py-0.5 rounded-full">
+                    {deptManagers.length} Managers
+                  </span>
+                </div>
+
+                <div className="p-4 space-y-4 bg-slate-50/50">
+                  {deptManagers.length === 0 ? (
+                    <p className="text-slate-400 italic text-xs py-2">No active managers listed for this department.</p>
+                  ) : (
+                    deptManagers.map(mgr => {
+                      const subs = getSubordinatesForManager(mgr);
+                      const isCollapsed = !!collapsedManagers[mgr._id];
+
+                      return (
+                        <div key={mgr._id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={getUserAvatarUrl(mgr)}
+                                alt="Avatar"
+                                className="w-10 h-10 rounded-full object-cover ring-2 ring-sky-500 shrink-0"
+                              />
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h5 className="font-extrabold text-xs text-slate-900">{mgr.firstName} {mgr.lastName}</h5>
+                                  <span className="text-[8px] font-black uppercase px-2 py-0.2 rounded bg-sky-100 text-sky-800 font-mono">
+                                    {mgr.role === 'hr' ? 'HR Manager' : 'Reporting Manager'}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-medium">{mgr.designationId?.designationName || 'Manager'} • <span className="font-mono">{mgr.employeeCode}</span></p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 self-end sm:self-center">
+                              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">
+                                {subs.length} Direct Reportees
+                              </span>
+                              <Link
+                                to={`/reports/employee/${mgr._id}`}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs flex items-center gap-1 transition-colors"
+                              >
+                                <Eye size={12} />
+                                <span>Profile</span>
+                              </Link>
+                              <button
+                                onClick={() => toggleManager(mgr._id)}
+                                className="text-slate-500 hover:text-slate-900 font-bold text-xs underline cursor-pointer"
+                              >
+                                {isCollapsed ? 'Expand ↓' : 'Collapse ↑'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {!isCollapsed && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                              {subs.map(emp => (
+                                <div key={emp._id} className="bg-slate-50 border border-slate-200 p-2.5 rounded-xl flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <img
+                                      src={getUserAvatarUrl(emp)}
+                                      alt="Avatar"
+                                      className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-slate-800 text-xs truncate">{emp.firstName} {emp.lastName}</p>
+                                      <p className="text-[9px] text-slate-500 font-mono">{emp.employeeCode}</p>
+                                    </div>
+                                  </div>
+                                  <Link to={`/reports/employee/${emp._id}`} className="text-sky-600 hover:text-sky-800 p-1">
+                                    <Eye size={12} />
+                                  </Link>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -1880,9 +2183,9 @@ const ExecutiveDashboard = ({ data, user }) => {
     return Array.from(uniqueMap.values());
   };
 
-  // Dynamic Department-wise Top Rankings (Highest Scores)
-  const filteredEmployeesRanking = getUniqueLatest(filteredEmpPool).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
-  const filteredManagersRanking = getUniqueLatest(filteredMgrPool).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  // Dynamic Department-wise Top Rankings (Highest Scores >= 3.0 only)
+  const filteredEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore >= 3.0)).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  const filteredManagersRanking = getUniqueLatest(filteredMgrPool.filter(score => score.finalScore >= 3.0)).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
 
   // Dynamic Department-wise Needs Improvement Rankings (Lowest Scores below 3.0)
   const filteredLowestEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);

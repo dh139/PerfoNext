@@ -122,7 +122,7 @@ const CompletionReport = () => {
               Assessment Completion Status Audit
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Real-time evaluation tracking, submission status verification, & exportable appraisal audit reports.
+              Real-time evaluation tracking & submission status verification.
             </p>
           </div>
 
@@ -253,16 +253,6 @@ const CompletionReport = () => {
                 </>
               )}
             </div>
-
-            {report && (
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
-              >
-                <Download size={16} />
-                <span>Export CSV Report</span>
-              </button>
-            )}
           </div>
         </div>
 

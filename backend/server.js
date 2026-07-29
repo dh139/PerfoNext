@@ -21,7 +21,17 @@ const app = express();
 // Connect to Database
 connectDB();
 
-// CORS middleware - allows requests from frontend dev port (5173) or any origin in dev
+app.disable('x-powered-by');
+
+// Security Response Headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  next();
+});
+
+// CORS middleware
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -31,8 +41,12 @@ app.use(cors({
 // Body parser
 app.use(express.json());
 
-// Serve static uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve static uploads with nosniff security header to prevent execution
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'inline');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Logging middleware in dev
 if (process.env.NODE_ENV !== 'production') {
@@ -49,15 +63,26 @@ app.use('/api', apiRoutes);
 
 // 404 Route handler
 app.use((req, res, next) => {
-  res.status(404).json({ message: `Route not found - ${req.originalUrl}` });
+  res.status(404).json({ message: 'Requested resource not found.' });
 });
 
-// Global Error Handler
+// Global Error Handler - Prevents Information Leakage
 app.use((err, req, res, next) => {
-  console.error('Unhandled Error:', err.stack);
-  res.status(500).json({
-    message: 'Internal server error.',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
+  // Log detailed stack trace server-side ONLY for debugging
+  console.error('[SERVER ERROR HANDLER]', {
+    timestamp: new Date().toISOString(),
+    message: err.message,
+    stack: err.stack,
+    path: req.originalUrl,
+    method: req.method,
+    ip: req.ip
+  });
+
+  const statusCode = err.statusCode || err.status || 500;
+  
+  // Always send sanitized generic error messages to client to prevent stack/path leakage
+  res.status(statusCode).json({
+    message: statusCode === 500 ? 'Internal server error. Please contact system support.' : err.message
   });
 });
 

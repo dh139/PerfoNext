@@ -96,6 +96,55 @@ const FeedbackCenter = () => {
     }
   };
 
+  // Helper to filter valid subject users based on relationship
+  const getFilteredSubjectUsers = () => {
+    return users.filter(u => {
+      // Department Filter
+      const uDeptId = u.departmentId?._id || u.departmentId;
+      const matchesDept = subjDeptFilter === 'all' || (uDeptId && uDeptId.toString() === subjDeptFilter.toString());
+
+      // Search Query Filter
+      const deptName = u.departmentId?.departmentName || '';
+      const desigName = u.designationId?.designationName || '';
+      const code = u.employeeCode || '';
+      const searchStr = `${u.firstName} ${u.lastName} ${u.role} ${deptName} ${desigName} ${code}`.toLowerCase();
+      const matchesSearch = !subjSearchQuery || searchStr.includes(subjSearchQuery.toLowerCase());
+
+      if (!matchesDept || !matchesSearch) return false;
+
+      // When 'subordinate' relationship is selected, Subject Employee is the Manager being evaluated by subordinate staff
+      if (requestForm.relationship === 'subordinate') {
+        return u.role === 'manager' || u.role === 'hr' || u.role === 'executive';
+      }
+
+      // When 'manager' relationship is selected, Subject Employee is the Employee receiving review from manager
+      if (requestForm.relationship === 'manager') {
+        return u.role === 'employee';
+      }
+
+      return true;
+    });
+  };
+
+  const handleRelationshipChange = (newRel) => {
+    setRequestForm(prev => {
+      const nextForm = { ...prev, relationship: newRel };
+      
+      // Determine valid subject users for the new relationship
+      const filteredSubjs = users.filter(u => {
+        if (newRel === 'subordinate') return u.role === 'manager' || u.role === 'hr' || u.role === 'executive';
+        if (newRel === 'manager') return u.role === 'employee';
+        return true;
+      });
+
+      const isCurrentSubjValid = filteredSubjs.some(u => u._id === prev.employeeId);
+      if (!isCurrentSubjValid && filteredSubjs.length > 0) {
+        nextForm.employeeId = filteredSubjs[0]._id;
+      }
+      return nextForm;
+    });
+  };
+
   // Helper to filter valid reviewers based on relationship
   const getFilteredReviewers = () => {
     const subject = users.find(sub => sub._id === requestForm.employeeId);
@@ -155,12 +204,67 @@ const FeedbackCenter = () => {
     });
   };
 
+  // Helper to filter review cycles applicable to a specific subject employee
+  const getFilteredCyclesForSubject = (targetUserId) => {
+    if (!targetUserId) return cycles;
+    const subjectUser = users.find(u => u._id === targetUserId);
+    if (!subjectUser) return cycles;
+
+    const subjDeptId = (subjectUser.departmentId?._id || subjectUser.departmentId || '').toString();
+    const subjRole = subjectUser.role || 'employee';
+    const isMgrRole = subjRole === 'manager' || subjRole === 'hr' || subjRole === 'executive';
+
+    return cycles.filter(c => {
+      // 1. Department match
+      const cycleDeptId = (c.kpiTemplateId?.departmentId?._id || c.kpiTemplateId?.departmentId || c.departmentId?._id || c.departmentId || '').toString();
+      const cycleDeptName = (c.kpiTemplateId?.departmentId?.departmentName || '').toLowerCase();
+      
+      const isAllDepts = !cycleDeptId || cycleDeptName.includes('all department') || cycleDeptName === 'all';
+      const matchesDept = isAllDepts || (subjDeptId && cycleDeptId && subjDeptId === cycleDeptId);
+
+      if (!matchesDept) return false;
+
+      // 2. Role match
+      const targetRole = c.targetRole || 'employee';
+      let matchesRole = true;
+      if (targetRole === 'manager') {
+        matchesRole = isMgrRole;
+      } else if (targetRole === 'employee') {
+        matchesRole = !isMgrRole;
+      }
+
+      if (!matchesRole) return false;
+
+      // 3. Joining date boundary
+      if (subjectUser.joiningDate && (c.endDate || c.startDate)) {
+        const joinDate = new Date(subjectUser.joiningDate);
+        const cycleEnd = new Date(c.endDate || c.startDate);
+        if (joinDate > cycleEnd) return false;
+      }
+
+      return true;
+    });
+  };
+
   useEffect(() => {
     fetchPendingRequests();
     fetchMetadata();
     fetchAvailableSummaries();
     fetchDisbursedRequests();
   }, []);
+
+  useEffect(() => {
+    if (requestForm.employeeId && cycles.length > 0) {
+      const validCycles = getFilteredCyclesForSubject(requestForm.employeeId);
+      if (validCycles.length > 0) {
+        if (!validCycles.some(c => c._id === requestForm.cycleId)) {
+          setRequestForm(prev => ({ ...prev, cycleId: validCycles[0]._id }));
+        }
+      } else {
+        setRequestForm(prev => ({ ...prev, cycleId: '' }));
+      }
+    }
+  }, [requestForm.employeeId, requestForm.relationship, cycles, users]);
 
   const fetchDisbursedRequests = async () => {
     try {
@@ -615,7 +719,9 @@ const FeedbackCenter = () => {
               <div className="space-y-1.5 relative">
                 <div className="flex justify-between items-center">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Review Subject Employee *</label>
-                  <span className="text-[9px] font-extrabold text-sky-600">{users.length} Eligible</span>
+                  <span className="text-[9px] font-extrabold text-sky-600">
+                    {getFilteredSubjectUsers().length} {requestForm.relationship === 'subordinate' ? 'Managers' : 'Eligible'}
+                  </span>
                 </div>
 
                 <button
@@ -677,7 +783,7 @@ const FeedbackCenter = () => {
                               : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                           }`}
                         >
-                          All ({users.length})
+                          All ({getFilteredSubjectUsers().length})
                         </button>
                         {departments.map(d => (
                           <button
@@ -697,44 +803,41 @@ const FeedbackCenter = () => {
 
                       {/* List */}
                       <div className="max-h-56 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                        {users.filter(u => {
-                          const uDeptId = u.departmentId?._id || u.departmentId;
-                          const matchesDept = subjDeptFilter === 'all' || (uDeptId && uDeptId.toString() === subjDeptFilter.toString());
-                          const deptName = u.departmentId?.departmentName || '';
-                          const desigName = u.designationId?.designationName || '';
-                          const code = u.employeeCode || '';
-                          const searchStr = `${u.firstName} ${u.lastName} ${u.role} ${deptName} ${desigName} ${code}`.toLowerCase();
-                          return matchesDept && searchStr.includes(subjSearchQuery.toLowerCase());
-                        }).map(u => (
-                          <button
-                            key={u._id}
-                            type="button"
-                            onClick={() => {
-                              const autoRel = detectRelationship(u._id, requestForm.reviewerId);
-                              setRequestForm(prev => ({ ...prev, employeeId: u._id, relationship: autoRel }));
-                              setSubjDropdownOpen(false);
-                              setSubjSearchQuery('');
-                            }}
-                            className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
-                              requestForm.employeeId === u._id ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-xs' : 'hover:bg-slate-50 text-slate-700 border-slate-100'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <img
-                                src={getUserAvatarUrl(u)}
-                                alt="Avatar"
-                                className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                              />
-                              <div className="min-w-0">
-                                <span className="font-extrabold text-slate-900 text-xs block truncate">{u.firstName} {u.lastName}</span>
-                                <span className="text-[9px] text-slate-400 block truncate">
-                                  {u.employeeCode} • {u.departmentId?.departmentName || 'N/A'}
-                                </span>
+                        {getFilteredSubjectUsers().length === 0 ? (
+                          <div className="p-4 text-center text-slate-400 text-xs italic">
+                            No matching {requestForm.relationship === 'subordinate' ? 'subordinate employees' : 'employees'} found.
+                          </div>
+                        ) : (
+                          getFilteredSubjectUsers().map(u => (
+                            <button
+                              key={u._id}
+                              type="button"
+                              onClick={() => {
+                                setRequestForm(prev => ({ ...prev, employeeId: u._id }));
+                                setSubjDropdownOpen(false);
+                                setSubjSearchQuery('');
+                              }}
+                              className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
+                                requestForm.employeeId === u._id ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-xs' : 'hover:bg-slate-50 text-slate-700 border-slate-100'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <img
+                                  src={getUserAvatarUrl(u)}
+                                  alt="Avatar"
+                                  className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <span className="font-extrabold text-slate-900 text-xs block truncate">{u.firstName} {u.lastName}</span>
+                                  <span className="text-[9px] text-slate-400 block truncate">
+                                    {u.employeeCode} • {u.departmentId?.departmentName || 'N/A'}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">{u.role}</span>
-                          </button>
-                        ))}
+                              <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0">{u.role}</span>
+                            </button>
+                          ))
+                        )}
                       </div>
                     </div>
                   </>
@@ -746,7 +849,7 @@ const FeedbackCenter = () => {
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Colleague Relationship *</label>
                 <select
                   value={requestForm.relationship}
-                  onChange={(e) => setRequestForm({ ...requestForm, relationship: e.target.value })}
+                  onChange={(e) => handleRelationshipChange(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-2xl outline-none font-bold text-indigo-700 text-xs cursor-pointer"
                   required
                 >
@@ -902,22 +1005,35 @@ const FeedbackCenter = () => {
               {/* Active Cycle */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Performance Review Cycle *</label>
-                <select
-                  value={requestForm.cycleId}
-                  onChange={(e) => setRequestForm({ ...requestForm, cycleId: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-2xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
-                  required
-                >
-                  {cycles.map(c => {
-                    const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                    const targetLabel = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
+                {(() => {
+                  const filteredCycles = getFilteredCyclesForSubject(requestForm.employeeId);
+                  if (filteredCycles.length === 0) {
                     return (
-                      <option key={c._id} value={c._id}>
-                        Month: {c.reviewMonth} — Dept: {deptName} [{targetLabel}] ({c.cycleType})
-                      </option>
+                      <div className="bg-amber-50 border border-amber-200 p-2.5 rounded-2xl text-xs font-semibold text-amber-800 flex items-center gap-2">
+                        <span>⚠️ No review cycles applicable for this employee's department/role/tenure.</span>
+                      </div>
                     );
-                  })}
-                </select>
+                  }
+
+                  return (
+                    <select
+                      value={requestForm.cycleId}
+                      onChange={(e) => setRequestForm({ ...requestForm, cycleId: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-2xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                      required
+                    >
+                      {filteredCycles.map(c => {
+                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                        const targetLabel = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
+                        return (
+                          <option key={c._id} value={c._id}>
+                            Month: {c.reviewMonth} — Dept: {deptName} [{targetLabel}] ({c.cycleType})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  );
+                })()}
               </div>
 
             </div>
@@ -1207,7 +1323,7 @@ const FeedbackCenter = () => {
                 onChange={(e) => setSummaryCycleId(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
               >
-                {cycles.map(c => {
+                {getFilteredCyclesForSubject(summaryEmployeeId).map(c => {
                   const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
                   return (
                     <option key={c._id} value={c._id}>

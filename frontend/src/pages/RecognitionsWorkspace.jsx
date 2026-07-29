@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore';
 import { getUserAvatarUrl } from '../utils/avatar';
 import { AlertCircle, Plus, Award, Calendar, MessageSquare, Search } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import TablePagination from '../components/TablePagination';
 
 const RecognitionsWorkspace = () => {
   const { user } = useAuthStore();
@@ -22,6 +23,7 @@ const RecognitionsWorkspace = () => {
   const [cycleId, setCycleId] = useState('');
   const [category, setCategory] = useState('Star Performer');
   const [comments, setComments] = useState('');
+  const [awardedAt, setAwardedAt] = useState(new Date().toISOString().split('T')[0]);
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
   const [empSearchQuery, setEmpSearchQuery] = useState('');
   const [empDeptFilter, setEmpDeptFilter] = useState('all');
@@ -38,26 +40,56 @@ const RecognitionsWorkspace = () => {
 
       const cycleRes = await api.get('/api/review-cycles');
       setCycles(cycleRes.data);
-      const active = cycleRes.data.some(c => c.status === 'active');
+      const active = cycleRes.data.some(c => {
+        if (c.status !== 'active') return false;
+        const cycleDeptId = c.kpiTemplateId?.departmentId
+          ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
+          : null;
+        const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
+        const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
+
+        const userDeptId = user?.departmentId?._id || user?.departmentId;
+        const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId.toString());
+
+        let roleMatches = true;
+        if (c.targetRole === 'manager') {
+          roleMatches = user?.role === 'manager' || user?.role === 'hr' || user?.role === 'executive' || user?.role === 'admin';
+        }
+
+        return deptMatches && roleMatches;
+      });
       setActiveCycleExists(active);
 
       const deptsRes = await api.get('/api/departments');
       setDepartments(deptsRes.data);
 
-      if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') {
-        const empRes = await api.get('/api/users?role=employee');
-        let empData = empRes.data || [];
+      if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') {
+        const usersRes = await api.get('/api/users');
+        const allUsers = usersRes.data || [];
 
+        // Apply recipient selection rules:
+        // 1. Employee -> Awarded by Reporting Manager (in assigned dept), HR, or CEO/Admin
+        // 2. Reporting Manager -> Awarded by CEO / Management or HR
+        // 3. HR Manager -> Awarded by CEO / Management
+        let allowedRecipients = [];
         if (user?.role === 'manager') {
+          // Reporting Manager can ONLY award Employees in their assigned department
           const mgrDeptId = user?.departmentId?._id || user?.departmentId;
-          empData = empData.filter(u => {
+          allowedRecipients = allUsers.filter(u => {
+            if (u.role !== 'employee') return false;
             const uDeptId = u.departmentId?._id || u.departmentId;
             return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
           });
+        } else if (user?.role === 'hr') {
+          // HR Manager can award Reporting Managers and Employees
+          allowedRecipients = allUsers.filter(u => u.role === 'manager' || u.role === 'employee');
+        } else if (user?.role === 'executive' || user?.role === 'admin') {
+          // CEO / Management can award Reporting Managers, HR Managers, and Employees
+          allowedRecipients = allUsers.filter(u => u.role === 'manager' || u.role === 'hr' || u.role === 'employee');
         }
 
-        setEmployees(empData);
-        if (empData.length > 0) setEmployeeId(empData[0]._id);
+        setEmployees(allowedRecipients);
+        if (allowedRecipients.length > 0) setEmployeeId(allowedRecipients[0]._id);
 
         if (cycleRes.data.length > 0) {
           const activeCycle = cycleRes.data.find(c => c.status === 'active');
@@ -90,7 +122,8 @@ const RecognitionsWorkspace = () => {
         employeeId,
         cycleId: cycleId || null,
         category,
-        comments
+        comments,
+        awardedAt
       });
 
       setShowCreateModal(false);
@@ -103,6 +136,9 @@ const RecognitionsWorkspace = () => {
     }
   };
 
+  const [awardPage, setAwardPage] = useState(1);
+  const AWARDS_PER_PAGE = 6;
+
   const filteredRecognitions = recognitions.filter(rec => {
     const fullName = `${rec.employeeId?.firstName} ${rec.employeeId?.lastName} ${rec.employeeId?.employeeCode}`.toLowerCase();
     const commentText = (rec.comments || '').toLowerCase();
@@ -110,6 +146,13 @@ const RecognitionsWorkspace = () => {
     const matchesCat = awardCategoryFilter === 'all' || rec.category === awardCategoryFilter;
     return matchesSearch && matchesCat;
   });
+
+  const totalAwardPages = Math.max(1, Math.ceil(filteredRecognitions.length / AWARDS_PER_PAGE));
+  const safeAwardPage = Math.min(awardPage, totalAwardPages);
+  const paginatedRecognitions = filteredRecognitions.slice(
+    (safeAwardPage - 1) * AWARDS_PER_PAGE,
+    safeAwardPage * AWARDS_PER_PAGE
+  );
 
   const totalAwardsCount = recognitions.length;
   const starPerformersCount = recognitions.filter(r => r.category === 'Star Performer').length;
@@ -150,7 +193,7 @@ const RecognitionsWorkspace = () => {
             </p>
           </div>
 
-          {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') && (
+          {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
             <button
               onClick={() => {
                 if (!activeCycleExists) return;
@@ -244,7 +287,10 @@ const RecognitionsWorkspace = () => {
           <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <select
               value={awardCategoryFilter}
-              onChange={(e) => setAwardCategoryFilter(e.target.value)}
+              onChange={(e) => {
+                setAwardCategoryFilter(e.target.value);
+                setAwardPage(1);
+              }}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
             >
               <option value="all">All Award Categories</option>
@@ -259,7 +305,10 @@ const RecognitionsWorkspace = () => {
               type="text"
               placeholder="Search nominee or comments..."
               value={awardSearchTerm}
-              onChange={(e) => setAwardSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setAwardSearchTerm(e.target.value);
+                setAwardPage(1);
+              }}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none w-full sm:w-56 font-medium"
             />
           </div>
@@ -271,47 +320,57 @@ const RecognitionsWorkspace = () => {
             <p className="text-slate-500 font-bold text-xs">No recognition awards found matching your filter.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredRecognitions.map(rec => (
-              <div key={rec._id} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-amber-300 hover:shadow-md transition-all relative overflow-hidden space-y-4">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedRecognitions.map(rec => (
+                <div key={rec._id} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col justify-between hover:border-amber-300 hover:shadow-md transition-all relative overflow-hidden space-y-4">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
 
-                <div className="space-y-4">
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-700 border border-amber-200/60 shadow-xs">
-                      <Award size={22} />
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="p-2.5 bg-amber-50 rounded-2xl text-amber-700 border border-amber-200/60 shadow-xs">
+                        <Award size={22} />
+                      </div>
+                      <span className="text-[9px] font-black uppercase px-3 py-1 rounded-full bg-amber-100/80 text-amber-900 border border-amber-200/80 shadow-xs tracking-wider">
+                        {rec.category}
+                      </span>
                     </div>
-                    <span className="text-[9px] font-black uppercase px-3 py-1 rounded-full bg-amber-100/80 text-amber-900 border border-amber-200/80 shadow-xs tracking-wider">
-                      {rec.category}
-                    </span>
+
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={getUserAvatarUrl(rec.employeeId)}
+                        alt="Avatar"
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-200 shrink-0"
+                      />
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">
+                          {rec.employeeId?.firstName} {rec.employeeId?.lastName}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">Code: {rec.employeeId?.employeeCode}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 italic text-slate-700 text-xs leading-relaxed shadow-3xs">
+                      "{rec.comments}"
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={getUserAvatarUrl(rec.employeeId)}
-                      alt="Avatar"
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-amber-200 shrink-0"
-                    />
-                    <div>
-                      <h4 className="font-extrabold text-slate-800 text-sm">
-                        {rec.employeeId?.firstName} {rec.employeeId?.lastName}
-                      </h4>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">Code: {rec.employeeId?.employeeCode}</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 italic text-slate-700 text-xs leading-relaxed shadow-3xs">
-                    "{rec.comments}"
+                  <div className="pt-4 border-t border-slate-200/80 flex justify-between items-center text-[10px] text-slate-400 font-medium">
+                    <span>Awarded by: <strong className="text-slate-700">{rec.awardedBy?.firstName} {rec.awardedBy?.lastName}</strong></span>
+                    <span>{new Date(rec.awardedAt).toLocaleDateString()}</span>
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <div className="pt-4 border-t border-slate-200/80 flex justify-between items-center text-[10px] text-slate-400 font-medium">
-                  <span>Awarded by: <strong className="text-slate-700">{rec.awardedBy?.firstName} {rec.awardedBy?.lastName}</strong></span>
-                  <span>{new Date(rec.awardedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+            <TablePagination
+              page={safeAwardPage}
+              totalPages={totalAwardPages}
+              totalCount={filteredRecognitions.length}
+              pageSize={AWARDS_PER_PAGE}
+              onPageChange={(p) => setAwardPage(p)}
+            />
+          </>
         )}
       </div>
 
@@ -469,7 +528,7 @@ const RecognitionsWorkspace = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Award Category *</label>
                   <select
@@ -484,6 +543,17 @@ const RecognitionsWorkspace = () => {
                     <option value="Outstanding Leadership">Outstanding Leadership</option>
                     <option value="Learning Spirit Award">Learning Spirit Award</option>
                   </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Award Issue Date *</label>
+                  <input
+                    type="date"
+                    value={awardedAt}
+                    onChange={(e) => setAwardedAt(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                    required
+                  />
                 </div>
 
                 <div className="space-y-1.5">

@@ -150,10 +150,10 @@ const sendTeamsWebhook = async (req, res) => {
       "@type": "MessageCard",
       "@context": "http://schema.org/extensions",
       "themeColor": "0076D7",
-      "summary": title || "EPTS Review Reminder",
+      "summary": title || "PerformNext Review Reminder",
       "sections": [{
-        "activityTitle": title || "EPTS System Notification",
-        "activitySubtitle": "Employee Performance Tracking System",
+        "activityTitle": title || "PerformNext System Notification",
+        "activitySubtitle": "Enterprise Performance Platform",
         "text": message
       }]
     };

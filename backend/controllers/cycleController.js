@@ -23,7 +23,12 @@ const getReviewCycles = async (req, res) => {
     if (req.user && req.user.role === 'manager') {
       const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
       if (mgrDeptId) {
-        const templates = await KpiTemplate.find({ departmentId: mgrDeptId }).select('_id');
+        const templates = await KpiTemplate.find({
+          $or: [
+            { departmentId: mgrDeptId },
+            { departmentId: null }
+          ]
+        }).select('_id');
         const templateIds = templates.map(t => t._id);
         query = { kpiTemplateId: { $in: templateIds } };
       }
@@ -31,7 +36,7 @@ const getReviewCycles = async (req, res) => {
     const cycles = await ReviewCycle.find(query).populate({
       path: 'kpiTemplateId',
       populate: { path: 'departmentId' }
-    });
+    }).sort({ createdAt: -1 });
     res.json(cycles);
   } catch (error) {
     console.error('getReviewCycles error:', error);
@@ -161,8 +166,8 @@ const updateReviewCycle = async (req, res) => {
 
     const updatedCycle = await ReviewCycle.findByIdAndUpdate(id, req.body, { new: true });
 
-    // Trigger notification if status transitioned from draft -> active
-    if (oldCycle.status === 'draft' && updatedCycle.status === 'active') {
+    // Trigger notification if status transitioned to active
+    if (oldCycle.status !== 'active' && updatedCycle.status === 'active') {
       await notifyAllEmployeesOfNewCycle(updatedCycle);
     }
 
@@ -187,8 +192,9 @@ const updateReviewCycle = async (req, res) => {
 const notifyAllEmployeesOfNewCycle = async (cycle) => {
   try {
     // Resolve KPI Template department
-    const template = await KpiTemplate.findById(cycle.kpiTemplateId);
-    const targetDeptId = template?.departmentId || null;
+    const template = await KpiTemplate.findById(cycle.kpiTemplateId).populate('departmentId');
+    const targetDeptId = template?.departmentId?._id || template?.departmentId || null;
+    const deptName = template?.departmentId?.departmentName || 'Department';
 
     const baseFilter = { employmentStatus: 'active' };
     if (targetDeptId) {
@@ -204,17 +210,25 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     }
 
     let targetUsers = await User.find(baseFilter);
-    // Filter strictly by eligibility based on joining date
-    targetUsers = targetUsers.filter(u =>
-      isEmployeeEligibleForCycle(u.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)
-    );
+    // If targetUsers is empty under specific dept filter, fallback to active role members
+    if (targetUsers.length === 0 && targetDeptId) {
+      delete baseFilter.departmentId;
+      targetUsers = await User.find(baseFilter);
+    }
+
+    // Filter by eligibility if joiningDate exists; keep active members if joiningDate not specified
+    targetUsers = targetUsers.filter(u => {
+      if (!u.joiningDate) return true;
+      return isEmployeeEligibleForCycle(u.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate);
+    });
+
     if (targetUsers.length === 0) return;
 
     // In-app notifications for targeted users
     const notifications = targetUsers.map(u => ({
       userId: u._id,
       type: 'review_assigned',
-      message: `A new performance review cycle (${cycle.reviewMonth}) has been started for your department.`
+      message: `Performance review cycle "${cycle.reviewMonth}" (${deptName}) has been launched! Please submit your self-assessment before evaluation due date (${new Date(cycle.endDate).toLocaleDateString()}).`
     }));
     await Notification.insertMany(notifications);
 
@@ -237,15 +251,15 @@ const getSelfAssessments = async (req, res) => {
     const { employeeId, reviewCycleId, status } = req.query;
     const filter = {};
 
-    if (req.user.role === 'employee') {
-      filter.employeeId = req.user.id;
-    } else if (employeeId) {
-      filter.employeeId = employeeId;
+    const targetEmpId = employeeId || (req.user.role === 'employee' || !req.query.all ? req.user.id : null);
+    if (targetEmpId) {
+      filter.employeeId = targetEmpId;
     }
+
     if (reviewCycleId) {
       const cycle = await ReviewCycle.findById(reviewCycleId);
       if (cycle) {
-        const empId = req.user.role === 'employee' ? req.user.id : employeeId;
+        const empId = filter.employeeId || req.user.id;
         if (empId) {
           const emp = await User.findById(empId);
           if (emp && !isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
@@ -741,11 +755,54 @@ const calculateAverages = (scoresList) => {
   return { categoryScores, finalScore, rating };
 };
 
+const deleteReviewCycle = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const cycle = await ReviewCycle.findById(id);
+    if (!cycle) {
+      return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+
+    // Role Security: HR managers can only delete cycles for their department
+    if (req.user.role === 'hr' || req.user.role === 'manager') {
+      const userDeptId = req.user.departmentId?._id || req.user.departmentId;
+      const kpiTemplate = await KpiTemplate.findById(cycle.kpiTemplateId);
+      const cycleDeptId = kpiTemplate?.departmentId?._id || kpiTemplate?.departmentId;
+      if (userDeptId && cycleDeptId && userDeptId.toString() !== cycleDeptId.toString()) {
+        return res.status(403).json({ message: 'Forbidden. You can only delete review cycles for your assigned department.' });
+      }
+    }
+
+    // Delete cycle & related evaluation records
+    await ReviewCycle.findByIdAndDelete(id);
+    await SelfAssessment.deleteMany({ reviewCycleId: id });
+    await ManagerReview.deleteMany({ reviewCycleId: id });
+    await ReviewScore.deleteMany({ reviewCycleId: id });
+
+    try {
+      const AIReport = require('../models/AIReport');
+      if (AIReport) {
+        await AIReport.deleteMany({ reviewCycleId: id });
+      }
+    } catch (e) {
+      // AIReport optional cleanup
+    }
+
+    await logAction(req.user.id, 'DELETE_REVIEW_CYCLE', 'ReviewCycle', id, { reviewMonth: cycle.reviewMonth });
+
+    res.json({ message: 'Review cycle and all associated evaluation data deleted successfully.' });
+  } catch (error) {
+    console.error('deleteReviewCycle error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getReviewCycles,
   getReviewCycleById,
   createReviewCycle,
   updateReviewCycle,
+  deleteReviewCycle,
   getSelfAssessments,
   getSelfAssessmentById,
   submitSelfAssessment,

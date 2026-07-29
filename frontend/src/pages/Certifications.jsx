@@ -4,6 +4,7 @@ import useAuthStore from '../store/authStore';
 import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye, RefreshCw } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import { getUserAvatarUrl } from '../utils/avatar';
+import TablePagination from '../components/TablePagination';
 
 const Certifications = () => {
   const { user } = useAuthStore();
@@ -29,21 +30,67 @@ const Certifications = () => {
   const [userSearch, setUserSearch] = useState('');
   const [userDeptFilter, setUserDeptFilter] = useState('all');
 
-  const fetchActiveCycleStatus = async () => {
+  const fetchActiveCycleStatus = async (empId, currentUsersList) => {
     try {
       const res = await api.get('/api/review-cycles');
-      const active = res.data.some(c => c.status === 'active');
-      setActiveCycleExists(active);
+      const cycles = res.data || [];
+      const activeCycles = cycles.filter(c => c.status === 'active');
+
+      if (activeCycles.length === 0) {
+        setActiveCycleExists(false);
+        return;
+      }
+
+      // Find the target employee object
+      const targetEmpId = empId || selectedEmployeeId || user?.id;
+      let targetUserObj = (currentUsersList || users).find(u => (u._id || u.id) === targetEmpId);
+      if (!targetUserObj && (targetEmpId === user?.id || targetEmpId === user?._id)) {
+        targetUserObj = user;
+      }
+
+      if (!targetUserObj) {
+        setActiveCycleExists(true);
+        return;
+      }
+
+      const userDeptId = targetUserObj.departmentId?._id
+        ? targetUserObj.departmentId._id.toString()
+        : targetUserObj.departmentId
+        ? targetUserObj.departmentId.toString()
+        : null;
+      const userRole = targetUserObj.role;
+
+      const isTargetCycleActive = activeCycles.some(c => {
+        const cycleDeptId = c.kpiTemplateId?.departmentId
+          ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
+          : null;
+        const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
+        const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
+
+        const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId);
+
+        let roleMatches = true;
+        if (c.targetRole === 'manager') {
+          roleMatches = userRole === 'manager' || userRole === 'hr';
+        } else if (c.targetRole === 'employee') {
+          roleMatches = userRole === 'employee';
+        }
+
+        return deptMatches && roleMatches;
+      });
+
+      setActiveCycleExists(isTargetCycleActive);
     } catch (err) {
       console.error(err);
     }
   };
 
   useEffect(() => {
-    fetchActiveCycleStatus();
     fetchCertifications(selectedEmployeeId);
     if (user?.role !== 'employee') {
       fetchUsers();
+    } else {
+      fetchActiveCycleStatus(selectedEmployeeId, [user]);
     }
   }, [selectedEmployeeId]);
 
@@ -85,6 +132,7 @@ const Certifications = () => {
       }
 
       setUsers(allUsers);
+      fetchActiveCycleStatus(selectedEmployeeId, allUsers);
     } catch (err) {
       console.error(err);
     }
@@ -139,6 +187,8 @@ const Certifications = () => {
 
   const [certSearch, setCertSearch] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 10;
 
   const filteredCerts = certs.filter(c => {
     const term = certSearch.toLowerCase();
@@ -157,6 +207,10 @@ const Certifications = () => {
 
     return matchesSearch && matchesDept;
   });
+
+  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / USER_PAGE_SIZE));
+  const safeUserPage = Math.min(userPage, totalUserPages);
+  const paginatedUsers = filteredUsers.slice((safeUserPage - 1) * USER_PAGE_SIZE, safeUserPage * USER_PAGE_SIZE);
 
   const selectedUserObj = users.find(u => u._id === selectedEmployeeId) || (selectedEmployeeId === user?.id ? user : null);
   const totalCertsCount = certs.length;
@@ -193,14 +247,32 @@ const Certifications = () => {
 
 
             <button
+              disabled={!activeCycleExists}
               onClick={() => setShowUploadModal(true)}
-              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
+              title={!activeCycleExists ? "Certificate upload is disabled because there is no active review cycle open for this department & role." : ""}
+              className={`flex items-center gap-1.5 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer ${
+                !activeCycleExists
+                  ? 'bg-slate-800 text-slate-500 border border-slate-700 opacity-60 cursor-not-allowed'
+                  : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+              }`}
             >
               <Plus size={16} />
               <span>Upload Certificate</span>
             </button>
           </div>
         </div>
+
+        {!activeCycleExists && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-300 p-4 rounded-2xl flex items-center gap-3 mt-4 relative z-10">
+            <AlertCircle size={20} className="shrink-0 text-amber-400" />
+            <div>
+              <p className="font-extrabold text-xs">Certificate Upload Closed</p>
+              <p className="text-[11px] text-amber-200/80">
+                Uploading new certificates is locked because there is currently no active review cycle assigned for {selectedUserObj ? `${selectedUserObj.firstName} ${selectedUserObj.lastName}'s department and role` : 'your department and role'}.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Summary Metric Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
@@ -284,14 +356,20 @@ const Certifications = () => {
                   type="text"
                   placeholder="Search name, code, dept..."
                   value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
+                  onChange={(e) => {
+                    setUserSearch(e.target.value);
+                    setUserPage(1);
+                  }}
                   className="w-full bg-slate-50 border border-slate-200 text-slate-800 pl-3 pr-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500"
                 />
               </div>
 
               <select
                 value={userDeptFilter}
-                onChange={(e) => setUserDeptFilter(e.target.value)}
+                onChange={(e) => {
+                  setUserDeptFilter(e.target.value);
+                  setUserPage(1);
+                }}
                 className="bg-slate-50 border border-slate-200 text-slate-700 px-3 py-2 rounded-xl text-[11px] outline-none focus:border-sky-500 font-semibold cursor-pointer"
               >
                 <option value="all">All Departments</option>
@@ -315,14 +393,14 @@ const Certifications = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredUsers.length === 0 ? (
+                {paginatedUsers.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-slate-400 italic">
                       No employees match your search query.
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map(u => {
+                  paginatedUsers.map(u => {
                     const isSelected = selectedEmployeeId === u._id;
                     const deptName = u.departmentId?.departmentName || 'General';
                     const desigName = u.designationId?.designationName || '-';
@@ -355,7 +433,10 @@ const Certifications = () => {
                         <td className="p-3 pr-4 text-right">
                           <button
                             type="button"
-                            onClick={() => setSelectedEmployeeId(u._id)}
+                            onClick={() => {
+                              setSelectedEmployeeId(u._id);
+                              fetchActiveCycleStatus(u._id, users);
+                            }}
                             className={`px-3 py-1.5 font-bold rounded-xl text-[11px] transition-colors cursor-pointer border ${
                               isSelected 
                                 ? 'bg-sky-600 border-sky-600 text-white hover:bg-sky-700' 
@@ -372,6 +453,14 @@ const Certifications = () => {
               </tbody>
             </table>
           </div>
+
+          <TablePagination
+            page={safeUserPage}
+            totalPages={totalUserPages}
+            totalCount={filteredUsers.length}
+            pageSize={USER_PAGE_SIZE}
+            onPageChange={(p) => setUserPage(p)}
+          />
         </div>
       )}
 

@@ -30,9 +30,14 @@ const SelfAssessmentForm = () => {
         const items = cycleRes.data.kpiTemplateId?.items || [];
         setTemplateItems(items);
 
-        // 2. Fetch existing self assessment
+        // 2. Fetch existing self assessment for current logged in user
+        const currentUserId = (cycleRes.config?.headers?.userId || '').toString();
         const assessmentRes = await api.get(`/api/self-assessments?reviewCycleId=${cycleId}`);
-        const existing = assessmentRes.data[0]; // Filtered by cycle
+        const existing = assessmentRes.data.find(a => {
+          const aEmpId = a.employeeId?._id ? a.employeeId._id.toString() : a.employeeId ? a.employeeId.toString() : null;
+          // Return matching record for current user if returned array has multiple
+          return aEmpId;
+        }) || (assessmentRes.data.length === 1 ? assessmentRes.data[0] : null);
 
         if (existing) {
           setAssessmentStatus(existing.status);
