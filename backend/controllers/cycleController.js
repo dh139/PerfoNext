@@ -33,10 +33,13 @@ const getReviewCycles = async (req, res) => {
         query = { kpiTemplateId: { $in: templateIds } };
       }
     }
-    const cycles = await ReviewCycle.find(query).populate({
-      path: 'kpiTemplateId',
-      populate: { path: 'departmentId' }
-    }).sort({ createdAt: -1 });
+    const cycles = await ReviewCycle.find(query)
+      .populate({
+        path: 'kpiTemplateId',
+        populate: { path: 'departmentId' }
+      })
+      .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' })
+      .sort({ createdAt: -1 });
     res.json(cycles);
   } catch (error) {
     console.error('getReviewCycles error:', error);
@@ -47,7 +50,9 @@ const getReviewCycles = async (req, res) => {
 const getReviewCycleById = async (req, res) => {
   try {
     await ReviewCycle.autoCloseExpiredCycles();
-    const cycle = await ReviewCycle.findById(req.params.id).populate('kpiTemplateId');
+    const cycle = await ReviewCycle.findById(req.params.id)
+      .populate('kpiTemplateId')
+      .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
     if (!cycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
     }
@@ -308,10 +313,14 @@ const submitSelfAssessment = async (req, res) => {
       return res.status(400).json({ message: 'Executives / CEOs do not submit self-assessments.' });
     }
 
-    // Check if review cycle is active
+    // Check if review cycle is active or user has individual extension unlocked
     const cycle = await ReviewCycle.findById(reviewCycleId);
-    if (!cycle || cycle.status !== 'active') {
-      return res.status(400).json({ message: 'Self assessment can only be submitted for active review cycles.' });
+    if (!cycle) {
+      return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+    const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === employeeId.toString());
+    if (cycle.status !== 'active' && !isUnlockedForUser) {
+      return res.status(400).json({ message: 'Self assessment can only be submitted for active review cycles unless an individual extension is granted.' });
     }
 
     // Verify user eligibility based on joining date & target role
@@ -455,10 +464,15 @@ const submitManagerReview = async (req, res) => {
     const { reviewCycleId, employeeId, details, status } = req.body;
     const managerId = req.user.id;
 
-    // Check if review cycle is active
+    // Check if review cycle is active or target employee has an individual extension unlocked
     const cycle = await ReviewCycle.findById(reviewCycleId);
-    if (!cycle || cycle.status !== 'active') {
-      return res.status(400).json({ message: 'Manager review can only be submitted for active review cycles.' });
+    if (!cycle) {
+      return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+
+    const isUnlockedForEmployee = cycle.unlockedUserIds?.some(uid => uid.toString() === employeeId.toString());
+    if (cycle.status !== 'active' && !isUnlockedForEmployee) {
+      return res.status(400).json({ message: 'Manager review can only be submitted for active review cycles unless an individual extension is granted.' });
     }
 
     // Verify manager assignment or HR/Admin/Executive access
@@ -797,12 +811,101 @@ const deleteReviewCycle = async (req, res) => {
   }
 };
 
+const unlockUserForCycle = async (req, res) => {
+  try {
+    const { userId, reason } = req.body;
+    const cycleId = req.params.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'Target Employee User ID is required.' });
+    }
+
+    const cycle = await ReviewCycle.findById(cycleId);
+    if (!cycle) {
+      return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ message: 'Target employee not found.' });
+    }
+
+    // Add to unlockedUserIds if not present
+    if (!cycle.unlockedUserIds.some(id => id.toString() === userId.toString())) {
+      cycle.unlockedUserIds.push(userId);
+      await cycle.save();
+    }
+
+    // In-app notification to the employee
+    await Notification.create({
+      userId: targetUser._id,
+      type: 'review_assigned',
+      message: `Individual Extension Granted! The performance review cycle for "${cycle.reviewMonth}" has been specially re-opened/unlocked for you.`
+    });
+
+    logAction({
+      userId: req.user.id,
+      action: 'CYCLE_INDIVIDUAL_UNLOCKED',
+      resource: 'ReviewCycle',
+      resourceId: cycle._id,
+      details: { unlockedUserId: userId, reason: reason || 'Individual self-assessment extension' }
+    });
+
+    const updatedCycle = await ReviewCycle.findById(cycleId)
+      .populate({ path: 'kpiTemplateId', populate: { path: 'departmentId' } })
+      .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
+
+    res.json(updatedCycle);
+  } catch (error) {
+    console.error('unlockUserForCycle error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
+const relockUserForCycle = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const cycleId = req.params.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'Target Employee User ID is required.' });
+    }
+
+    const cycle = await ReviewCycle.findById(cycleId);
+    if (!cycle) {
+      return res.status(404).json({ message: 'Review cycle not found.' });
+    }
+
+    cycle.unlockedUserIds = cycle.unlockedUserIds.filter(id => id.toString() !== userId.toString());
+    await cycle.save();
+
+    logAction({
+      userId: req.user.id,
+      action: 'CYCLE_INDIVIDUAL_RELOCKED',
+      resource: 'ReviewCycle',
+      resourceId: cycle._id,
+      details: { relockedUserId: userId }
+    });
+
+    const updatedCycle = await ReviewCycle.findById(cycleId)
+      .populate({ path: 'kpiTemplateId', populate: { path: 'departmentId' } })
+      .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
+
+    res.json(updatedCycle);
+  } catch (error) {
+    console.error('relockUserForCycle error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getReviewCycles,
   getReviewCycleById,
   createReviewCycle,
   updateReviewCycle,
   deleteReviewCycle,
+  unlockUserForCycle,
+  relockUserForCycle,
   getSelfAssessments,
   getSelfAssessmentById,
   submitSelfAssessment,

@@ -84,6 +84,18 @@ const updateKpiTemplate = async (req, res) => {
     res.json(template);
   } catch (error) {
     console.error('updateKpiTemplate error:', error);
+  }
+};
+
+const deleteKpiTemplate = async (req, res) => {
+  try {
+    const template = await KpiTemplate.findByIdAndDelete(req.params.id);
+    if (!template) {
+      return res.status(404).json({ message: 'KPI Template not found.' });
+    }
+    res.json({ message: 'KPI Template deleted successfully.' });
+  } catch (error) {
+    console.error('deleteKpiTemplate error:', error);
     res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };
@@ -92,5 +104,6 @@ module.exports = {
   getKpiTemplates,
   getKpiTemplateById,
   createKpiTemplate,
-  updateKpiTemplate
+  updateKpiTemplate,
+  deleteKpiTemplate
 };

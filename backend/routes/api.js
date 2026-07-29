@@ -30,21 +30,24 @@ const skillController = require('../controllers/skillController');
 const certificationController = require('../controllers/certificationController');
 const integrationController = require('../controllers/integrationController');
 
-// ==================== AUTH ROUTES ====================
-router.post('/auth/login', validateLogin, authController.login);
-router.post('/auth/refresh', authController.refresh);
+const { authLimiter, publicLimiter, userActionLimiter } = require('../middlewares/rateLimiter');
+
+// ==================== AUTH ROUTES (Stricter + Exponential Backoff) ====================
+router.post('/auth/login', authLimiter, validateLogin, authController.login);
+router.post('/auth/refresh', authLimiter, authController.refresh);
 router.post('/auth/logout', authController.logout);
-router.post('/auth/register', validateRegister, authController.register);
-router.post('/auth/forgot-password', validateForgotPassword, authController.forgotPassword);
-router.post('/auth/verify-otp', authController.verifyOtp);
-router.post('/auth/reset-password', validateResetPassword, authController.resetPassword);
+router.post('/auth/register', authLimiter, validateRegister, authController.register);
+router.post('/auth/forgot-password', authLimiter, validateForgotPassword, authController.forgotPassword);
+router.post('/auth/verify-otp', authLimiter, authController.verifyOtp);
+router.post('/auth/reset-password', authLimiter, validateResetPassword, authController.resetPassword);
 
-// Public metadata routes for registration
-router.get('/auth/departments', userController.getDepartments);
-router.get('/auth/designations', userController.getDesignations);
-router.get('/auth/managers', userController.getPublicManagers);
+// Public metadata routes for registration (Moderate Limits)
+router.get('/auth/departments', publicLimiter, userController.getDepartments);
+router.get('/auth/designations', publicLimiter, userController.getDesignations);
+router.get('/auth/managers', publicLimiter, userController.getPublicManagers);
 
-// ==================== PROTECTED ROUTES ====================
+// ==================== PROTECTED ROUTES (Looser Authenticated User Limits) ====================
+router.use(userActionLimiter);
 
 router.get('/users', verifyToken, userController.getUsers);
 router.get('/users/me', verifyToken, userController.getMyProfile);
@@ -69,8 +72,9 @@ router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr'), us
 // KPI Templates
 router.get('/kpi-templates', verifyToken, kpiController.getKpiTemplates);
 router.get('/kpi-templates/:id', verifyToken, kpiController.getKpiTemplateById);
-router.post('/kpi-templates', verifyToken, authorizeRoles('admin', 'hr', 'executive'), kpiController.createKpiTemplate);
-router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), kpiController.updateKpiTemplate);
+router.post('/kpi-templates', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.createKpiTemplate);
+router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.updateKpiTemplate);
+router.delete('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.deleteKpiTemplate);
 
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);
@@ -78,6 +82,8 @@ router.get('/review-cycles/:id', verifyToken, cycleController.getReviewCycleById
 router.post('/review-cycles', verifyToken, authorizeRoles('admin', 'hr', 'executive'), validateReviewCycle, cycleController.createReviewCycle);
 router.patch('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.updateReviewCycle);
 router.delete('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), cycleController.deleteReviewCycle);
+router.post('/review-cycles/:id/unlock-user', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), cycleController.unlockUserForCycle);
+router.post('/review-cycles/:id/relock-user', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), cycleController.relockUserForCycle);
 
 // Assessments & Reviews
 router.get('/self-assessments', verifyToken, cycleController.getSelfAssessments);

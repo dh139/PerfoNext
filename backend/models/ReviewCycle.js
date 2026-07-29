@@ -38,7 +38,13 @@ const reviewCycleSchema = new mongoose.Schema(
       enum: ['employee', 'manager', 'all'],
       default: 'all',
       required: true
-    }
+    },
+    unlockedUserIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    ]
   },
   { timestamps: true }
 );

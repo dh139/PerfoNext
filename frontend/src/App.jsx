@@ -97,14 +97,14 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/reports/department" element={<DepartmentReports />} />
             <Route path="/reports/completion" element={<CompletionReport />} />
+            <Route path="/hr/kpis" element={<KpiTemplates />} />
+            <Route path="/hr/kpi-templates" element={<KpiTemplates />} />
           </Route>
 
           {/* Sub-group: HR, Admin, Executive */}
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin', 'executive']} />}>
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/hr/cycles" element={<ReviewCycles />} />
-            <Route path="/hr/kpis" element={<KpiTemplates />} />
-            <Route path="/hr/kpi-templates" element={<KpiTemplates />} />
             <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
           </Route>

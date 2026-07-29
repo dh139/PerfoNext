@@ -16,8 +16,13 @@ const getDashboardData = async (req, res) => {
     await ReviewCycle.autoCloseExpiredCycles();
     const { role, id: userId } = req.user;
     
-    // Fetch active review cycles
-    const activeCycles = await ReviewCycle.find({ status: 'active' });
+    // Fetch active review cycles (or cycles where any individual extension is granted)
+    const activeCycles = await ReviewCycle.find({
+      $or: [
+        { status: 'active' },
+        { unlockedUserIds: { $exists: true, $not: { $size: 0 } } }
+      ]
+    });
     const activeCycleIds = activeCycles.map(c => c._id);
 
     const user = await User.findById(userId)
@@ -28,6 +33,11 @@ const getDashboardData = async (req, res) => {
     
     if (user && user.role !== 'executive' && user.role !== 'admin') {
       for (const cycle of activeCycles) {
+        const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
+        if (cycle.status !== 'active' && !isUnlockedForUser) {
+          continue; // Skip closed cycle unless THIS user was individually unlocked!
+        }
+
         // Filter by targetRole eligibility
         if (cycle.targetRole === 'manager' && user.role === 'employee') {
           continue;
@@ -85,15 +95,36 @@ const getDashboardData = async (req, res) => {
       let ratingBand = null;
       let activeCycleId = null;
 
+      const userAssessments = await SelfAssessment.find({ employeeId: userId });
+      const userCompletedCycleIds = [
+        ...userAssessments.map(a => a.reviewCycleId),
+        ...reviewScores.map(s => s.reviewCycleId?._id || s.reviewCycleId)
+      ].filter(Boolean);
+
+      const employeeRelevantCycles = await ReviewCycle.find({
+        $or: [
+          { status: 'active' },
+          { unlockedUserIds: userId },
+          { _id: { $in: userCompletedCycleIds } }
+        ]
+      }).sort({ createdAt: -1 });
+
       const eligibleCycles = [];
 
-      for (const cycle of activeCycles) {
+      for (const cycle of employeeRelevantCycles) {
+        const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
+        const hasExistingAssessmentOrScore = userCompletedCycleIds.some(cid => cid.toString() === cycle._id.toString());
+
+        if (cycle.status !== 'active' && !isUnlockedForUser && !hasExistingAssessmentOrScore) {
+          continue;
+        }
+
         if (cycle.targetRole === 'manager') {
           continue; // Skip manager-targeted cycles for employee role
         }
 
         // Filter by joining date eligibility
-        if (!isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+        if (user.joiningDate && !isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
           continue; // Skip this cycle for this employee as they are not eligible
         }
 
@@ -107,7 +138,7 @@ const getDashboardData = async (req, res) => {
         }
         
         let selfStatus = 'none';
-        const assessment = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: userId });
+        const assessment = userAssessments.find(a => a.reviewCycleId?.toString() === cycle._id.toString());
         if (!assessment || assessment.status === 'draft') {
           selfStatus = 'pending';
         } else {
@@ -127,7 +158,7 @@ const getDashboardData = async (req, res) => {
         let finalized = false;
         let finalScoreValue = null;
         let ratingBandValue = null;
-        const score = await ReviewScore.findOne({ reviewCycleId: cycle._id, employeeId: userId });
+        const score = reviewScores.find(s => (s.reviewCycleId?._id || s.reviewCycleId)?.toString() === cycle._id.toString());
         if (score) {
           finalized = true;
           finalScoreValue = score.finalScore;
@@ -144,14 +175,18 @@ const getDashboardData = async (req, res) => {
         });
       }
 
-      // Priority Selector:
-      // 1. Any cycle with selfStatus === 'pending'
+      // Priority Selector for Employee Journey Card:
+      // 1. Any active/unlocked cycle with selfStatus === 'pending'
       let target = eligibleCycles.find(c => c.selfStatus === 'pending');
-      // 2. Any cycle with mgrStatus === 'waiting'
+      // 2. Any active/unlocked cycle with mgrStatus === 'waiting'
       if (!target) {
         target = eligibleCycles.find(c => c.mgrStatus === 'waiting');
       }
-      // 3. Fallback to the first eligible cycle (completed or active)
+      // 3. Latest completed review score (100% Completed!)
+      if (!target) {
+        target = eligibleCycles.find(c => c.finalized);
+      }
+      // 4. Fallback to the first eligible cycle
       if (!target && eligibleCycles.length > 0) {
         target = eligibleCycles[0];
       }
@@ -218,10 +253,16 @@ const getDashboardData = async (req, res) => {
       allManRevs.forEach(mr => manRevMap.set(`${mr.reviewCycleId.toString()}_${mr.employeeId.toString()}`, mr));
 
       for (const cycle of activeCycles) {
+        const isCycleActive = cycle.status === 'active';
         const template = await KpiTemplate.findById(cycle.kpiTemplateId);
         const targetDeptId = template?.departmentId || null;
 
         for (const sub of subordinates) {
+          const isSubUnlocked = cycle.unlockedUserIds?.some(uid => uid.toString() === sub._id.toString());
+          if (!isCycleActive && !isSubUnlocked) {
+            continue;
+          }
+
           if (cycle.targetRole === 'manager' && sub.role === 'employee') {
             continue;
           }

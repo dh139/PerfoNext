@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight, CheckCircle2, Trash2 } from 'lucide-react';
+import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight, CheckCircle2, Trash2, Unlock, Lock, UserCheck, Search } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import ConfirmModal from '../components/ConfirmModal';
 import TablePagination from '../components/TablePagination';
@@ -17,6 +17,88 @@ const ReviewCycles = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [cyclePage, setCyclePage] = useState(1);
+
+  // Individual Unlock Extension State
+  const [unlockModalCycle, setUnlockModalCycle] = useState(null);
+  const [usersList, setUsersList] = useState([]);
+  const [selectedUserIdToUnlock, setSelectedUserIdToUnlock] = useState('');
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+
+  const fetchUsersForUnlock = async () => {
+    try {
+      const res = await api.get('/api/users');
+      setUsersList(res.data.filter(u => u.employmentStatus === 'active'));
+    } catch (err) {
+      console.error('Failed to fetch users for unlock:', err);
+    }
+  };
+
+  const handleOpenUnlockModal = (c) => {
+    setUnlockModalCycle(c);
+    setSelectedUserIdToUnlock('');
+    setUserSearchTerm('');
+    fetchUsersForUnlock();
+  };
+
+  const handleGrantUnlock = async (userIdToUnlock) => {
+    if (!unlockModalCycle || !userIdToUnlock) return;
+    try {
+      const res = await api.post(`/api/review-cycles/${unlockModalCycle._id}/unlock-user`, { userId: userIdToUnlock });
+      toast.success('Individual review extension granted successfully!');
+      setUnlockModalCycle(res.data);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to grant individual extension.');
+    }
+  };
+
+  const handleRevokeUnlock = async (userIdToRelock) => {
+    if (!unlockModalCycle || !userIdToRelock) return;
+    try {
+      const res = await api.post(`/api/review-cycles/${unlockModalCycle._id}/relock-user`, { userId: userIdToRelock });
+      toast.success('Individual extension revoked.');
+      setUnlockModalCycle(res.data);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to revoke extension.');
+    }
+  };
+
+  const getEligibleUsersForUnlockModal = () => {
+    if (!unlockModalCycle) return [];
+
+    const cycleDeptId = (
+      unlockModalCycle.kpiTemplateId?.departmentId?._id ||
+      unlockModalCycle.kpiTemplateId?.departmentId ||
+      unlockModalCycle.departmentId?._id ||
+      unlockModalCycle.departmentId || ''
+    ).toString();
+
+    const cycleDeptName = (unlockModalCycle.kpiTemplateId?.departmentId?.departmentName || '').toLowerCase();
+    const isAllDepts = !cycleDeptId || cycleDeptName.includes('all department') || cycleDeptName === 'all';
+    const targetRole = unlockModalCycle.targetRole || 'all';
+
+    return usersList.filter(u => {
+      // 1. Department Filter
+      if (!isAllDepts) {
+        const uDeptId = (u.departmentId?._id || u.departmentId || '').toString();
+        if (!uDeptId || uDeptId !== cycleDeptId) {
+          return false;
+        }
+      }
+
+      // 2. Role Filter
+      if (targetRole === 'manager') {
+        if (u.role !== 'manager' && u.role !== 'hr') return false;
+      } else if (targetRole === 'employee') {
+        if (u.role !== 'employee') return false;
+      }
+
+      return true;
+    });
+  };
 
   const getCurrentDefaultReviewMonth = () => {
     const now = new Date();
@@ -394,17 +476,35 @@ const ReviewCycles = () => {
                         {new Date(c.endDate).toLocaleDateString()}
                       </td>
                       <td className="py-4 px-4">
-                        <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${
-                          c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          c.status === 'closed' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                          'bg-amber-50 text-amber-800 border-amber-200'
-                        }`}>
-                          {c.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                          {c.status?.toUpperCase()}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`inline-flex items-center gap-1.5 text-[9px] font-black uppercase px-3 py-1 rounded-full border ${
+                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            c.status === 'closed' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                            'bg-amber-50 text-amber-800 border-amber-200'
+                          }`}>
+                            {c.status === 'active' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                            {c.status?.toUpperCase()}
+                          </span>
+                          {c.unlockedUserIds && c.unlockedUserIds.length > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                              <Unlock size={10} /> {c.unlockedUserIds.length} Unlocked
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {c.status === 'closed' && (
+                            <button
+                              onClick={() => handleOpenUnlockModal(c)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl transition-colors cursor-pointer shadow-3xs font-bold text-xs"
+                              title="Grant Individual Extension / Re-open for specific employee"
+                            >
+                              <Unlock size={14} className="text-amber-600" />
+                              <span>Individual Re-Open</span>
+                            </button>
+                          )}
+
                           {c.status !== 'closed' ? (
                             <button
                               onClick={() => handleUpdateStatus(c._id, c.status)}
@@ -597,6 +697,120 @@ const ReviewCycles = () => {
         onConfirm={confirmDeleteCycle}
         onCancel={() => setPendingDeleteCycle(null)}
       />
+
+      {/* Individual Extension / Unlock Modal */}
+      {unlockModalCycle && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 border border-slate-100 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
+                  <Unlock size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm">Grant Individual Review Extension</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Re-open cycle "{unlockModalCycle.reviewMonth}" ({unlockModalCycle.kpiTemplateId?.departmentId?.departmentName || 'All Departments'} • {unlockModalCycle.targetRole === 'manager' ? 'Managers' : 'Employees'})
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setUnlockModalCycle(null)} className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer">✕</button>
+            </div>
+
+            {/* Grant Extension Section */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Select Employee to Re-Open / Unlock Cycle</label>
+              
+              {/* Search User Input */}
+              <input
+                type="text"
+                placeholder="Filter employee by name..."
+                value={userSearchTerm}
+                onChange={(e) => setUserSearchTerm(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-xs font-semibold text-slate-700 mb-2"
+              />
+
+              <div className="flex gap-2">
+                <select
+                  value={selectedUserIdToUnlock}
+                  onChange={(e) => setSelectedUserIdToUnlock(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
+                >
+                  <option value="">Select Employee...</option>
+                  {getEligibleUsersForUnlockModal()
+                    .filter(u => {
+                      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
+                      return fullName.includes(userSearchTerm.toLowerCase()) || u.employeeCode?.toLowerCase().includes(userSearchTerm.toLowerCase());
+                    })
+                    .filter(u => !unlockModalCycle.unlockedUserIds?.some(un => (un._id || un).toString() === u._id.toString()))
+                    .map(u => {
+                      const deptName = u.departmentId?.departmentName || 'Dept';
+                      return (
+                        <option key={u._id} value={u._id}>
+                          {u.firstName} {u.lastName} ({u.employeeCode || 'EMP'}) • {deptName} • {u.role?.toUpperCase()}
+                        </option>
+                      );
+                    })}
+                </select>
+
+                <button
+                  disabled={!selectedUserIdToUnlock}
+                  onClick={() => {
+                    handleGrantUnlock(selectedUserIdToUnlock);
+                    setSelectedUserIdToUnlock('');
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-xs px-4 py-2.5 rounded-xl shrink-0 shadow-md cursor-pointer transition-colors"
+                >
+                  Unlock User
+                </button>
+              </div>
+            </div>
+
+            {/* Currently Unlocked Users */}
+            <div className="space-y-2 pt-3 border-t border-slate-100">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                Currently Unlocked / Extension Granted ({unlockModalCycle.unlockedUserIds?.length || 0})
+              </span>
+
+              {(!unlockModalCycle.unlockedUserIds || unlockModalCycle.unlockedUserIds.length === 0) ? (
+                <div className="bg-slate-50 p-3 rounded-xl text-center text-slate-400 font-medium text-xs">
+                  No individual extensions active for this review cycle.
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                  {unlockModalCycle.unlockedUserIds.map(u => {
+                    const uObj = typeof u === 'object' ? u : usersList.find(usr => usr._id === u) || { _id: u, firstName: 'User', lastName: '' };
+                    return (
+                      <div key={uObj._id} className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
+                        <div>
+                          <span className="font-bold text-slate-800">{uObj.firstName} {uObj.lastName}</span>
+                          <span className="text-[10px] text-slate-500 block">{uObj.email} • {uObj.employeeCode}</span>
+                        </div>
+
+                        <button
+                          onClick={() => handleRevokeUnlock(uObj._id)}
+                          className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-white border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          Revoke / Relock
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setUnlockModalCycle(null)}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
+              >
+                Close Modal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

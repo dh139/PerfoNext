@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import { AlertCircle, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import ConfirmModal from '../components/ConfirmModal';
 
 const KpiTemplates = () => {
   const [templates, setTemplates] = useState([]);
@@ -10,6 +11,26 @@ const KpiTemplates = () => {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
+  const [pendingDeleteTemplate, setPendingDeleteTemplate] = useState(null);
+
+  const handleDeleteTemplate = (id, name) => {
+    setPendingDeleteTemplate({ id, name });
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!pendingDeleteTemplate) return;
+    const { id } = pendingDeleteTemplate;
+    setPendingDeleteTemplate(null);
+    try {
+      setError('');
+      const res = await api.delete(`/api/kpi-templates/${id}`);
+      toast.success(res.data.message || 'KPI Template deleted successfully.');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to delete KPI Template.');
+    }
+  };
 
   // Form State
   const [editTemplate, setEditTemplate] = useState(null);
@@ -294,12 +315,21 @@ const KpiTemplates = () => {
                       <h4 className="font-extrabold text-slate-900 text-sm mt-1">{t.templateName}</h4>
                     </div>
 
-                    <button
-                      onClick={() => handleOpenEdit(t)}
-                      className="flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0 shadow-3xs"
-                    >
-                      <span>Edit Rubric</span>
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleOpenEdit(t)}
+                        className="flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shadow-3xs"
+                      >
+                        <span>Edit Rubric</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTemplate(t._id, t.templateName)}
+                        className="p-1.5 text-rose-600 hover:text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shadow-3xs"
+                        title="Delete Template"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-2 pt-2">
@@ -447,6 +477,18 @@ const KpiTemplates = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {pendingDeleteTemplate && (
+        <ConfirmModal
+          open={!!pendingDeleteTemplate}
+          title="Delete KPI Template"
+          message={`Are you sure you want to delete the KPI Template "${pendingDeleteTemplate.name}"? This action cannot be undone.`}
+          confirmLabel="Delete Template"
+          onConfirm={confirmDeleteTemplate}
+          onCancel={() => setPendingDeleteTemplate(null)}
+        />
       )}
 
     </div>

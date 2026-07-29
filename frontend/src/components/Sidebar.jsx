@@ -314,14 +314,18 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                   <ClipboardList size={16} />
                   <span>Completion Report</span>
                 </Link>
-                <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
-                  <Users size={16} />
-                  <span>Users Database</span>
-                </Link>
-                <Link to="/admin/org" className={linkClass('/admin/org')} onClick={handleNavClick}>
-                  <Shield size={16} />
-                  <span>Org Structure</span>
-                </Link>
+                {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
+                  <>
+                    <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
+                      <Users size={16} />
+                      <span>Users Database</span>
+                    </Link>
+                    <Link to="/admin/org" className={linkClass('/admin/org')} onClick={handleNavClick}>
+                      <Shield size={16} />
+                      <span>Org Structure</span>
+                    </Link>
+                  </>
+                )}
                 {(user?.role === 'admin' || user?.role === 'executive') && (
                   <Link to="/admin/audit" className={linkClass('/admin/audit')} onClick={handleNavClick}>
                     <FileText size={16} />
