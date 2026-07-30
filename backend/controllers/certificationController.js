@@ -140,7 +140,77 @@ const uploadCertification = async (req, res) => {
   }
 };
 
+const updateCertification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, issuer, issueDate, expiryDate } = req.body;
+
+    const cert = await Certification.findById(id);
+    if (!cert) {
+      return res.status(404).json({ message: 'Certification record not found.' });
+    }
+
+    // Role check: employees can only update their own certificates
+    if (req.user.role === 'employee' && cert.employeeId.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied. You can only edit your own certifications.' });
+    }
+
+    // Check for duplicate title if name is changed
+    if (name && name.trim().toLowerCase() !== cert.name.trim().toLowerCase()) {
+      const existingCert = await Certification.findOne({
+        _id: { $ne: id },
+        employeeId: cert.employeeId,
+        name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+      });
+
+      if (existingCert) {
+        if (req.file && fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch (e) {}
+        }
+        return res.status(400).json({
+          message: `A certification titled "${name.trim()}" is already registered for this employee.`
+        });
+      }
+      cert.name = name.trim();
+    }
+
+    if (issuer) cert.issuer = issuer.trim();
+    if (issueDate) cert.issueDate = issueDate;
+    if (expiryDate !== undefined) cert.expiryDate = expiryDate || null;
+
+    // Handle new replacement file if uploaded
+    if (req.file) {
+      cert.fileUrl = `/uploads/${req.file.filename}`;
+
+      // Extract text content if PDF
+      let extractedText = '';
+      if (req.file.mimetype === 'application/pdf' && fs.existsSync(req.file.path)) {
+        try {
+          const dataBuffer = fs.readFileSync(req.file.path);
+          const parser = new pdf.PDFParse({});
+          await parser.load(dataBuffer);
+          extractedText = await parser.getText() || '';
+        } catch (err) {
+          console.error('PDF text extraction failed:', err);
+        }
+      }
+      cert.extractedText = extractedText;
+    }
+
+    await cert.save();
+
+    // Invalidate AI report cache for fresh analysis
+    await AIReport.deleteMany({ employeeId: cert.employeeId });
+
+    res.json(cert);
+  } catch (error) {
+    console.error('updateCertification error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getCertifications,
-  uploadCertification
+  uploadCertification,
+  updateCertification
 };

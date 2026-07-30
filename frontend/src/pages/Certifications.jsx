@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, Trash2, User, Eye, RefreshCw, Edit3 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import { getUserAvatarUrl } from '../utils/avatar';
 import TablePagination from '../components/TablePagination';
@@ -21,6 +21,15 @@ const Certifications = () => {
   const [issueDate, setIssueDate] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [file, setFile] = useState(null);
+
+  // Edit State
+  const [editingCert, setEditingCert] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editIssuer, setEditIssuer] = useState('');
+  const [editIssueDate, setEditIssueDate] = useState('');
+  const [editExpiryDate, setEditExpiryDate] = useState('');
+  const [editFile, setEditFile] = useState(null);
+  const [updating, setUpdating] = useState(false);
 
   // Managers view toggle
   const [users, setUsers] = useState([]);
@@ -202,6 +211,77 @@ const Certifications = () => {
       toast.error(errMsg);
     } finally {
       setUploading(false);
+    }
+  };
+
+  const openEditModal = (cert) => {
+    setEditingCert(cert);
+    setEditName(cert.name || '');
+    setEditIssuer(cert.issuer || '');
+    setEditIssueDate(cert.issueDate ? new Date(cert.issueDate).toISOString().split('T')[0] : '');
+    setEditExpiryDate(cert.expiryDate ? new Date(cert.expiryDate).toISOString().split('T')[0] : '');
+    setEditFile(null);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (!editName || !editIssuer || !editIssueDate) {
+      const msg = 'Please fill in all required fields.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (editFile) {
+      const ext = editFile.name.split('.').pop().toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg'].includes(ext)) {
+        const msg = 'Invalid file format. Only JPG, JPEG, and PDF documents are allowed.';
+        setError(msg);
+        toast.error(msg);
+        return;
+      }
+    }
+
+    const isDuplicate = certs.some(
+      c => c._id !== editingCert._id && c.name.trim().toLowerCase() === editName.trim().toLowerCase()
+    );
+    if (isDuplicate) {
+      const msg = `A certification titled "${editName.trim()}" is already registered. Duplicate certificate titles are not allowed.`;
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('name', editName);
+    formData.append('issuer', editIssuer);
+    formData.append('issueDate', editIssueDate);
+    formData.append('expiryDate', editExpiryDate || '');
+    if (editFile) {
+      formData.append('file', editFile);
+    }
+
+    try {
+      setUpdating(true);
+      await api.patch(`/api/certifications/${editingCert._id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setSuccess('Certification updated successfully!');
+      toast.success('Certification details updated successfully!');
+      setEditingCert(null);
+      fetchCertifications(selectedEmployeeId);
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.message || 'Update failed.';
+      setError(errMsg);
+      toast.error(errMsg);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -522,9 +602,18 @@ const Certifications = () => {
                     <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100">
                       <Award size={20} />
                     </div>
-                    <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Verified Active
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Verified Active
+                      </span>
+                      <button
+                        onClick={() => openEditModal(c)}
+                        className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-sky-700 rounded-xl border border-slate-200 cursor-pointer transition-colors"
+                        title="Edit Certificate"
+                      >
+                        <Edit3 size={13} />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -545,15 +634,24 @@ const Certifications = () => {
                     </div>
                   )}
 
-                  {c.fileUrl && (
+                  <div className="flex items-center gap-2 pt-1">
+                    {c.fileUrl && (
+                      <button
+                        onClick={() => setPreviewDoc({ fileName: c.name, fileUrl: c.fileUrl })}
+                        className="flex-1 py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-xs text-sky-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Eye size={14} />
+                        <span>Preview Proof</span>
+                      </button>
+                    )}
                     <button
-                      onClick={() => setPreviewDoc({ fileName: c.name, fileUrl: c.fileUrl })}
-                      className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-xs text-sky-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                      onClick={() => openEditModal(c)}
+                      className="py-2 px-3.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl font-extrabold text-xs text-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <Eye size={14} />
-                      <span>Preview Document Proof</span>
+                      <Edit3 size={13} />
+                      <span>Edit</span>
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}
@@ -663,6 +761,114 @@ const Certifications = () => {
                     </>
                   ) : (
                     <span>Upload & Register</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Certificate Modal */}
+      {editingCert && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 border border-slate-100 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm">Edit Certification Details</h3>
+              <button onClick={() => setEditingCert(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Certification Title *</label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. AWS Certified Solutions Architect"
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Issuing Institution / Body *</label>
+                <input
+                  type="text"
+                  value={editIssuer}
+                  onChange={(e) => setEditIssuer(e.target.value)}
+                  placeholder="e.g. Amazon Web Services, Microsoft, PMI..."
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-medium"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Issue Date *</label>
+                  <input
+                    type="date"
+                    value={editIssueDate}
+                    onChange={(e) => setEditIssueDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-800"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Expiry Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={editExpiryDate}
+                    onChange={(e) => setEditExpiryDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Replace Document Proof (Optional - PDF, JPG, JPEG)</label>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,image/jpeg,application/pdf"
+                  onChange={(e) => {
+                    const selected = e.target.files[0];
+                    if (selected) {
+                      const ext = selected.name.split('.').pop().toLowerCase();
+                      if (!['pdf', 'jpg', 'jpeg'].includes(ext)) {
+                        toast.error('Invalid file format. Only PDF, JPG, and JPEG files are allowed.');
+                        e.target.value = '';
+                        setEditFile(null);
+                        return;
+                      }
+                      setEditFile(selected);
+                    }
+                  }}
+                  className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-slate-700 file:bg-sky-100 file:border-0 file:rounded-lg file:px-3 file:py-1 file:text-xs file:font-bold file:text-sky-800 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() => setEditingCert(null)}
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2 rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updating}
+                  className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {updating ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <span>Save Changes</span>
                   )}
                 </button>
               </div>

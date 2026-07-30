@@ -2,39 +2,87 @@ const mongoose = require('mongoose');
 
 const auditLogSchema = new mongoose.Schema(
   {
+    // Actor Snapshot (persisted self-contained context)
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
       index: true
     },
+    actor: {
+      id: { type: mongoose.Schema.Types.ObjectId },
+      employeeCode: { type: String },
+      name: { type: String },
+      email: { type: String },
+      role: { type: String }
+    },
+
+    // Categorization & Event Audit
     action: {
       type: String,
-      enum: [
-        'login', 'logout', 'review_update', 'score_change',
-        'user_creation', 'user_deletion', 'role_change', 'user_modification',
-        'department_modification', 'CYCLE_INDIVIDUAL_UNLOCKED', 'CYCLE_INDIVIDUAL_RELOCKED',
-        'cycle_update', 'cycle_creation', 'cycle_deletion'
-      ],
       required: true,
       index: true
     },
+    module: {
+      type: String,
+      default: 'General',
+      index: true
+    },
+    status: {
+      type: String,
+      enum: ['SUCCESS', 'FAILED'],
+      default: 'SUCCESS',
+      index: true
+    },
+    reason: {
+      type: String,
+      trim: true
+    },
+
+    // Target Entity & Structural Context
     entityType: {
       type: String,
       required: true
     },
     entityId: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true
+      type: mongoose.Schema.Types.Mixed
     },
+    reviewCycleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ReviewCycle',
+      index: true
+    },
+    departmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department'
+    },
+    departmentName: {
+      type: String
+    },
+
+    // Telemetry & Network Details
+    endpoint: {
+      type: String
+    },
+    method: {
+      type: String
+    },
+    ipAddress: {
+      type: String
+    },
+    userAgent: {
+      type: String
+    },
+    requestId: {
+      type: String,
+      index: true
+    },
+
+    // State Diffs
     before: {
       type: mongoose.Schema.Types.Mixed
     },
     after: {
       type: mongoose.Schema.Types.Mixed
-    },
-    ipAddress: {
-      type: String
     }
   },
   { timestamps: true }

@@ -855,8 +855,13 @@ const unlockUserForCycle = async (req, res) => {
     }
 
     logAction({
+      req,
       userId: req.user.id,
       action: 'CYCLE_INDIVIDUAL_UNLOCKED',
+      module: 'Review Cycle',
+      status: 'SUCCESS',
+      reason: reason || 'Individual review extension granted',
+      reviewCycleId: cycle._id,
       entityType: 'ReviewCycle',
       entityId: cycle._id,
       after: { unlockedUserId: userId, reason: reason || 'Individual self-assessment extension' }
@@ -891,8 +896,13 @@ const relockUserForCycle = async (req, res) => {
     await cycle.save();
 
     logAction({
+      req,
       userId: req.user.id,
       action: 'CYCLE_INDIVIDUAL_RELOCKED',
+      module: 'Review Cycle',
+      status: 'SUCCESS',
+      reason: 'Individual review extension closed/relocked',
+      reviewCycleId: cycle._id,
       entityType: 'ReviewCycle',
       entityId: cycle._id,
       after: { relockedUserId: userId }

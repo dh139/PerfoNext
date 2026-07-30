@@ -154,6 +154,7 @@ router.post('/employee-skills', verifyToken, skillController.updateEmployeeSkill
 // Certification Routes
 router.get('/certifications', verifyToken, certificationController.getCertifications);
 router.post('/certifications/upload', verifyToken, upload.single('file'), verifyFileMagicBytes, certificationController.uploadCertification);
+router.patch('/certifications/:id', verifyToken, upload.single('file'), verifyFileMagicBytes, certificationController.updateCertification);
 
 // Ecosystem Integration Routes
 router.get('/integrations/attendance', verifyToken, integrationController.getAttendance);

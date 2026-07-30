@@ -27,6 +27,16 @@ const login = async (req, res) => {
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      await logAction({
+        req,
+        userId: user._id,
+        action: 'FAILED_LOGIN',
+        module: 'Authentication',
+        status: 'FAILED',
+        reason: 'Invalid password provided during login attempt',
+        entityType: 'User',
+        entityId: user._id
+      });
       return res.status(401).json({ message: 'Invalid credentials.' });
     }
 
@@ -37,11 +47,14 @@ const login = async (req, res) => {
     await user.save();
 
     await logAction({
+      req,
       userId: user._id,
-      action: 'login',
+      action: 'LOGIN',
+      module: 'Authentication',
+      status: 'SUCCESS',
+      reason: 'User authenticated via password credentials',
       entityType: 'User',
-      entityId: user._id,
-      ipAddress: req.ip || ''
+      entityId: user._id
     });
 
     res.json({
@@ -120,11 +133,14 @@ const logout = async (req, res) => {
         await user.save();
 
         await logAction({
+          req,
           userId: user._id,
-          action: 'logout',
+          action: 'LOGOUT',
+          module: 'Authentication',
+          status: 'SUCCESS',
+          reason: 'User session terminated explicitly',
           entityType: 'User',
-          entityId: user._id,
-          ipAddress: req.ip || ''
+          entityId: user._id
         });
       }
     }

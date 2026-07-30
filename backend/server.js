@@ -17,6 +17,7 @@ const path = require('path');
 const apiRoutes = require('./routes/api');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Connect to Database
 connectDB();
