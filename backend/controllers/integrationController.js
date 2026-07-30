@@ -1,5 +1,4 @@
 const Attendance = require('../models/Attendance');
-const LmsRecord = require('../models/LmsRecord');
 const IntegrationLog = require('../models/IntegrationLog');
 const User = require('../models/User');
 
@@ -194,18 +193,7 @@ const sendTeamsWebhook = async (req, res) => {
 // ==================== LMS INTEGRATION ====================
 const getLmsRecords = async (req, res) => {
   try {
-    const { employeeId } = req.query;
-    const filter = {};
-
-    if (employeeId) {
-      filter.employeeId = employeeId;
-    }
-
-    const records = await LmsRecord.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode email profilePhoto gender role departmentId designationId', populate: { path: 'departmentId designationId' } })
-      .sort('-completionDate');
-
-    res.json(records);
+    res.json([]);
   } catch (error) {
     console.error('getLmsRecords error:', error);
     res.status(500).json({ message: 'Internal server error.' });
@@ -220,16 +208,7 @@ const syncLmsRecord = async (req, res) => {
       return res.status(400).json({ message: 'employeeId, courseName, provider, and completionDate are required.' });
     }
 
-    const record = await LmsRecord.create({
-      employeeId,
-      courseName,
-      provider,
-      completionDate,
-      score: score || 100,
-      status: 'completed'
-    });
-
-    await IntegrationLog.create({
+    const log = await IntegrationLog.create({
       system: 'lms',
       eventType: 'lms_course_completion',
       payload: { employeeId, courseName, provider, score },
@@ -237,7 +216,7 @@ const syncLmsRecord = async (req, res) => {
       responseMessage: `Logged completed course: ${courseName}`
     });
 
-    res.status(201).json(record);
+    res.status(201).json({ message: `Logged completed course: ${courseName}`, log });
   } catch (error) {
     console.error('syncLmsRecord error:', error);
     res.status(500).json({ message: error.message || 'Internal server error.' });
