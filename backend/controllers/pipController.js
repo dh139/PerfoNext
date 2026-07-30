@@ -6,8 +6,23 @@ const { logAction } = require('../utils/logger');
 
 const getPipSuggestions = async (req, res) => {
   try {
-    const employees = await User.find({ employmentStatus: 'active', role: 'employee' })
-      .populate('departmentId designationId');
+    const query = {
+      _id: { $ne: req.user.id },
+      employmentStatus: 'active'
+    };
+
+    // If logged in as a Reporting Manager, restrict suggestions strictly to employees in their assigned department
+    if (req.user.role === 'manager') {
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      query.role = 'employee';
+      if (mgrDeptId) {
+        query.departmentId = mgrDeptId;
+      }
+    } else {
+      query.role = { $in: ['employee', 'manager', 'hr'] };
+    }
+
+    const employees = await User.find(query).populate('departmentId designationId');
     const suggestions = [];
 
     for (const emp of employees) {
@@ -51,9 +66,16 @@ const getPips = async (req, res) => {
     if (employeeId) filter.employeeId = employeeId;
     if (status) filter.status = status;
 
-    // Direct employees check for managers
+    // Reporting Managers can view PIPs where they are managerId OR for any employee in their department
     if (req.user.role === 'manager') {
-      filter.managerId = req.user.id;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      const deptEmps = mgrDeptId ? await User.find({ departmentId: mgrDeptId }).select('_id') : [];
+      const empIds = deptEmps.map(e => e._id);
+
+      filter.$or = [
+        { managerId: req.user.id },
+        { employeeId: { $in: empIds } }
+      ];
     } else if (req.user.role === 'employee') {
       filter.employeeId = req.user.id;
     }
@@ -135,10 +157,23 @@ const updatePip = async (req, res) => {
       }
     }
 
+    if (status) {
+      const reviewerId = oldPip.hrReviewerId?.toString();
+      const currentUserId = req.user.id?.toString();
+      const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
+      const isLeadership = req.user.role === 'admin' || req.user.role === 'executive';
+
+      if (!isDesignatedHrReviewer && !isLeadership) {
+        return res.status(403).json({
+          message: 'Forbidden. Only the designated HR Overseer / Reviewer or leadership can close or escalate this PIP.'
+        });
+      }
+    }
+
     const updates = {};
     if (goals) updates.goals = goals;
-    if (status && req.user.role !== 'employee') updates.status = status;
-    if (closureNotes && req.user.role !== 'employee') updates.closureNotes = closureNotes;
+    if (status) updates.status = status;
+    if (closureNotes) updates.closureNotes = closureNotes;
 
     const updatedPip = await Pip.findByIdAndUpdate(id, updates, { new: true })
       .populate({ path: 'employeeId', select: 'firstName lastName email' });

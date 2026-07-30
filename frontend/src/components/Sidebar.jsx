@@ -306,10 +306,12 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                   <Briefcase size={16} />
                   <span>KPI Templates</span>
                 </Link>
-                <Link to="/hr/cycles" className={linkClass('/hr/cycles')} onClick={handleNavClick}>
-                  <Calendar size={16} />
-                  <span>Review Cycles</span>
-                </Link>
+                {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
+                  <Link to="/hr/cycles" className={linkClass('/hr/cycles')} onClick={handleNavClick}>
+                    <Calendar size={16} />
+                    <span>Review Cycles</span>
+                  </Link>
+                )}
                 <Link to="/reports/completion" className={linkClass('/reports/completion')} onClick={handleNavClick}>
                   <ClipboardList size={16} />
                   <span>Completion Report</span>

@@ -247,11 +247,46 @@ const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, review
   });
 };
 
+const sendIndividualExtensionEmail = async (toEmail, firstName, reviewMonth, endDate) => {
+  const subject = `Individual Extension Granted: Performance Review Cycle (${reviewMonth})`;
+  const text = `Hello ${firstName},\n\nAn individual extension has been granted for your account. The performance review cycle for "${reviewMonth}" has been specially re-opened/unlocked for you.\n\nPlease log in to PerformNext to complete and submit your self-assessment.\n\nBest regards,\nPerformNext Team`;
+  const html = getEmailWrapper(
+    'Individual Review Extension Granted',
+    `
+      <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
+      <p>An individual extension has been granted for your account. The performance review cycle for <strong>${reviewMonth}</strong> has been specially re-opened and unlocked for you.</p>
+      
+      <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 18px; margin: 24px 0; text-align: center;">
+        <span style="color: #92400e; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Individual Extension Status</span>
+        <span style="color: #b45309; font-size: 18px; font-weight: 800; display: block;">Review Cycle Unlocked & Active</span>
+        ${endDate ? `<span style="color: #78350f; font-size: 12px; font-weight: 600; display: block; margin-top: 4px;">Submission Deadline: ${new Date(endDate).toLocaleDateString()}</span>` : ''}
+      </div>
+
+      <p>Please log in to your PerformNext Dashboard and click <strong>Continue Review</strong> to complete and submit your self-assessment.</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. Individual extension email simulated for ${toEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: toEmail,
+    subject,
+    text,
+    html
+  });
+};
+
 module.exports = {
   sendOtpEmail,
   sendWelcomeEmail,
   sendReviewCycleStartedEmail,
   sendSelfAssessmentSubmittedEmail,
-  sendFinalReportGeneratedEmail
+  sendFinalReportGeneratedEmail,
+  sendIndividualExtensionEmail
 };
 

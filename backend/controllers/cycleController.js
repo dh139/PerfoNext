@@ -10,7 +10,8 @@ const { logAction } = require('../utils/logger');
 const {
   sendReviewCycleStartedEmail,
   sendSelfAssessmentSubmittedEmail,
-  sendFinalReportGeneratedEmail
+  sendFinalReportGeneratedEmail,
+  sendIndividualExtensionEmail
 } = require('../services/emailService');
 const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 
@@ -843,12 +844,22 @@ const unlockUserForCycle = async (req, res) => {
       message: `Individual Extension Granted! The performance review cycle for "${cycle.reviewMonth}" has been specially re-opened/unlocked for you.`
     });
 
+    // Send email notification to employee
+    if (targetUser.email) {
+      sendIndividualExtensionEmail(
+        targetUser.email,
+        targetUser.firstName,
+        cycle.reviewMonth,
+        cycle.endDate
+      ).catch(err => console.error('Individual extension email failed:', err));
+    }
+
     logAction({
       userId: req.user.id,
       action: 'CYCLE_INDIVIDUAL_UNLOCKED',
-      resource: 'ReviewCycle',
-      resourceId: cycle._id,
-      details: { unlockedUserId: userId, reason: reason || 'Individual self-assessment extension' }
+      entityType: 'ReviewCycle',
+      entityId: cycle._id,
+      after: { unlockedUserId: userId, reason: reason || 'Individual self-assessment extension' }
     });
 
     const updatedCycle = await ReviewCycle.findById(cycleId)
@@ -882,9 +893,9 @@ const relockUserForCycle = async (req, res) => {
     logAction({
       userId: req.user.id,
       action: 'CYCLE_INDIVIDUAL_RELOCKED',
-      resource: 'ReviewCycle',
-      resourceId: cycle._id,
-      details: { relockedUserId: userId }
+      entityType: 'ReviewCycle',
+      entityId: cycle._id,
+      after: { relockedUserId: userId }
     });
 
     const updatedCycle = await ReviewCycle.findById(cycleId)

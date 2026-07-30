@@ -164,6 +164,11 @@ const publicLimiter = (req, res, next) => {
  * Looser Authenticated User Action Limiter (Per-User / Per-IP)
  */
 const userActionLimiter = (req, res, next) => {
+  // Read-only GET requests are exempt from user action rate limiting to allow seamless background polling
+  if (req.method === 'GET') {
+    return next();
+  }
+
   const windowMs = parseInt(process.env.RATE_LIMIT_USER_WINDOW_MS || '900000', 10); // Default: 15 min
   const maxRequests = parseInt(process.env.RATE_LIMIT_USER_MAX || '300', 10); // Default: 300 req
 

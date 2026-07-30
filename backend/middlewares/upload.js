@@ -22,25 +22,26 @@ const storage = multer.diskStorage({
   }
 });
 
-// Strict MIME-type and extension validation
+// Strict MIME-type and extension validation (JPG, JPEG, and PDF only)
 const allowedMimeTypes = [
   'application/pdf',
   'image/jpeg',
-  'image/png',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  'image/pjpeg',
+  'image/jpg'
 ];
 
-const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'];
+const allowedExtensions = ['.pdf', '.jpg', '.jpeg'];
 
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
   const mime = (file.mimetype || '').toLowerCase();
 
-  if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(mime)) {
+  if (allowedExtensions.includes(ext) && (allowedMimeTypes.includes(mime) || mime === 'application/octet-stream')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file format. Only PDF, Word documents, and Images are permitted.'), false);
+    const err = new Error('Invalid file format. Only JPG, JPEG, and PDF documents are allowed.');
+    err.statusCode = 400;
+    cb(err, false);
   }
 };
 
@@ -52,7 +53,7 @@ const upload = multer({
   }
 });
 
-// Magic bytes content signature verification middleware
+// Magic bytes content signature verification middleware (JPG, JPEG, and PDF only)
 const verifyFileMagicBytes = (req, res, next) => {
   if (!req.file) return next();
 
@@ -71,17 +72,8 @@ const verifyFileMagicBytes = (req, res, next) => {
     if (ext === '.pdf' && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
       isValid = true;
     }
-    // PNG magic bytes: 0x89 0x50 0x4E 0x47
-    else if (ext === '.png' && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
-      isValid = true;
-    }
     // JPEG magic bytes: 0xFF 0xD8 0xFF
     else if ((ext === '.jpg' || ext === '.jpeg') && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
-      isValid = true;
-    }
-    // DOC / DOCX (0xD0 0xCF 0x11 0xE0 or PK 0x50 0x4B 0x03 0x04)
-    else if ((ext === '.doc' || ext === '.docx') &&
-      ((buffer[0] === 0xD0 && buffer[1] === 0xCF) || (buffer[0] === 0x50 && buffer[1] === 0x4B))) {
       isValid = true;
     }
 
@@ -91,7 +83,7 @@ const verifyFileMagicBytes = (req, res, next) => {
         fs.unlinkSync(filePath);
       }
       return res.status(400).json({
-        message: 'File content validation failed. The file binary header does not match its claimed extension.'
+        message: 'Invalid file format. Only JPG, JPEG, and PDF documents are allowed.'
       });
     }
 

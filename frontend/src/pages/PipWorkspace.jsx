@@ -47,26 +47,28 @@ const PipWorkspace = () => {
       setPips(pipRes.data);
       setDepartments(deptsRes.data);
 
-      if (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') {
+      if (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') {
         const sugRes = await api.get('/api/pips/suggestions');
         setSuggestions(sugRes.data);
 
         const usersRes = await api.get('/api/users');
-        let employees = usersRes.data.filter(u => u.role === 'employee');
+        let candidates = usersRes.data;
 
-        // Scope to manager department if logged in as a Reporting Manager
-        if (user?.role === 'manager') {
+        if (user?.role === 'executive' || user?.role === 'admin' || user?.role === 'hr') {
+          // Executive (CEO), Admin, and HR can assign PIP to Employees, Managers, and HR Managers
+          candidates = candidates.filter(u => u.role === 'employee' || u.role === 'manager' || u.role === 'hr');
+        } else if (user?.role === 'manager') {
           const mgrDeptId = user?.departmentId?._id || user?.departmentId;
-          employees = employees.filter(u => {
+          candidates = candidates.filter(u => {
             const uDeptId = u.departmentId?._id || u.departmentId;
-            return uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
+            return u.role === 'employee' && uDeptId && mgrDeptId && uDeptId.toString() === mgrDeptId.toString();
           });
         }
 
-        setAllUsers(employees);
-        if (employees.length > 0) setSelectedEmployeeId(employees[0]._id);
+        setAllUsers(candidates);
+        if (candidates.length > 0) setSelectedEmployeeId(candidates[0]._id);
 
-        const hrUsers = usersRes.data.filter(u => u.role === 'hr' || u.role === 'admin');
+        const hrUsers = usersRes.data.filter(u => u.role === 'hr' || u.role === 'admin' || u.role === 'executive' || u.role === 'manager');
         setHrList(hrUsers);
         if (hrUsers.length > 0) setSelectedHrId(hrUsers[0]._id);
       }
@@ -97,11 +99,18 @@ const PipWorkspace = () => {
 
   const handleInitiatePip = (sug = null) => {
     setSelectedSug(sug);
+    const targetEmpId = sug ? sug.employee._id : (allUsers.length > 0 ? allUsers[0]._id : '');
     if (sug) {
       setSelectedEmployeeId(sug.employee._id);
     } else if (allUsers.length > 0) {
       setSelectedEmployeeId(allUsers[0]._id);
     }
+
+    const availableOverseers = hrList.filter(hr => hr._id.toString() !== targetEmpId?.toString());
+    if (availableOverseers.length > 0) {
+      setSelectedHrId(availableOverseers[0]._id);
+    }
+
     setStartDate('');
     setEndDate('');
     setGoals([{ description: '', targetDate: '', status: 'pending' }]);
@@ -230,7 +239,7 @@ const PipWorkspace = () => {
             </p>
           </div>
 
-          {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && (
+          {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && (
             <button
               onClick={() => handleInitiatePip(null)}
               className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
@@ -296,8 +305,8 @@ const PipWorkspace = () => {
         </div>
       )}
 
-      {/* Auto Suggestions Panel (HR/Admin Only) */}
-      {(user?.role === 'hr' || user?.role === 'admin') && suggestions.length > 0 && (
+      {/* Auto Suggestions Panel (HR/Admin/Manager/Executive) */}
+      {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && suggestions.length > 0 && (
         <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2">
             <ShieldAlert className="text-amber-700 shrink-0" size={20} />
@@ -408,7 +417,7 @@ const PipWorkspace = () => {
               <option value="escalated">Escalated</option>
             </select>
 
-            {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && (
+            {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && (
               <button
                 onClick={() => handleInitiatePip(null)}
                 className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
@@ -513,22 +522,30 @@ const PipWorkspace = () => {
                           ● {pip.status}
                         </span>
 
-                        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager') && pip.status === 'active' && (
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => handleClosePip(pip._id, false)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                            >
-                              Close PIP
-                            </button>
-                            <button
-                              onClick={() => handleClosePip(pip._id, true)}
-                              className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                            >
-                              Escalate
-                            </button>
-                          </div>
-                        )}
+                        {(() => {
+                          const reviewerId = (pip.hrReviewerId?._id || pip.hrReviewerId)?.toString();
+                          const currentUserId = (user?.id || user?._id)?.toString();
+                          const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
+                          const isLeadership = user?.role === 'admin' || user?.role === 'executive';
+                          const canManageStatus = (isDesignatedHrReviewer || isLeadership) && pip.status === 'active';
+
+                          return canManageStatus ? (
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => handleClosePip(pip._id, false)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                              >
+                                Close PIP
+                              </button>
+                              <button
+                                onClick={() => handleClosePip(pip._id, true)}
+                                className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                              >
+                                Escalate
+                              </button>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     </div>
 
@@ -799,9 +816,34 @@ const PipWorkspace = () => {
                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-700 font-semibold text-xs"
                   required
                 >
-                  {hrList.map(hr => (
-                    <option key={hr._id} value={hr._id}>{hr.firstName} {hr.lastName} ({hr.role})</option>
-                  ))}
+                  {(() => {
+                    const targetEmp = allUsers.find(u => u._id === (selectedSug?.employee?._id || selectedEmployeeId));
+                    const targetEmpId = (targetEmp?._id || targetEmp?.id || selectedSug?.employee?._id || selectedEmployeeId)?.toString();
+                    const directMgrId = (targetEmp?.managerId?._id || targetEmp?.managerId)?.toString();
+
+                    const filteredOverseers = hrList.filter(hr => {
+                      // Exclude the employee being placed on PIP from overseeing themselves
+                      if (targetEmpId && hr._id.toString() === targetEmpId) {
+                        return false;
+                      }
+                      if (hr.role === 'manager') {
+                        return directMgrId && hr._id.toString() === directMgrId;
+                      }
+                      return true;
+                    });
+
+                    return filteredOverseers.map(hr => {
+                      const isDirectManager = directMgrId && hr._id.toString() === directMgrId;
+                      let roleLabel = hr.role === 'hr' ? 'HR Manager' : hr.role === 'executive' ? 'CEO / Executive' : hr.role === 'admin' ? 'Admin' : 'Reporting Manager';
+                      if (isDirectManager) roleLabel = 'Direct Reporting Manager';
+
+                      return (
+                        <option key={hr._id} value={hr._id}>
+                          {hr.firstName} {hr.lastName} ({roleLabel})
+                        </option>
+                      );
+                    });
+                  })()}
                 </select>
               </div>
 

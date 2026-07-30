@@ -34,18 +34,22 @@ const Certifications = () => {
     try {
       const res = await api.get('/api/review-cycles');
       const cycles = res.data || [];
-      const activeCycles = cycles.filter(c => c.status === 'active');
-
-      if (activeCycles.length === 0) {
-        setActiveCycleExists(false);
-        return;
-      }
 
       // Find the target employee object
       const targetEmpId = empId || selectedEmployeeId || user?.id;
       let targetUserObj = (currentUsersList || users).find(u => (u._id || u.id) === targetEmpId);
       if (!targetUserObj && (targetEmpId === user?.id || targetEmpId === user?._id)) {
         targetUserObj = user;
+      }
+
+      const activeCycles = cycles.filter(c => 
+        c.status === 'active' || 
+        c.unlockedUserIds?.some(un => (un._id || un).toString() === targetEmpId?.toString())
+      );
+
+      if (activeCycles.length === 0) {
+        setActiveCycleExists(false);
+        return;
       }
 
       if (!targetUserObj) {
@@ -145,6 +149,22 @@ const Certifications = () => {
 
     if (!name || !issuer || !issueDate || !file) {
       setError('Please fill in all required fields and select a file.');
+      return;
+    }
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg'].includes(ext)) {
+      const msg = 'Invalid file format. Only JPG, JPEG, and PDF documents are allowed.';
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    const isDuplicate = certs.some(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+    if (isDuplicate) {
+      const msg = `A certification titled "${name.trim()}" is already registered. Duplicate certificate titles are not allowed.`;
+      setError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -599,11 +619,24 @@ const Certifications = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Upload PDF Document Proof *</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Upload Document Proof (PDF, JPG, JPEG) *</label>
                 <input
                   id="certFileField"
                   type="file"
-                  onChange={(e) => setFile(e.target.files[0])}
+                  accept=".pdf,.jpg,.jpeg,image/jpeg,application/pdf"
+                  onChange={(e) => {
+                    const selected = e.target.files[0];
+                    if (selected) {
+                      const ext = selected.name.split('.').pop().toLowerCase();
+                      if (!['pdf', 'jpg', 'jpeg'].includes(ext)) {
+                        toast.error('Invalid file format. Only PDF, JPG, and JPEG files are allowed.');
+                        e.target.value = '';
+                        setFile(null);
+                        return;
+                      }
+                      setFile(selected);
+                    }
+                  }}
                   className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-slate-700 file:bg-sky-100 file:border-0 file:rounded-lg file:px-3 file:py-1 file:text-xs file:font-bold file:text-sky-800 cursor-pointer"
                   required
                 />

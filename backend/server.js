@@ -78,9 +78,9 @@ app.use((err, req, res, next) => {
     ip: req.ip
   });
 
-  const statusCode = err.statusCode || err.status || 500;
+  const isFormatError = err.name === 'MulterError' || (err.message && err.message.includes('Invalid file format'));
+  const statusCode = err.statusCode || err.status || (isFormatError ? 400 : 500);
   
-  // Always send sanitized generic error messages to client to prevent stack/path leakage
   res.status(statusCode).json({
     message: statusCode === 500 ? 'Internal server error. Please contact system support.' : err.message
   });

@@ -10,7 +10,12 @@ const auditLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ['login', 'logout', 'review_update', 'score_change', 'user_creation', 'user_deletion', 'role_change', 'user_modification', 'department_modification'],
+      enum: [
+        'login', 'logout', 'review_update', 'score_change',
+        'user_creation', 'user_deletion', 'role_change', 'user_modification',
+        'department_modification', 'CYCLE_INDIVIDUAL_UNLOCKED', 'CYCLE_INDIVIDUAL_RELOCKED',
+        'cycle_update', 'cycle_creation', 'cycle_deletion'
+      ],
       required: true,
       index: true
     },

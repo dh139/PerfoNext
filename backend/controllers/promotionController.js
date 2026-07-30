@@ -18,6 +18,10 @@ const getPromotions = async (req, res) => {
     const promotions = await Promotion.find(filter)
       .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
       .populate('currentDesignationId proposedDesignationId')
+      .populate({
+        path: 'supportingReviewScores',
+        populate: { path: 'reviewCycleId', select: 'reviewMonth' }
+      })
       .populate({ path: 'recommendedBy', select: 'firstName lastName email role' })
       .populate({ path: 'approvedBy', select: 'firstName lastName email role' });
 
@@ -69,7 +73,12 @@ const createPromotion = async (req, res) => {
 
     const populated = await Promotion.findById(promotion._id)
       .populate({ path: 'employeeId', select: 'firstName lastName' })
-      .populate('proposedDesignationId');
+      .populate('currentDesignationId proposedDesignationId')
+      .populate({
+        path: 'supportingReviewScores',
+        populate: { path: 'reviewCycleId', select: 'reviewMonth' }
+      })
+      .populate({ path: 'recommendedBy', select: 'firstName lastName email role' });
 
     // Notify HR / Admins
     const hrUsers = await User.find({ role: 'hr', employmentStatus: 'active' });

@@ -36,15 +36,35 @@ const uploadCertification = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
+    // Check for duplicate certificate title for this employee
+    const existingCert = await Certification.findOne({
+      employeeId: targetEmployeeId,
+      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
+    });
+
+    if (existingCert) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      return res.status(400).json({
+        message: `A certification titled "${name.trim()}" has already been registered for this employee.`
+      });
+    }
+
     // Resolve target employee and department
     const targetUser = await User.findById(targetEmployeeId).populate('departmentId');
     if (!targetUser) {
       return res.status(404).json({ message: 'Target employee not found.' });
     }
 
-    // Check if there is an active review cycle applicable to this user's department and role
+    // Check if there is an active review cycle (or individual extension unlocked cycle) applicable to this user's department and role
     await ReviewCycle.autoCloseExpiredCycles();
-    const activeCycles = await ReviewCycle.find({ status: 'active' }).populate('kpiTemplateId');
+    const activeCycles = await ReviewCycle.find({
+      $or: [
+        { status: 'active' },
+        { unlockedUserIds: targetEmployeeId }
+      ]
+    }).populate('kpiTemplateId');
 
     const userDeptId = targetUser.departmentId?._id
       ? targetUser.departmentId._id.toString()

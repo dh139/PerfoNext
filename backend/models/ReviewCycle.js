@@ -49,18 +49,20 @@ const reviewCycleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-close active cycles whose end dates have passed
+// Auto-close active cycles whose end dates have passed (atomic updateMany prevents Mongoose VersionError race conditions)
 reviewCycleSchema.statics.autoCloseExpiredCycles = async function() {
   const now = new Date();
-  const activeCycles = await this.find({ status: 'active' });
-  for (const cycle of activeCycles) {
-    const endOfDay = new Date(cycle.endDate);
-    endOfDay.setUTCHours(23, 59, 59, 999);
-    if (endOfDay < now) {
-      cycle.status = 'closed';
-      await cycle.save();
+  const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+  await this.updateMany(
+    {
+      status: 'active',
+      endDate: { $lt: startOfToday }
+    },
+    {
+      $set: { status: 'closed' }
     }
-  }
+  );
 };
 
 module.exports = mongoose.model('ReviewCycle', reviewCycleSchema);

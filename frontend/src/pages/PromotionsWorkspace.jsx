@@ -297,6 +297,8 @@ const PromotionsWorkspace = () => {
                   <th className="py-3 px-4">Current Designation</th>
                   <th className="py-3 px-4">Proposed Designation</th>
                   <th className="py-3 px-4">Salary Increase</th>
+                  <th className="py-3 px-4">Effective Date</th>
+                  <th className="py-3 px-4">Supporting Evidence</th>
                   <th className="py-3 px-4">Recommended By</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 rounded-r-xl text-right">Actions</th>
@@ -321,6 +323,26 @@ const PromotionsWorkspace = () => {
                     <td className="py-4 px-4 text-slate-600 font-medium">{promo.currentDesignationId?.designationName || 'Staff Member'}</td>
                     <td className="py-4 px-4 font-extrabold text-sky-800">{promo.proposedDesignationId?.designationName}</td>
                     <td className="py-4 px-4 font-black text-emerald-600 text-xs">+{promo.salaryIncrementPercent}%</td>
+                    <td className="py-4 px-4 font-extrabold text-slate-700">
+                      {promo.effectiveDate ? new Date(promo.effectiveDate).toLocaleDateString() : 'N/A'}
+                    </td>
+                    <td className="py-4 px-4">
+                      {promo.supportingReviewScores && promo.supportingReviewScores.length > 0 ? (
+                        <div className="flex flex-col gap-1 max-w-[180px]">
+                          {promo.supportingReviewScores.map((score, idx) => (
+                            <span
+                              key={score._id || idx}
+                              className="inline-flex items-center justify-between text-[9px] font-bold px-2 py-0.5 rounded bg-sky-50 text-sky-900 border border-sky-200"
+                            >
+                              <span>{score.reviewCycleId?.reviewMonth || 'Cycle'}</span>
+                              <span className="font-extrabold text-sky-700">{score.finalScore}/5.0</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No score evidence linked</span>
+                      )}
+                    </td>
                     <td className="py-4 px-4 text-slate-600 font-medium">
                       <div className="flex items-center gap-2">
                         <img
