@@ -136,11 +136,23 @@ const createReviewCycle = async (req, res) => {
       return res.status(400).json({ message: 'A review cycle for this month, cycle type, target role, and department already exists.' });
     }
 
+    // Auto-determine initial status based on startDate:
+    // If startDate is today or in the past, automatically start the review cycle ('active')
+    // If startDate is in the future (e.g. tomorrow), schedule it as 'draft'
+    let initialStatus = status || 'draft';
+    if (startDate) {
+      const now = new Date();
+      const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+      if (new Date(startDate) <= endOfToday) {
+        initialStatus = 'active';
+      }
+    }
+
     const cycle = await ReviewCycle.create({
       reviewMonth,
       startDate,
       endDate,
-      status: status || 'draft',
+      status: initialStatus,
       kpiTemplateId,
       cycleType,
       targetRole
@@ -778,13 +790,13 @@ const deleteReviewCycle = async (req, res) => {
       return res.status(404).json({ message: 'Review cycle not found.' });
     }
 
-    // Role Security: HR managers can only delete cycles for their department
-    if (req.user.role === 'hr' || req.user.role === 'manager') {
+    // Role Security: Only Reporting Managers are department-scoped (Admin, HR, Executive have org-wide cycle rights)
+    if (req.user.role === 'manager') {
       const userDeptId = req.user.departmentId?._id || req.user.departmentId;
       const kpiTemplate = await KpiTemplate.findById(cycle.kpiTemplateId);
       const cycleDeptId = kpiTemplate?.departmentId?._id || kpiTemplate?.departmentId;
       if (userDeptId && cycleDeptId && userDeptId.toString() !== cycleDeptId.toString()) {
-        return res.status(403).json({ message: 'Forbidden. You can only delete review cycles for your assigned department.' });
+        return res.status(403).json({ message: 'Forbidden. Reporting Managers can only delete review cycles for their assigned department.' });
       }
     }
 

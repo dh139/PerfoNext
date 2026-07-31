@@ -115,6 +115,7 @@ const ReviewCycles = () => {
   const [cycleType, setCycleType] = useState('quarterly');
   const [targetRole, setTargetRole] = useState(user?.role === 'executive' ? 'manager' : 'employee');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const getQuarterOptions = () => {
     const currentYear = new Date().getFullYear();
@@ -197,9 +198,10 @@ const ReviewCycles = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     setError('');
+    setCreateError('');
 
     if (!reviewMonth || !startDate || !endDate || !kpiTemplateId) {
-      setError('All fields are required.');
+      setCreateError('All fields are required.');
       return;
     }
 
@@ -215,11 +217,14 @@ const ReviewCycles = () => {
       });
 
       // Reset
+      setCreateError('');
       setShowCreateModal(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to create review cycle.');
+      const msg = err.response?.data?.message || 'Failed to create review cycle.';
+      setCreateError(msg);
+      toast.error(msg);
     }
   };
 
@@ -324,7 +329,10 @@ const ReviewCycles = () => {
           </div>
 
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setCreateError('');
+              setShowCreateModal(true);
+            }}
             className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer"
           >
             <Plus size={18} />
@@ -554,6 +562,13 @@ const ReviewCycles = () => {
               <h3 className="font-extrabold text-slate-900 text-sm">Launch New Review Period</h3>
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
             </div>
+
+            {createError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2.5 font-bold text-xs">
+                <AlertCircle size={18} className="text-rose-600 shrink-0" />
+                <span>{createError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">

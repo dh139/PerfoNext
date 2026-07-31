@@ -49,11 +49,13 @@ const reviewCycleSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Auto-close active cycles whose end dates have passed (atomic updateMany prevents Mongoose VersionError race conditions)
+// Auto-close active cycles whose end dates have passed and auto-activate scheduled draft cycles whose start dates have arrived
 reviewCycleSchema.statics.autoCloseExpiredCycles = async function() {
   const now = new Date();
   const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+  const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
 
+  // 1. Auto-close active cycles whose end dates have passed
   await this.updateMany(
     {
       status: 'active',
@@ -63,6 +65,28 @@ reviewCycleSchema.statics.autoCloseExpiredCycles = async function() {
       $set: { status: 'closed' }
     }
   );
+
+  // 2. Auto-activate scheduled draft cycles whose start date has arrived (startDate <= endOfToday)
+  const scheduledDrafts = await this.find({
+    status: 'draft',
+    startDate: { $lte: endOfToday }
+  });
+
+  if (scheduledDrafts.length > 0) {
+    for (const draft of scheduledDrafts) {
+      draft.status = 'active';
+      await draft.save();
+
+      try {
+        const cycleController = require('../controllers/cycleController');
+        if (cycleController && cycleController.notifyAllEmployeesOfNewCycle) {
+          await cycleController.notifyAllEmployeesOfNewCycle(draft);
+        }
+      } catch (e) {
+        console.error('Error notifying employees on auto-activation:', e);
+      }
+    }
+  }
 };
 
 module.exports = mongoose.model('ReviewCycle', reviewCycleSchema);

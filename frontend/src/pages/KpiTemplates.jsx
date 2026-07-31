@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
+import useAuthStore from '../store/authStore';
 import { AlertCircle, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import ConfirmModal from '../components/ConfirmModal';
 
 const KpiTemplates = () => {
+  const { user } = useAuthStore();
   const [templates, setTemplates] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,18 +42,22 @@ const KpiTemplates = () => {
     { kpiName: '', category: 'quality', weight: 1, description: '' }
   ]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [modalError, setModalError] = useState('');
 
   const handleOpenCreate = () => {
     setError('');
+    setModalError('');
     setEditTemplate(null);
     setTemplateName('');
-    setDepartmentId('');
+    const userDeptId = user?.role === 'manager' ? (user?.departmentId?._id || user?.departmentId || '') : '';
+    setDepartmentId(userDeptId);
     setItems([{ kpiName: '', category: 'quality', weight: 1, description: '' }]);
     setShowCreateModal(true);
   };
 
   const handleOpenEdit = (t) => {
     setError('');
+    setModalError('');
     setEditTemplate(t);
     setTemplateName(t.templateName);
     setDepartmentId(t.departmentId?._id || t.departmentId || '');
@@ -106,15 +112,16 @@ const KpiTemplates = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setModalError('');
 
     if (!templateName.trim()) {
-      setError('Template name is required.');
+      setModalError('Template name is required.');
       return;
     }
 
     const invalidItem = items.find(item => !item.kpiName.trim());
     if (invalidItem) {
-      setError('Please fill out the KPI Name for all questionnaire rows.');
+      setModalError('Please fill out the KPI Name for all questionnaire rows.');
       return;
     }
 
@@ -138,11 +145,14 @@ const KpiTemplates = () => {
       setDepartmentId('');
       setItems([{ kpiName: '', category: 'quality', weight: 1, description: '' }]);
       setEditTemplate(null);
+      setModalError('');
       setShowCreateModal(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to save template.');
+      const msg = err.response?.data?.message || 'Failed to save template.';
+      setModalError(msg);
+      toast.error(msg);
     }
   };
 
@@ -315,21 +325,34 @@ const KpiTemplates = () => {
                       <h4 className="font-extrabold text-slate-900 text-sm mt-1">{t.templateName}</h4>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => handleOpenEdit(t)}
-                        className="flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shadow-3xs"
-                      >
-                        <span>Edit Rubric</span>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTemplate(t._id, t.templateName)}
-                        className="p-1.5 text-rose-600 hover:text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shadow-3xs"
-                        title="Delete Template"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    {(() => {
+                      const tDeptId = (t.departmentId?._id || t.departmentId)?.toString();
+                      const userDeptId = (user?.departmentId?._id || user?.departmentId)?.toString();
+                      const canModify = ['admin', 'hr', 'executive'].includes(user?.role) ||
+                                        (user?.role === 'manager' && tDeptId && tDeptId === userDeptId);
+
+                      return canModify ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleOpenEdit(t)}
+                            className="flex items-center gap-1 text-xs font-bold text-sky-700 hover:text-sky-900 bg-white border border-slate-200 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shadow-3xs"
+                          >
+                            <span>Edit Rubric</span>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTemplate(t._id, t.templateName)}
+                            className="p-1.5 text-rose-600 hover:text-rose-700 bg-white border border-rose-200 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer shadow-3xs"
+                            title="Delete Template"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] font-extrabold text-slate-400 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl shrink-0">
+                          Read Only
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   <div className="space-y-2 pt-2">
@@ -370,6 +393,13 @@ const KpiTemplates = () => {
               <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer">✕</button>
             </div>
 
+            {modalError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2.5 font-bold text-xs shrink-0">
+                <AlertCircle size={18} className="text-rose-600 shrink-0" />
+                <span>{modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden space-y-4">
               <div className="overflow-y-auto pr-1 space-y-4 flex-1">
                 <div className="grid grid-cols-2 gap-4">
@@ -386,16 +416,33 @@ const KpiTemplates = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department (Optional)</label>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department</label>
                     <select
                       value={departmentId}
                       onChange={(e) => setDepartmentId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
+                      disabled={user?.role === 'manager'}
+                      className={`w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium ${
+                        user?.role === 'manager' ? 'opacity-80 cursor-not-allowed bg-slate-100 font-bold' : 'cursor-pointer'
+                      }`}
                     >
-                      <option value="">Org-Wide (All Departments)</option>
-                      {departments.map(d => (
-                        <option key={d._id} value={d._id}>{d.departmentName}</option>
-                      ))}
+                      {user?.role === 'manager' ? (
+                        (() => {
+                          const userDeptId = (user?.departmentId?._id || user?.departmentId)?.toString();
+                          const userDeptObj = departments.find(d => d._id.toString() === userDeptId);
+                          return (
+                            <option value={userDeptId}>
+                              {userDeptObj?.departmentName || 'Your Department'} (Manager Department)
+                            </option>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          <option value="">Org-Wide (All Departments)</option>
+                          {departments.map(d => (
+                            <option key={d._id} value={d._id}>{d.departmentName}</option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
                 </div>

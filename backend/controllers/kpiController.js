@@ -55,7 +55,16 @@ const getKpiTemplateById = async (req, res) => {
 
 const createKpiTemplate = async (req, res) => {
   try {
-    const { templateName, departmentId, status, items } = req.body;
+    let { templateName, departmentId, status, items } = req.body;
+
+    if (req.user.role === 'manager') {
+      const userDeptId = (req.user.departmentId?._id || req.user.departmentId)?.toString();
+      if (!userDeptId) {
+        return res.status(403).json({ message: 'Forbidden. Reporting Managers must belong to a department to create KPI templates.' });
+      }
+      // Force departmentId to manager's assigned department
+      departmentId = userDeptId;
+    }
 
     const template = await KpiTemplate.create({
       templateName,
@@ -74,25 +83,47 @@ const createKpiTemplate = async (req, res) => {
 
 const updateKpiTemplate = async (req, res) => {
   try {
+    const existing = await KpiTemplate.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ message: 'KPI Template not found.' });
+    }
+
+    if (req.user.role === 'manager') {
+      const userDeptId = (req.user.departmentId?._id || req.user.departmentId)?.toString();
+      const templateDeptId = (existing.departmentId?._id || existing.departmentId)?.toString();
+      if (!templateDeptId || templateDeptId !== userDeptId) {
+        return res.status(403).json({ message: 'Forbidden. Reporting Managers can only edit KPI templates for their assigned department.' });
+      }
+      req.body.departmentId = userDeptId;
+    }
+
     const template = await KpiTemplate.findByIdAndUpdate(req.params.id, req.body, { new: true })
       .populate('departmentId')
       .populate({ path: 'createdBy', select: 'firstName lastName email' });
 
-    if (!template) {
-      return res.status(404).json({ message: 'KPI Template not found.' });
-    }
     res.json(template);
   } catch (error) {
     console.error('updateKpiTemplate error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };
 
 const deleteKpiTemplate = async (req, res) => {
   try {
-    const template = await KpiTemplate.findByIdAndDelete(req.params.id);
-    if (!template) {
+    const existing = await KpiTemplate.findById(req.params.id);
+    if (!existing) {
       return res.status(404).json({ message: 'KPI Template not found.' });
     }
+
+    if (req.user.role === 'manager') {
+      const userDeptId = (req.user.departmentId?._id || req.user.departmentId)?.toString();
+      const templateDeptId = (existing.departmentId?._id || existing.departmentId)?.toString();
+      if (!templateDeptId || templateDeptId !== userDeptId) {
+        return res.status(403).json({ message: 'Forbidden. Reporting Managers can only delete KPI templates for their assigned department.' });
+      }
+    }
+
+    await KpiTemplate.findByIdAndDelete(req.params.id);
     res.json({ message: 'KPI Template deleted successfully.' });
   } catch (error) {
     console.error('deleteKpiTemplate error:', error);
