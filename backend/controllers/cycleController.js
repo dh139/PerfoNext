@@ -3,7 +3,6 @@ const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 const ReviewScore = require('../models/ReviewScore');
 const User = require('../models/User');
-const KpiTemplate = require('../models/KpiTemplate');
 const Notification = require('../models/Notification');
 const { calculateReviewScores } = require('../utils/scoring');
 const { logAction } = require('../utils/logger');
@@ -24,21 +23,11 @@ const getReviewCycles = async (req, res) => {
     if (req.user && req.user.role === 'manager') {
       const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
       if (mgrDeptId) {
-        const templates = await KpiTemplate.find({
-          $or: [
-            { departmentId: mgrDeptId },
-            { departmentId: null }
-          ]
-        }).select('_id');
-        const templateIds = templates.map(t => t._id);
-        query = { kpiTemplateId: { $in: templateIds } };
+        query = { $or: [{ departmentId: mgrDeptId }, { departmentId: null }] };
       }
     }
     const cycles = await ReviewCycle.find(query)
-      .populate({
-        path: 'kpiTemplateId',
-        populate: { path: 'departmentId' }
-      })
+      .populate('departmentId')
       .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' })
       .sort({ createdAt: -1 });
     res.json(cycles);
@@ -52,7 +41,7 @@ const getReviewCycleById = async (req, res) => {
   try {
     await ReviewCycle.autoCloseExpiredCycles();
     const cycle = await ReviewCycle.findById(req.params.id)
-      .populate('kpiTemplateId')
+      .populate('departmentId')
       .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
     if (!cycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
@@ -109,7 +98,7 @@ const normalizeReviewMonth = (reviewMonth, cycleType) => {
 
 const createReviewCycle = async (req, res) => {
   try {
-    let { reviewMonth, startDate, endDate, status, kpiTemplateId, cycleType, targetRole } = req.body;
+    let { reviewMonth, startDate, endDate, status, departmentId, cycleType, targetRole } = req.body;
     reviewMonth = normalizeReviewMonth(reviewMonth, cycleType);
 
     // Default targetRole: if created by executive (CEO), target managers; otherwise target employees
@@ -121,24 +110,17 @@ const createReviewCycle = async (req, res) => {
       }
     }
 
-    // Fetch the KPI template to get its departmentId
-    const template = await KpiTemplate.findById(kpiTemplateId);
-    const departmentId = template ? template.departmentId : null;
-
     // Duplicate check: check if cycle already exists for the same reviewMonth, cycleType, targetRole, and department
-    const existingCycles = await ReviewCycle.find({ reviewMonth, cycleType, targetRole }).populate('kpiTemplateId');
+    const existingCycles = await ReviewCycle.find({ reviewMonth, cycleType, targetRole });
     const isDuplicate = existingCycles.some(c => {
-      const existingDeptId = c.kpiTemplateId?.departmentId?.toString();
-      return existingDeptId === departmentId?.toString();
+      const existingDeptId = c.departmentId?.toString();
+      return departmentId ? (existingDeptId === departmentId?.toString()) : true;
     });
 
-    if (isDuplicate) {
-      return res.status(400).json({ message: 'A review cycle for this month, cycle type, target role, and department already exists.' });
+    if (isDuplicate && existingCycles.length > 0) {
+      return res.status(400).json({ message: 'A review cycle for this month, cycle type, and target role already exists.' });
     }
 
-    // Auto-determine initial status based on startDate:
-    // If startDate is today or in the past, automatically start the review cycle ('active')
-    // If startDate is in the future (e.g. tomorrow), schedule it as 'draft'
     let initialStatus = status || 'draft';
     if (startDate) {
       const now = new Date();
@@ -153,7 +135,7 @@ const createReviewCycle = async (req, res) => {
       startDate,
       endDate,
       status: initialStatus,
-      kpiTemplateId,
+      departmentId,
       cycleType,
       targetRole
     });
@@ -209,10 +191,7 @@ const updateReviewCycle = async (req, res) => {
 // Helper: notify targeted department members and managers of new cycle
 const notifyAllEmployeesOfNewCycle = async (cycle) => {
   try {
-    // Resolve KPI Template department
-    const template = await KpiTemplate.findById(cycle.kpiTemplateId).populate('departmentId');
-    const targetDeptId = template?.departmentId?._id || template?.departmentId || null;
-    const deptName = template?.departmentId?.departmentName || 'Department';
+    const targetDeptId = cycle.departmentId;
 
     const baseFilter = { employmentStatus: 'active' };
     if (targetDeptId) {
@@ -228,11 +207,6 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     }
 
     let targetUsers = await User.find(baseFilter);
-    // If targetUsers is empty under specific dept filter, fallback to active role members
-    if (targetUsers.length === 0 && targetDeptId) {
-      delete baseFilter.departmentId;
-      targetUsers = await User.find(baseFilter);
-    }
 
     // Filter by eligibility if joiningDate exists; keep active members if joiningDate not specified
     targetUsers = targetUsers.filter(u => {
@@ -354,6 +328,20 @@ const submitSelfAssessment = async (req, res) => {
       if (!details || !Array.isArray(details) || details.length === 0) {
         return res.status(400).json({ message: 'Submission details are required.' });
       }
+
+      // Ensure employee has at least 1 verified Work Journal achievement logged
+      const WorkJournal = require('../models/WorkJournal');
+      const approvedCount = await WorkJournal.countDocuments({
+        employeeId,
+        status: 'approved'
+      });
+
+      if (approvedCount === 0) {
+        return res.status(400).json({
+          message: 'Cannot submit appraisal without work journal evidence. Please log at least 1 work achievement in your Work Journal and get it verified by your manager.'
+        });
+      }
+
       for (const d of details) {
         if (!d.score || d.score < 1 || d.score > 5) {
           return res.status(400).json({ message: 'A score between 1 and 5 is required for all KPIs.' });
@@ -474,7 +462,7 @@ const getManagerReviewById = async (req, res) => {
 const submitManagerReview = async (req, res) => {
   try {
     await ReviewCycle.autoCloseExpiredCycles();
-    const { reviewCycleId, employeeId, details, status } = req.body;
+    const { reviewCycleId, employeeId, competencyRatings, overallComments, overallRating, details, status } = req.body;
     const managerId = req.user.id;
 
     // Check if review cycle is active or target employee has an individual extension unlocked
@@ -506,7 +494,10 @@ const submitManagerReview = async (req, res) => {
     }
 
     if (review) {
-      review.details = details;
+      if (competencyRatings) review.competencyRatings = competencyRatings;
+      if (overallComments !== undefined) review.overallComments = overallComments;
+      if (overallRating !== undefined) review.overallRating = overallRating;
+      if (details) review.details = details;
       review.status = status || 'draft';
       if (status === 'submitted') {
         review.submittedAt = new Date();
@@ -517,14 +508,16 @@ const submitManagerReview = async (req, res) => {
         reviewCycleId,
         employeeId,
         managerId,
-        details,
+        competencyRatings: competencyRatings || {},
+        overallComments: overallComments || '',
+        overallRating: overallRating || 4,
+        details: details || [],
         status: status || 'draft',
         submittedAt: status === 'submitted' ? new Date() : null
       });
     }
 
     if (status === 'submitted') {
-      // Check if we can trigger calculation immediately
       await checkAndCalculateScores(reviewCycleId, employeeId, req.ip || '');
     }
 
@@ -539,20 +532,132 @@ const submitManagerReview = async (req, res) => {
 
 const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => {
   try {
-    const selfAssessment = await SelfAssessment.findOne({ reviewCycleId, employeeId, status: 'submitted' });
     const managerReview = await ManagerReview.findOne({ reviewCycleId, employeeId, status: 'submitted' });
 
-    if (selfAssessment && managerReview) {
-      // Both submitted, calculate score
+    if (managerReview) {
       const cycle = await ReviewCycle.findById(reviewCycleId);
-      const template = await KpiTemplate.findById(cycle.kpiTemplateId);
+      const WorkJournal = require('../models/WorkJournal');
+      const Certification = require('../models/Certification');
+      const Recognition = require('../models/Recognition');
 
-      const { categoryScores, finalScore, rating } = calculateReviewScores(managerReview, template);
+      const monthStr = cycle?.reviewMonth || '';
+      const qMatch = monthStr.match(/^(\d{4})-Q([1-4])$/i);
+      const hMatch = monthStr.match(/^(\d{4})-H([1-2])$/i);
+      const yMatch = monthStr.match(/^(\d{4})$/);
+      const mMatch = monthStr.match(/^(\d{4})-(\d{2})$/);
 
-      // Check if ReviewScore already exists
+      let cycleStart = cycle?.startDate;
+      let cycleEnd = cycle?.endDate;
+
+      if (qMatch) {
+        const year = parseInt(qMatch[1], 10);
+        const q = parseInt(qMatch[2], 10);
+        const startMonth = (q - 1) * 3;
+        cycleStart = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0, 0));
+        cycleEnd = new Date(Date.UTC(year, startMonth + 3, 0, 23, 59, 59, 999));
+      } else if (hMatch) {
+        const year = parseInt(hMatch[1], 10);
+        const h = parseInt(hMatch[2], 10);
+        const startMonth = (h - 1) * 6;
+        cycleStart = new Date(Date.UTC(year, startMonth, 1, 0, 0, 0, 0));
+        cycleEnd = new Date(Date.UTC(year, startMonth + 6, 0, 23, 59, 59, 999));
+      } else if (yMatch) {
+        const year = parseInt(yMatch[1], 10);
+        cycleStart = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+        cycleEnd = new Date(Date.UTC(year, 12, 0, 23, 59, 59, 999));
+      } else if (mMatch) {
+        const year = parseInt(mMatch[1], 10);
+        const month = parseInt(mMatch[2], 10);
+        cycleStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+        cycleEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      }
+
+      const approvedWorkLogs = await WorkJournal.find({
+        employeeId,
+        status: { $in: ['approved', 'verified'] },
+        completedDate: { $gte: cycleStart, $lte: cycleEnd }
+      });
+
+      const certifications = await Certification.find({
+        employeeId,
+        issueDate: { $gte: cycleStart, $lte: cycleEnd }
+      });
+
+      const awards = await Recognition.find({
+        employeeId,
+        awardedAt: { $gte: cycleStart, $lte: cycleEnd }
+      });
+
+      const Attendance = require('../models/Attendance');
+      let monthKeys = [];
+      if (qMatch) {
+        const year = parseInt(qMatch[1], 10);
+        const q = parseInt(qMatch[2], 10);
+        const startMonth = (q - 1) * 3;
+        monthKeys = [
+          `${year}-${String(startMonth + 1).padStart(2, '0')}`,
+          `${year}-${String(startMonth + 2).padStart(2, '0')}`,
+          `${year}-${String(startMonth + 3).padStart(2, '0')}`
+        ];
+      } else if (hMatch) {
+        const year = parseInt(hMatch[1], 10);
+        const h = parseInt(hMatch[2], 10);
+        const startMonth = (h - 1) * 6;
+        monthKeys = [];
+        for (let i = 1; i <= 6; i++) {
+          monthKeys.push(`${year}-${String(startMonth + i).padStart(2, '0')}`);
+        }
+      } else if (yMatch) {
+        const year = parseInt(yMatch[1], 10);
+        monthKeys = [];
+        for (let i = 1; i <= 12; i++) {
+          monthKeys.push(`${year}-${String(i).padStart(2, '0')}`);
+        }
+      } else if (mMatch) {
+        const year = parseInt(mMatch[1], 10);
+        const month = parseInt(mMatch[2], 10);
+        monthKeys = [`${year}-${String(month).padStart(2, '0')}`];
+      }
+
+      const attendanceRecords = await Attendance.find({
+        employeeId,
+        ...(monthKeys.length > 0 ? { month: { $in: monthKeys } } : {})
+      });
+
+      let computedAttendancePct = 0;
+      const hasAttendanceRecords = attendanceRecords.length > 0;
+      if (hasAttendanceRecords) {
+        const totalPresent = attendanceRecords.reduce((sum, r) => sum + (r.daysPresent || (r.attendancePercentage ? (r.attendancePercentage * (r.totalWorkingDays || 22) / 100) : 0)), 0);
+        const totalWorking = attendanceRecords.reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
+        computedAttendancePct = totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100 * 10) / 10 : 0;
+      }
+
+      const extraMetrics = {
+        approvedWorkLogs,
+        certifications,
+        awards,
+        attendancePercentage: computedAttendancePct,
+        hasAttendanceRecords,
+        attendanceRecordsCount: attendanceRecords.length
+      };
+
+      const { finalScore, rating, workLogScore, competencyScore, attendanceScore, certScore, awardScore } = calculateReviewScores(managerReview, extraMetrics);
+
       let reviewScore = await ReviewScore.findOne({ reviewCycleId, employeeId });
-      
       const before = reviewScore ? reviewScore.toObject() : null;
+
+      const comp = managerReview.competencyRatings || {};
+      const categoryScores = {
+        communication: Number(comp.communication) || 4.0,
+        ownership: Number(comp.ownership) || 4.0,
+        leadership: Number(comp.leadership) || 4.0,
+        teamwork: Number(comp.teamwork) || 4.0,
+        learning: Number(comp.learningAbility) || 4.0,
+        problemSolving: Number(comp.problemSolving) || 4.0,
+        technical: Number(comp.problemSolving) || Number(comp.learningAbility) || competencyScore,
+        productivity: Number(comp.leadership) || competencyScore,
+        workQuality: Number(comp.teamwork) || competencyScore
+      };
 
       if (reviewScore) {
         reviewScore.categoryScores = categoryScores;
@@ -571,35 +676,25 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         });
       }
 
-      // Log score change
-      await logAction({
-        userId: managerReview.managerId, // Manager submitted the triggering action
-        action: 'score_change',
-        entityType: 'ReviewScore',
-        entityId: reviewScore._id,
-        before,
-        after: reviewScore.toObject(),
-        ipAddress
-      });
-
-      // Send notification to Employee
       await Notification.create({
         userId: employeeId,
         type: 'final_score_ready',
         message: `Your performance review for ${cycle.reviewMonth} is complete. Your final score is ${finalScore} (${rating}).`
       });
 
-      // Send email notification to Employee when report is published
       const emp = await User.findById(employeeId);
       if (emp && emp.email) {
-        sendFinalReportGeneratedEmail(emp.email, emp.firstName, cycle.reviewMonth, finalScore, rating)
-          .catch(err => console.error('Final report email notification failed:', err));
+        sendFinalReportGeneratedEmail(
+          emp.email,
+          emp.firstName,
+          cycle.reviewMonth,
+          finalScore,
+          rating
+        ).catch(err => console.error('Final score email failed:', err));
       }
-
-      console.log(`Scores calculated successfully for Employee: ${employeeId} in Cycle: ${reviewCycleId}`);
     }
-  } catch (err) {
-    console.error('Error auto-calculating scores:', err);
+  } catch (error) {
+    console.error('checkAndCalculateScores error:', error);
   }
 };
 
@@ -793,8 +888,7 @@ const deleteReviewCycle = async (req, res) => {
     // Role Security: Only Reporting Managers are department-scoped (Admin, HR, Executive have org-wide cycle rights)
     if (req.user.role === 'manager') {
       const userDeptId = req.user.departmentId?._id || req.user.departmentId;
-      const kpiTemplate = await KpiTemplate.findById(cycle.kpiTemplateId);
-      const cycleDeptId = kpiTemplate?.departmentId?._id || kpiTemplate?.departmentId;
+      const cycleDeptId = cycle.departmentId?._id || cycle.departmentId;
       if (userDeptId && cycleDeptId && userDeptId.toString() !== cycleDeptId.toString()) {
         return res.status(403).json({ message: 'Forbidden. Reporting Managers can only delete review cycles for their assigned department.' });
       }
@@ -880,7 +974,7 @@ const unlockUserForCycle = async (req, res) => {
     });
 
     const updatedCycle = await ReviewCycle.findById(cycleId)
-      .populate({ path: 'kpiTemplateId', populate: { path: 'departmentId' } })
+      .populate('departmentId')
       .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
 
     res.json(updatedCycle);
@@ -921,8 +1015,10 @@ const relockUserForCycle = async (req, res) => {
     });
 
     const updatedCycle = await ReviewCycle.findById(cycleId)
-      .populate({ path: 'kpiTemplateId', populate: { path: 'departmentId' } })
+      .populate('departmentId')
       .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
+
+    res.json(updatedCycle);
 
     res.json(updatedCycle);
   } catch (error) {
@@ -946,5 +1042,6 @@ module.exports = {
   getManagerReviewById,
   submitManagerReview,
   getReviewScores,
-  calculateAggregateScores
+  calculateAggregateScores,
+  checkAndCalculateScores
 };

@@ -37,6 +37,30 @@ const aiReportSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  aiScore: {
+    type: Number,
+    default: 3.5
+  },
+  aiScoreRationale: {
+    type: String,
+    default: ''
+  },
+  confidence: {
+    type: String,
+    default: 'High'
+  },
+  productivityTrend: {
+    type: String,
+    default: 'Consistent'
+  },
+  loggingConsistency: {
+    type: String,
+    default: 'Moderate'
+  },
+  businessImpact: {
+    type: String,
+    default: 'Medium'
+  },
   prompt: {
     type: String
   },

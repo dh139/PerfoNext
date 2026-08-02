@@ -149,9 +149,9 @@ const sendTeamsWebhook = async (req, res) => {
       "@type": "MessageCard",
       "@context": "http://schema.org/extensions",
       "themeColor": "0076D7",
-      "summary": title || "PerformNext Review Reminder",
+      "summary": title || "PerfoNext Review Reminder",
       "sections": [{
-        "activityTitle": title || "PerformNext System Notification",
+        "activityTitle": title || "PerfoNext System Notification",
         "activitySubtitle": "Enterprise Performance Platform",
         "text": message
       }]

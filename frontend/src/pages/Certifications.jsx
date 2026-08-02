@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Award, Calendar, FileText, Download, Plus, T
 import { toast } from '../store/toastStore';
 import { getUserAvatarUrl } from '../utils/avatar';
 import TablePagination from '../components/TablePagination';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 const Certifications = () => {
   const { user } = useAuthStore();
@@ -616,12 +617,12 @@ const Certifications = () => {
                 <div className="space-y-3 pt-3 border-t border-slate-200/80 text-[11px]">
                   <div className="flex justify-between text-slate-500">
                     <span>Issue Date:</span>
-                    <span className="font-bold text-slate-700">{new Date(c.issueDate).toLocaleDateString()}</span>
+                    <span className="font-bold text-slate-700">{formatDateDDMMYYYY(c.issueDate)}</span>
                   </div>
                   {c.expiryDate && (
                     <div className="flex justify-between text-slate-500">
                       <span>Expiry Date:</span>
-                      <span className="font-bold text-slate-700">{new Date(c.expiryDate).toLocaleDateString()}</span>
+                      <span className="font-bold text-slate-700">{formatDateDDMMYYYY(c.expiryDate)}</span>
                     </div>
                   )}
 

@@ -5,6 +5,7 @@ import { getUserAvatarUrl } from '../utils/avatar';
 import { AlertCircle, Plus, Award, Calendar, MessageSquare, Search } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import TablePagination from '../components/TablePagination';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 const RecognitionsWorkspace = () => {
   const { user } = useAuthStore();
@@ -357,7 +358,7 @@ const RecognitionsWorkspace = () => {
 
                   <div className="pt-4 border-t border-slate-200/80 flex justify-between items-center text-[10px] text-slate-400 font-medium">
                     <span>Awarded by: <strong className="text-slate-700">{rec.awardedBy?.firstName} {rec.awardedBy?.lastName}</strong></span>
-                    <span>{new Date(rec.awardedAt).toLocaleDateString()}</span>
+                    <span>{formatDateDDMMYYYY(rec.awardedAt)}</span>
                   </div>
                 </div>
               ))}
@@ -585,7 +586,7 @@ const RecognitionsWorkspace = () => {
                       });
 
                       return filteredCycles.map(c => {
-                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
+                        const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
                         const targetBadge = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
                         return (
                           <option key={c._id} value={c._id}>

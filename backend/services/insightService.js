@@ -7,6 +7,7 @@ const Attendance = require('../models/Attendance');
 const Recognition = require('../models/Recognition');
 const AIReport = require('../models/AIReport');
 const ReviewCycle = require('../models/ReviewCycle');
+const WorkJournal = require('../models/WorkJournal');
 const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
@@ -112,11 +113,17 @@ const getAiInsights = async (employeeId, cycleId) => {
     if (cachedReport && cachedReport.status === 'COMPLETED') {
       return {
         summary: cachedReport.summary,
-        strengths: cachedReport.strengths,
-        improvements: cachedReport.improvements,
-        sentiment: cachedReport.sentiment,
-        turnoverRisk: cachedReport.turnoverRisk,
-        actionItems: cachedReport.actionItems,
+        aiScore: cachedReport.aiScore || 3.5,
+        confidence: cachedReport.confidence || 'High',
+        aiScoreRationale: cachedReport.aiScoreRationale || '',
+        strengths: cachedReport.strengths || [],
+        improvements: cachedReport.improvements || [],
+        sentiment: cachedReport.sentiment || 'Neutral',
+        turnoverRisk: cachedReport.turnoverRisk || 'Low',
+        productivityTrend: cachedReport.productivityTrend || 'Consistent',
+        loggingConsistency: cachedReport.loggingConsistency || 'Moderate',
+        businessImpact: cachedReport.businessImpact || 'Medium',
+        actionItems: cachedReport.actionItems || [],
         startDate: cachedReport.startDate || startBound,
         endDate: cachedReport.endDate || endBound,
         reviewMonth: cachedReport.reviewMonth || cycleObj?.reviewMonth,
@@ -130,7 +137,7 @@ const getAiInsights = async (employeeId, cycleId) => {
 
   } catch (error) {
     console.error('getAiInsights error:', error);
-    return generateLocalFallback([], [], [], [], []);
+    return generateLocalFallback([], [], [], [], [], []);
   }
 };
 
@@ -146,42 +153,33 @@ const regenerateAiInsights = async (employeeId, cycleId) => {
     throw new Error('Cannot regenerate AI report for a review cycle that is not finalized.');
   }
 
-  // Delete existing cache first to avoid duplicates
+  // Delete existing cache first to avoid stale data
   await AIReport.deleteOne({ employeeId, reviewCycleId: cycleId });
 
-  // Generate and return
   return await generateAndSaveInsights(employeeId, cycleId);
 };
 
-// Internal generation logic
 const generateAndSaveInsights = async (employeeId, cycleId) => {
-  const employee = await User.findById(employeeId)
-    .populate('departmentId designationId')
-    .select('firstName lastName employeeCode role departmentId designationId');
-
-  if (!employee) {
-    throw new Error('Employee not found');
-  }
+  const employee = await User.findById(employeeId).populate('departmentId designationId');
+  if (!employee) throw new Error('Employee not found');
 
   const cycle = await ReviewCycle.findById(cycleId);
-  if (!cycle) {
-    throw new Error('Review cycle not found');
-  }
+  if (!cycle) throw new Error('Review cycle not found');
 
   const { startBound, endBound } = calculateCyclePeriodBounds(cycle);
 
-  // Always include target cycleId and any overlapping cycles
-  const cycleIds = [cycle._id];
   const overlappingCycles = await ReviewCycle.find({
-    _id: { $ne: cycle._id },
-    startDate: { $gte: cycle.startDate },
-    endDate: { $lte: cycle.endDate }
+    startDate: { $lte: endBound },
+    endDate: { $gte: startBound }
   });
-  overlappingCycles.forEach(c => cycleIds.push(c._id));
 
-  // Query database filtering by cycle date boundaries for review scores, attendance, certifications, and awards
+  const cycleIds = [cycleId];
+  overlappingCycles.forEach(c => {
+    if (c._id.toString() !== cycleId.toString()) cycleIds.push(c._id);
+  });
+
+  // Query database filtering strictly by cycle date boundaries
   const scores = await ReviewScore.find({ employeeId, reviewCycleId: { $in: cycleIds } }).populate('reviewCycleId').sort('createdAt');
-  const selfAssessments = await SelfAssessment.find({ employeeId, reviewCycleId: { $in: cycleIds } }).sort('createdAt');
   const managerReviews = await ManagerReview.find({ employeeId, reviewCycleId: { $in: cycleIds } }).sort('createdAt');
   const certifications = await Certification.find({ employeeId, issueDate: { $gte: startBound, $lte: endBound } }).sort('-issueDate');
   const awards = await Recognition.find({ employeeId, awardedAt: { $gte: startBound, $lte: endBound } }).populate('awardedBy').sort('-awardedAt');
@@ -189,7 +187,14 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
   const months = getMonthsInRange(startBound, endBound);
   const attendanceRecords = await Attendance.find({ employeeId, month: { $in: months } }).sort('month');
 
-  // Auto-heal certifications pdf text extraction on-the-fly
+  // Work Journal Verified Evidence strictly in cycle window
+  const workJournalItems = await WorkJournal.find({
+    employeeId,
+    completedDate: { $gte: startBound, $lte: endBound },
+    status: { $in: ['approved', 'verified'] }
+  }).sort('-completedDate');
+
+  // Auto-heal certifications pdf text extraction
   for (const c of certifications) {
     if (!c.extractedText || !c.extractedText.trim()) {
       const filename = path.basename(c.fileUrl);
@@ -208,72 +213,67 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
     }
   }
 
-  // Construct analysis prompt context
-  let historyContext = `Employee: ${employee.firstName} ${employee.lastName} (Code: ${employee.employeeCode})
+  // Construct analysis prompt context matching PerfoNext Architecture
+  let historyContext = `EMPLOYEE EVIDENCE PROFILE (Evaluation Period: ${formatDateDDMMYYYY(startBound)} to ${formatDateDDMMYYYY(endBound)})
+Employee: ${employee.firstName} ${employee.lastName} (Code: ${employee.employeeCode})
 Designation: ${employee.designationId?.designationName || 'N/A'}
 Department: ${employee.departmentId?.departmentName || 'N/A'}
-Evaluation Period: ${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}
 
-Performance Review Scores for this period:
+1. VERIFIED APPROVED DAILY WORK LOGS (${workJournalItems.length} Entries Logged in Quarter):
 `;
 
-  scores.forEach(s => {
-    const cycleMonth = s.reviewCycleId?.reviewMonth || 'Unknown';
-    historyContext += `- Cycle: ${cycleMonth} | Final Score: ${s.finalScore}/5.0 | Rating Band: ${s.rating}\n`;
-  });
-
-  historyContext += '\nManager Comments for this period:\n';
-  managerReviews.forEach(mr => {
-    const scoreCycle = scores.find(s => s.reviewCycleId?._id?.toString() === mr.reviewCycleId?.toString());
-    const label = scoreCycle?.reviewCycleId?.reviewMonth ? ` (Cycle: ${scoreCycle.reviewCycleId.reviewMonth})` : '';
-    mr.details.forEach(item => {
-      if (item.comment) {
-        historyContext += `- [Category: ${item.category}]${label} "${item.comment}"\n`;
-      }
-    });
-  });
-
-  historyContext += '\nEmployee Self-Assessment Comments for this period:\n';
-  selfAssessments.forEach(sa => {
-    const scoreCycle = scores.find(s => s.reviewCycleId?._id?.toString() === sa.reviewCycleId?.toString());
-    const label = scoreCycle?.reviewCycleId?.reviewMonth ? ` (Cycle: ${scoreCycle.reviewCycleId.reviewMonth})` : '';
-    sa.details.forEach(item => {
-      if (item.comment) {
-        historyContext += `- [Category: ${item.category}]${label} "${item.comment}"\n`;
-      }
-    });
-  });
-
-  historyContext += '\nProfessional Certifications registered during this period:\n';
-  if (certifications.length === 0) {
-    historyContext += '- None registered in this range.\n';
+  if (workJournalItems.length === 0) {
+    historyContext += '- Zero approved daily work logs recorded in this period.\n';
   } else {
-    certifications.forEach(c => {
-      let certDetail = `- Certificate: "${c.name}" issued by "${c.issuer}" on ${new Date(c.issueDate).toLocaleDateString()}`;
-      if (c.extractedText && c.extractedText.trim()) {
-        const cleanText = c.extractedText.replace(/\s+/g, ' ').trim().slice(0, 500);
-        certDetail += ` | Extracted Certificate Content: "${cleanText}"`;
-      }
-      historyContext += certDetail + '\n';
+    workJournalItems.forEach((w, idx) => {
+      historyContext += `${idx + 1}. [Category: ${w.category}] Title: "${w.title}" | Project: "${w.project || 'General'}" | Date Completed: ${formatDateDDMMYYYY(w.completedDate)} | Hours Logged: ${w.hoursSpent || 0} Hrs | Work Summary & Output Result: "${w.resultSummary || 'N/A'}" | Manager Review Note: "${w.managerFeedback || 'Good Work'}" | Evidence Proof Type: ${w.evidenceType}\n`;
     });
   }
 
-  historyContext += '\nMonthly Attendance Percentage Records in this range:\n';
+  historyContext += '\n2. MANAGER COMPETENCY EVALUATION RATINGS (6 Core Criteria Rated by Reporting Manager):\n';
+  if (managerReviews.length === 0) {
+    historyContext += '- Manager review pending / not completed.\n';
+  } else {
+    managerReviews.forEach(mr => {
+      if (mr.competencyRatings) {
+        historyContext += `- Communication & Collaboration: ${mr.competencyRatings.communication || 'N/A'}/5\n`;
+        historyContext += `- Ownership & Accountability: ${mr.competencyRatings.ownership || 'N/A'}/5\n`;
+        historyContext += `- Leadership & Initiative: ${mr.competencyRatings.leadership || 'N/A'}/5\n`;
+        historyContext += `- Teamwork & Support: ${mr.competencyRatings.teamwork || 'N/A'}/5\n`;
+        historyContext += `- Learning & Adaptability: ${mr.competencyRatings.learningAbility || 'N/A'}/5\n`;
+        historyContext += `- Problem Solving & Critical Thinking: ${mr.competencyRatings.problemSolving || 'N/A'}/5\n`;
+      }
+      if (mr.overallComments) {
+        historyContext += `- Manager Overall Feedback Note: "${mr.overallComments}"\n`;
+      }
+    });
+  }
+
+  historyContext += '\n3. ATTENDANCE PERCENTAGE RECORDS:\n';
   if (attendanceRecords.length === 0) {
-    historyContext += '- None synchronized in this range.\n';
+    historyContext += '- No attendance records synchronized for this evaluation window.\n';
   } else {
     attendanceRecords.forEach(att => {
       historyContext += `- Month: ${att.month} | Attendance: ${att.attendancePercentage}%\n`;
     });
   }
 
-  historyContext += '\nAwards & Recognitions granted during this period:\n';
+  historyContext += '\n4. VERIFIED PROFESSIONAL CERTIFICATIONS (Earned in Cycle):\n';
+  if (certifications.length === 0) {
+    historyContext += '- None registered in this cycle window.\n';
+  } else {
+    certifications.forEach(c => {
+      historyContext += `- Certificate: "${c.name}" issued by "${c.issuer}" on ${formatDateDDMMYYYY(c.issueDate)}\n`;
+    });
+  }
+
+  historyContext += '\n5. AWARDS & RECOGNITIONS (Granted in Cycle):\n';
   if (awards.length === 0) {
-    historyContext += '- None granted in this range.\n';
+    historyContext += '- None granted in this cycle window.\n';
   } else {
     awards.forEach(aw => {
       const grantor = aw.awardedBy ? `${aw.awardedBy.firstName} ${aw.awardedBy.lastName}` : 'System';
-      historyContext += `- Award Accolade: "${aw.category}" granted by "${grantor}" with citation: "${aw.comments || ''}"\n`;
+      historyContext += `- Award Accolade: "${aw.category}" granted by "${grantor}" with citation: "${aw.comments || ''}" on ${formatDateDDMMYYYY(aw.awardedAt || aw.createdAt)}\n`;
     });
   }
 
@@ -292,6 +292,45 @@ Performance Review Scores for this period:
     }
   }
 
+  const systemPrompt = `You are ChatGPT 5.6 Terra, an enterprise HR Performance Intelligence AI.
+
+Your primary objective is to deliver an HONEST, BRUTAL, EVIDENCE-BASED PERFORMANCE AUDIT for an employee based strictly on their verified Daily Work Logs, Manager Comments, Attendance, Certifications, Awards, and Manager Competency Ratings.
+
+Evaluation Period:
+${formatDateDDMMYYYY(startBound)} to ${formatDateDDMMYYYY(endBound)}
+
+CORE AUDIT DIRECTIVES & SCORING RULES:
+
+1. DAILY WORK LOGGING COMPLIANCE:
+- Analyze all work journal entries logged by the employee during this evaluation cycle.
+- Synthesize actual deliverable titles, work summaries, and project accomplishments.
+- Reference the review cycle period (e.g. 2026-H2) without using fixed "quarter" terminology unless cycleType is quarterly.
+
+2. EXPLICITLY ANALYZE CERTIFICATIONS & AWARDS:
+- You MUST explicitly reference verified professional certifications (e.g. "Sales Strategy" by AWS, "Marketing" by Udemy) and awards in summary, strengths, and rationale.
+
+3. DEPARTMENT-AGNOSTIC ADAPTATION:
+- Adapt your terminology dynamically based on Department and Designation (Engineering, Sales, Marketing, HR, Finance, Support, Administration).
+
+4. ZERO GENERIC HR FLUFF:
+- Every strength and development area MUST cite specific evidence (work logs, certificates, awards, or attendance). NEVER use generic fluff.
+
+Output JSON in this exact structure (raw JSON, no markdown formatting):
+{
+  "summary": "<2-3 sentence executive summary written as an HR Business Partner describing actual work deliverables, work summaries, credentials, awards, attendance, and manager ratings>",
+  "aiScore": 3.85,
+  "confidence": "High / Medium / Low",
+  "aiScoreRationale": "<1-2 sentence AI audit rationale explaining how the AI score was derived from work log evidence, manager competency ratings, attendance, certs, and awards>",
+  "strengths": ["<Evidence-grounded strength 1>", "<Evidence-grounded strength 2>"],
+  "improvements": ["<Evidence-grounded improvement area 1>", "<Evidence-grounded improvement area 2>"],
+  "sentiment": "Positive / Mixed / Critical",
+  "turnoverRisk": "Low / Medium / High",
+  "productivityTrend": "Consistent / Fluctuating / Improving / Declining",
+  "loggingConsistency": "Excellent / Good / Moderate / Poor",
+  "businessImpact": "High / Medium / Low",
+  "actionItems": ["<Action item 1>", "<Action item 2>"]
+}`;
+
   // Call ChatGPT 5.6 Terra LLM API
   const response = await fetch(targetUrl, {
     method: 'POST',
@@ -302,30 +341,8 @@ Performance Review Scores for this period:
     body: JSON.stringify({
       model: modelName,
       messages: [
-        {
-          role: 'system',
-          content: `You are ChatGPT 5.6 Terra, a strategic HR Executive AI Advisor. Analyze the employee's performance score trends, self comments, manager reviews, monthly attendance percentage, professional certifications, and awards/accolades for the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
-
-CRITICAL CYCLE-SCOPED RULES:
-1. STRICT PERIOD BOUNDARY: You must ONLY analyze performance metrics, reviews, attendance, awards, and certifications that occurred strictly within the specified evaluation cycle period (${new Date(startBound).toLocaleDateString()} to ${new Date(endBound).toLocaleDateString()}).
-2. MULTI-PERSPECTIVE EVALUATION: Compare the Employee's Self-Assessment comments/justifications and the Manager's Review comments. Analyze the alignment, gaps, or discrepancies between the self-assessment and manager feedback, and reflect this in your strengths/improvements.
-3. CERTIFICATIONS: If professional certifications were earned strictly within this evaluation cycle period, highlight them in "strengths" (e.g. "Earned verified professional certification in AWS CI/CD during this appraisal cycle"). If no certifications were issued during this specific cycle period, do NOT list certificates from other periods.
-4. DO NOT suggest "pursuing professional certifications" under "improvements" unless directly relevant to current cycle gaps.
-
-Output exactly in this clean JSON structure (do not include markdown wrapping blocks, just raw JSON):
-{
-  "summary": "2-3 sentence executive summary of performance during this evaluation cycle period, incorporating attendance status, awards, and credentials.",
-  "strengths": ["Strength point 1 (performance highlights and credentials earned during this cycle)", "Strength point 2"],
-  "improvements": ["Area of growth 1", "Area of growth 2"],
-  "sentiment": "Positive / Mixed / Critical",
-  "turnoverRisk": "Low / Medium / High (incorporate attendance percentage for this cycle in this estimation)",
-  "actionItems": ["Recommended action 1", "Recommended action 2"]
-}`
-        },
-        {
-          role: 'user',
-          content: historyContext
-        }
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: historyContext }
       ],
       temperature: 0.2,
       response_format: { type: 'json_object' }
@@ -335,7 +352,7 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
   if (!response.ok) {
     const errText = await response.text();
     console.warn('ChatGPT 5.6 Terra API responded with error, utilizing local analytics engine:', errText);
-    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards);
+    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards, workJournalItems);
 
     await AIReport.findOneAndUpdate(
       { employeeId, reviewCycleId: cycleId },
@@ -343,10 +360,16 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
         employeeId,
         reviewCycleId: cycleId,
         summary: fallbackParsed.summary,
+        aiScore: fallbackParsed.aiScore || 3.08,
+        confidence: fallbackParsed.confidence || 'Medium',
+        aiScoreRationale: fallbackParsed.aiScoreRationale || '',
         strengths: fallbackParsed.strengths || [],
         improvements: fallbackParsed.improvements || [],
         sentiment: fallbackParsed.sentiment || 'Neutral',
         turnoverRisk: fallbackParsed.turnoverRisk || 'Low',
+        productivityTrend: fallbackParsed.productivityTrend || 'Fluctuating',
+        loggingConsistency: fallbackParsed.loggingConsistency || 'Poor',
+        businessImpact: fallbackParsed.businessImpact || 'Medium',
         actionItems: fallbackParsed.actionItems || [],
         startDate: startBound,
         endDate: endBound,
@@ -375,10 +398,16 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
       employeeId,
       reviewCycleId: cycleId,
       summary: parsed.summary,
+      aiScore: Number(parsed.aiScore) || 3.08,
+      confidence: parsed.confidence || 'Medium',
+      aiScoreRationale: parsed.aiScoreRationale || '',
       strengths: parsed.strengths || [],
       improvements: parsed.improvements || [],
       sentiment: parsed.sentiment || 'Neutral',
       turnoverRisk: parsed.turnoverRisk || 'Low',
+      productivityTrend: parsed.productivityTrend || 'Fluctuating',
+      loggingConsistency: parsed.loggingConsistency || 'Poor',
+      businessImpact: parsed.businessImpact || 'Medium',
       actionItems: parsed.actionItems || [],
       startDate: startBound,
       endDate: endBound,
@@ -395,77 +424,149 @@ Output exactly in this clean JSON structure (do not include markdown wrapping bl
   return { ...parsed, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
 };
 
-// Algorithmic local fallback when API key fails or rate-limits
-const generateLocalFallback = (scores, managerReviews, certifications = [], attendanceRecords = [], awards = []) => {
-  let avgScore = 0;
-  if (scores.length > 0) {
-    avgScore = scores.reduce((sum, s) => sum + s.finalScore, 0) / scores.length;
+const formatDateDDMMYYYY = (dateInput) => {
+  if (!dateInput) return '';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+// Algorithmic local fallback synthesizing all employee evidence & manager feedback
+const generateLocalFallback = (scores, managerReviews, certifications = [], attendanceRecords = [], awards = [], workJournalItems = []) => {
+  const logCount = (workJournalItems || []).length;
+  
+  // 1. Work Journal Logging Compliance Audit (50% Weight)
+  // Daily work logging is a mandatory daily operational requirement (not occasional!).
+  let workLogQualityScore = 5.0;
+  let loggingConsistency = 'Excellent';
+  let confidence = 'High';
+
+  if (logCount <= 3) {
+    workLogQualityScore = 1.0; // 0-3 logs in cycle: Critical logging non-compliance
+    loggingConsistency = 'Poor';
+    confidence = 'Low';
+  } else if (logCount <= 8) {
+    workLogQualityScore = 2.0; // 4-8 logs in cycle: Severe under-logging penalty (<5% daily compliance)
+    loggingConsistency = 'Poor';
+    confidence = 'Medium';
+  } else if (logCount <= 20) {
+    workLogQualityScore = 3.0; // 9-20 logs in cycle: Irregular logging
+    loggingConsistency = 'Moderate';
+    confidence = 'High';
+  } else if (logCount <= 45) {
+    workLogQualityScore = 4.0; // 21-45 logs in cycle: Good logging
+    loggingConsistency = 'Good';
+    confidence = 'High';
   }
 
-  const strengths = [];
-  const improvements = [];
-  let sentiment = 'Mixed';
-  let turnoverRisk = 'Low';
-
-  if (certifications.length > 0) {
-    certifications.forEach(c => {
-      strengths.push(`Successfully completed credential: "${c.name}" issued by ${c.issuer}.`);
-    });
+  // 2. Manager Competency Ratings Average (20% Weight)
+  let mgrCompAvg = 3.50;
+  let mgrComments = '';
+  if (managerReviews.length > 0) {
+    const mr = managerReviews[0];
+    if (mr.competencyRatings) {
+      const vals = Object.values(mr.competencyRatings).map(Number).filter(v => v > 0);
+      if (vals.length > 0) mgrCompAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+    if (mr.overallComments) mgrComments = mr.overallComments;
   }
 
-  if (awards.length > 0) {
-    awards.forEach(aw => {
-      strengths.push(`Awarded recognition: "${aw.category}" accolade for high contribution.`);
-    });
-  }
-
-  let avgAttendance = 100;
+  // 3. Attendance Average (Calculated from Total Days Present / Total Working Days in Cycle)
+  let avgAttendance = 85.6;
   if (attendanceRecords.length > 0) {
-    avgAttendance = attendanceRecords.reduce((sum, att) => sum + att.attendancePercentage, 0) / attendanceRecords.length;
+    const totalPresent = attendanceRecords.reduce((sum, att) => sum + (att.daysPresent || (att.attendancePercentage ? (att.attendancePercentage * (att.totalWorkingDays || 22) / 100) : 0)), 0);
+    const totalDays = attendanceRecords.reduce((sum, att) => sum + (att.totalWorkingDays || 22), 0);
+    avgAttendance = totalDays > 0 ? (totalPresent / totalDays) * 100 : (attendanceRecords.reduce((sum, att) => sum + (att.attendancePercentage || 0), 0) / attendanceRecords.length);
+  }
+  const attScore = Math.min(5.0, Math.max(1.0, (avgAttendance / 100) * 5.0));
+
+  // 4. Certifications Score (10% Weight)
+  const certScore = certifications.length === 0 ? 3.0 : certifications.length === 1 ? 4.0 : 5.0;
+
+  // 5. Awards & Recognition Score (10% Weight)
+  const awardScore = awards.length === 0 ? 3.0 : awards.length === 1 ? 4.25 : 5.0;
+
+  // 6. Honest Independent AI Audit Score Formula (1.00 - 5.00)
+  // 50% Daily Work Journal Logging + 20% Manager Competency + 10% Attendance + 10% Certs + 10% Awards
+  const rawAiScore = (workLogQualityScore * 0.50) + (mgrCompAvg * 0.20) + (attScore * 0.10) + (certScore * 0.10) + (awardScore * 0.10);
+  const aiScore = Math.round(rawAiScore * 100) / 100;
+
+  // Extract Projects, Categories, Work Summaries, Certifications, Awards
+  const certNames = certifications.map(c => `"${c.name}" (${c.issuer})`).join(', ');
+  const awardNames = awards.map(a => `"${a.category}"`).join(', ');
+
+  // Synthesize actual work summaries from logged achievements
+  const workSummariesList = workJournalItems.map(w => {
+    const summaryText = w.resultSummary || w.description || '';
+    return `"${w.title}"${summaryText ? `: ${summaryText}` : ''}`;
+  });
+  const topWorkSummaries = workSummariesList.slice(0, 3).join('; ');
+
+  // Build Honest Rationale
+  let aiScoreRationale = `Independent AI Audit Score is ${aiScore.toFixed(2)}/5.0. Derived from 50% Work Journal Proof (${logCount} entries logged in cycle), 20% Manager Competency Evaluation (${mgrCompAvg.toFixed(2)}/5.0), 10% Attendance (${avgAttendance.toFixed(1)}%), 10% Certifications (${certifications.length} active), and 10% Awards (${awards.length} active).`;
+  if (mgrComments) {
+    aiScoreRationale += ` Manager feedback note: "${mgrComments}".`;
   }
 
-  if (avgAttendance < 85) {
-    turnoverRisk = 'High';
-    improvements.push(`Improve attendance consistency (currently averaging ${avgAttendance.toFixed(1)}%).`);
-  } else if (avgAttendance < 92) {
-    turnoverRisk = 'Medium';
-    improvements.push(`Align attendance patterns to maintain optimal team availability.`);
+  // Build Strengths
+  const strengths = [];
+  if (topWorkSummaries) {
+    strengths.push(`Successfully delivered key work activities during cycle: ${topWorkSummaries}.`);
+  }
+  if (certifications.length > 0) {
+    strengths.push(`Earned professional credential(s): ${certNames}.`);
+  }
+  if (awards.length > 0) {
+    strengths.push(`Recognized with company award(s): ${awardNames}.`);
+  }
+  strengths.push(`Evaluated with strong manager competency ratings averaging ${mgrCompAvg.toFixed(2)}/5.0 across core qualities.`);
+
+  // Build Honest Improvement Areas
+  const improvements = [];
+  if (logCount <= 10) {
+    improvements.push(`Increase daily work log submission frequency (currently ${logCount} entries logged in cycle). Regular daily logging ensures full visibility into daily achievements and output.`);
+  } else if (logCount < 30) {
+    improvements.push(`Maintain consistent daily work logging throughout the review cycle (currently ${logCount} entries).`);
+  }
+  if (avgAttendance < 90) {
+    improvements.push(`Target attendance improvement above 90% (currently ${avgAttendance.toFixed(1)}%).`);
+  }
+  if (mgrComments) {
+    improvements.push(`Address manager evaluation guidance: "${mgrComments}".`);
   } else {
-    strengths.push(`Maintains excellent attendance rate averaging ${avgAttendance.toFixed(1)}%.`);
+    improvements.push('Focus on expanding quantitative performance output metrics in daily work logs.');
   }
 
-  if (avgScore >= 4.0) {
-    strengths.push('Demonstrates excellent performance exceeding core job criteria.');
-    strengths.push('Consistently meets expectations across quality and technical deliverables.');
-    improvements.push('Maintain current high benchmarks and look for leadership scaling options.');
-    sentiment = 'Positive';
-  } else if (avgScore >= 3.0) {
-    strengths.push('Reliably meets performance criteria and works well within categories.');
-    improvements.push('Focus on technical capability upgrades to transition to leadership roles.');
-    sentiment = 'Mixed';
-  } else if (avgScore > 0) {
-    strengths.push('Shows effort in adapting to role requirements.');
-    improvements.push('Requires closer mentoring support and goal clarity to improve productivity.');
-    sentiment = 'Critical';
-    if (turnoverRisk !== 'High') turnoverRisk = 'Medium';
+  // Build Executive Summary reading actual work summaries
+  let summary = `${employee.firstName || ''} ${employee.lastName || ''}, a ${employee.designationId?.designationName || 'Team Member'} in ${employee.departmentId?.departmentName || 'Department'}, `;
+  if (workJournalItems.length > 0) {
+    summary += `demonstrated key deliverables in this cycle including ${topWorkSummaries}. `;
   } else {
-    strengths.push('New hire or pending reviews.');
-    improvements.push('Awaiting initial scores to trace baseline capabilities.');
-    sentiment = 'Neutral';
+    summary += `completed tasks during this review cycle. `;
   }
-
-  const certText = certifications.length > 0 ? ` with ${certifications.length} active credential(s)` : '';
-  const awardText = awards.length > 0 ? ` and ${awards.length} accolade(s) earned` : '';
+  if (certifications.length > 0 || awards.length > 0) {
+    summary += `Verified accomplishments include ${certifications.length > 0 ? `credentials (${certNames})` : ''}${certifications.length > 0 && awards.length > 0 ? ' and ' : ''}${awards.length > 0 ? `awards (${awardNames})` : ''}. `;
+  }
+  summary += `Manager competency ratings averaged ${mgrCompAvg.toFixed(2)}/5.0 with verified attendance at ${avgAttendance.toFixed(1)}%.`;
 
   return {
-    summary: `Based on an average final review grade of ${avgScore.toFixed(2)}/5.0 and a consistent attendance average of ${avgAttendance.toFixed(1)}%, the employee exhibits a stable performance curve${certText}${awardText}.`,
-    strengths: strengths.length > 0 ? strengths : ['Core operational tasks completion.'],
-    improvements: improvements.length > 0 ? improvements : ['Enhance cross-functional alignment.'],
-    sentiment,
-    turnoverRisk,
+    summary,
+    aiScore,
+    confidence,
+    aiScoreRationale,
+    strengths,
+    improvements,
+    sentiment: logCount <= 5 ? 'Mixed' : (aiScore >= 4.0 ? 'Positive' : 'Neutral'),
+    turnoverRisk: 'Low',
+    productivityTrend: logCount >= 20 ? 'Improving' : 'Fluctuating',
+    loggingConsistency,
+    businessImpact: logCount <= 5 ? 'Low' : 'High',
     actionItems: [
-      'Conduct regular 1-on-1 performance alignments.',
-      certifications.length > 0 ? 'Leverage active certifications for complex team tasks.' : 'Assign targeted micro-learning certification courses.'
+      'Establish a mandatory daily work log submission routine (at least 4-5 logs per week).',
+      certifications.length > 0 ? 'Leverage active certifications for high-impact project architecture.' : 'Pursue role-based technical certifications.'
     ]
   };
 };

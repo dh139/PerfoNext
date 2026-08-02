@@ -116,7 +116,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
               <Activity size={20} />
             </div>
             <div>
-              <h1 className="font-bold text-base tracking-wide uppercase text-white">PerformNext</h1>
+              <h1 className="font-bold text-base tracking-wide uppercase text-white">PerfoNext</h1>
             </div>
           </div>
 
@@ -215,6 +215,12 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
 
           {performanceOpen && (
             <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+              <Link to="/performance/work-journal" className={linkClass('/performance/work-journal')} onClick={handleNavClick}>
+                <FileText size={16} className="text-amber-400" />
+                <span className="flex items-center gap-1.5 font-bold text-amber-300">
+                  Daily Work Log <span className="text-[10px]">⭐</span>
+                </span>
+              </Link>
               {user && (
                 <Link to={`/reports/employee/${user.id}`} className={linkClass(`/reports/employee/${user.id}`)} onClick={handleNavClick}>
                   <ClipboardList size={16} />
@@ -302,14 +308,16 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                   <FileText size={16} />
                   <span>Team Reports</span>
                 </Link>
-                <Link to="/hr/kpi-templates" className={linkClass('/hr/kpi-templates')} onClick={handleNavClick}>
-                  <Briefcase size={16} />
-                  <span>KPI Templates</span>
-                </Link>
                 {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
                   <Link to="/hr/cycles" className={linkClass('/hr/cycles')} onClick={handleNavClick}>
                     <Calendar size={16} />
                     <span>Review Cycles</span>
+                  </Link>
+                )}
+                {user?.role === 'executive' && (
+                  <Link to="/management/work-journal-forms" className={linkClass('/management/work-journal-forms')} onClick={handleNavClick}>
+                    <FileText size={16} />
+                    <span>Daily Work Log Templates</span>
                   </Link>
                 )}
                 <Link to="/reports/completion" className={linkClass('/reports/completion')} onClick={handleNavClick}>

@@ -1,5 +1,5 @@
 /**
- * PerformNext - Configurable Rate Limiting Middleware Suite
+ * PerfoNext - Configurable Rate Limiting Middleware Suite
  * 
  * Features:
  * 1. Configurable thresholds via environment variables (with fallback defaults).

@@ -133,7 +133,7 @@ const Register = () => {
 
             <div>
               <h3 className="text-xl font-bold text-slate-100">Account Created Successfully!</h3>
-              <p className="text-xs text-slate-400 mt-1">Welcome to the PerformNext Performance Tracking System.</p>
+              <p className="text-xs text-slate-400 mt-1">Welcome to the PerfoNext Performance Tracking System.</p>
             </div>
 
             <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-2 text-left text-xs">
@@ -168,7 +168,7 @@ const Register = () => {
           <div className="p-3 bg-sky-600 rounded-xl text-white shadow-lg shadow-sky-600/25 mb-3">
             <Activity size={28} />
           </div>
-          <h2 className="text-xl font-bold text-slate-100 tracking-wide">PerformNext Register Account</h2>
+          <h2 className="text-xl font-bold text-slate-100 tracking-wide">PerfoNext Register Account</h2>
           <p className="text-xs text-slate-400 mt-1">Join the Employee Performance Tracking System</p>
         </div>
 

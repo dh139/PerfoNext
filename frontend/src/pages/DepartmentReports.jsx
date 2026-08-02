@@ -76,17 +76,29 @@ const DepartmentReports = () => {
     handleFetchReport();
   }, [selectedDeptId, selectedCycleId]);
 
-  const getCategoryLabel = (cat) => {
+  const getCategoryMeta = (cat) => {
     switch (cat) {
-      case 'workQuality': return 'Work Quality';
-      case 'productivity': return 'Productivity';
-      case 'technical': return 'Technical Skills';
-      case 'communication': return 'Communication';
-      case 'ownership': return 'Ownership';
-      case 'learning': return 'Learning & Growth';
-      default: return cat;
+      case 'communication':
+        return { label: 'Communication & Collaboration', color: 'bg-emerald-500' };
+      case 'ownership':
+        return { label: 'Ownership & Accountability', color: 'bg-rose-500' };
+      case 'leadership':
+      case 'productivity':
+        return { label: 'Leadership & Initiative', color: 'bg-amber-500' };
+      case 'teamwork':
+      case 'workQuality':
+        return { label: 'Teamwork & Support', color: 'bg-indigo-500' };
+      case 'learning':
+        return { label: 'Learning & Adaptability', color: 'bg-purple-500' };
+      case 'problemSolving':
+      case 'technical':
+        return { label: 'Problem Solving & Critical Thinking', color: 'bg-sky-500' };
+      default:
+        return { label: cat, color: 'bg-sky-500' };
     }
   };
+
+  const getCategoryLabel = (cat) => getCategoryMeta(cat).label;
 
   const table = useTableControls(report?.scores || [], {
     searchFn: (s, term) =>
@@ -188,15 +200,14 @@ const DepartmentReports = () => {
                       .filter(c => {
                         const isMgr = c.targetRole === 'manager';
                         const roleText = isMgr ? 'manager reporting manager ceo' : 'employee employee evaluation';
-                        const deptText = c.kpiTemplateId?.departmentId?.departmentName || 'all departments';
-                        const tNameText = c.kpiTemplateId?.templateName || '';
-                        const text = `${c.reviewMonth} ${deptText} ${tNameText} ${roleText} ${c.status}`.toLowerCase();
+                        const deptText = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'all departments';
+                        const text = `${c.reviewMonth} ${deptText} ${roleText} ${c.status}`.toLowerCase();
                         return text.includes(cycleSearch.toLowerCase());
                       })
                       .map(c => {
                         const isMgr = c.targetRole === 'manager';
                         const isSelected = selectedCycleId === c._id;
-                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
+                        const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
 
                         return (
                           <button
@@ -296,16 +307,17 @@ const DepartmentReports = () => {
                 {Object.keys(report.averages.categoryScores).map(cat => {
                   const val = report.averages.categoryScores[cat] || 0;
                   const pct = Math.round((val / 5) * 100);
+                  const meta = getCategoryMeta(cat);
 
                   return (
-                    <div key={cat} className="space-y-2 border border-slate-50 p-4 rounded-lg">
+                    <div key={cat} className="space-y-2 border border-slate-100/80 p-4 rounded-xl">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="font-semibold text-slate-700">{getCategoryLabel(cat)}</span>
-                        <span className="font-extrabold text-sky-700">{val} / 5.0</span>
+                        <span className="font-bold text-slate-800">{meta.label}</span>
+                        <span className="font-extrabold text-slate-900">{val} / 5.0</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                         <div
-                          className="bg-sky-600 h-full rounded-full transition-all duration-300"
+                          className={`${meta.color} h-full rounded-full transition-all duration-300`}
                           style={{ width: `${pct}%` }}
                         ></div>
                       </div>

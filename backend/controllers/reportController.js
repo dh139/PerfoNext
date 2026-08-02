@@ -40,6 +40,14 @@ const getEmployeeReport = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found.' });
     }
 
+    const { checkAndCalculateScores } = require('./cycleController');
+    const submittedReviews = await ManagerReview.find({ employeeId, status: 'submitted' });
+    for (const mr of submittedReviews) {
+      if (mr.reviewCycleId) {
+        await checkAndCalculateScores(mr.reviewCycleId, employeeId);
+      }
+    }
+
     // Get all review scores
     const scores = await ReviewScore.find({ employeeId })
       .populate({ path: 'reviewCycleId', select: 'reviewMonth status startDate endDate cycleType' })
@@ -163,12 +171,12 @@ const getDepartmentReport = async (req, res) => {
     if (scores.length > 0) {
       scores.forEach(s => {
         avgFinalScore += s.finalScore;
-        avgWorkQuality += s.categoryScores?.workQuality || 0;
-        avgProductivity += s.categoryScores?.productivity || 0;
-        avgTechnical += s.categoryScores?.technical || 0;
-        avgCommunication += s.categoryScores?.communication || 0;
-        avgOwnership += s.categoryScores?.ownership || 0;
-        avgLearning += s.categoryScores?.learning || 0;
+        avgWorkQuality += s.categoryScores?.workQuality || s.finalScore || 0;
+        avgProductivity += s.categoryScores?.productivity || s.finalScore || 0;
+        avgTechnical += (s.categoryScores?.technical && s.categoryScores.technical > 0) ? s.categoryScores.technical : (s.categoryScores?.problemSolving || s.finalScore || 0);
+        avgCommunication += s.categoryScores?.communication || s.finalScore || 0;
+        avgOwnership += s.categoryScores?.ownership || s.finalScore || 0;
+        avgLearning += s.categoryScores?.learning || s.finalScore || 0;
       });
 
       const count = scores.length;
@@ -189,12 +197,12 @@ const getDepartmentReport = async (req, res) => {
       averages: {
         finalScore: avgFinalScore,
         categoryScores: {
-          workQuality: avgWorkQuality,
-          productivity: avgProductivity,
-          technical: avgTechnical,
           communication: avgCommunication,
           ownership: avgOwnership,
-          learning: avgLearning
+          leadership: avgProductivity,
+          teamwork: avgWorkQuality,
+          learning: avgLearning,
+          problemSolving: avgTechnical
         }
       }
     });
@@ -216,7 +224,7 @@ const getReviewCompletionReport = async (req, res) => {
       return res.status(400).json({ message: 'Invalid review cycle ID format.' });
     }
 
-    const cycle = await ReviewCycle.findById(reviewCycleId).populate('kpiTemplateId');
+    const cycle = await ReviewCycle.findById(reviewCycleId).populate('departmentId kpiTemplateId');
     if (!cycle) {
       return res.status(404).json({ message: 'Review cycle not found.' });
     }
@@ -228,8 +236,10 @@ const getReviewCompletionReport = async (req, res) => {
     } else {
       filter.role = 'employee';
     }
-    if (template && template.departmentId) {
-      filter.departmentId = template.departmentId;
+
+    const targetDeptId = cycle.departmentId?._id || cycle.departmentId || (template && (template.departmentId?._id || template.departmentId));
+    if (targetDeptId) {
+      filter.departmentId = targetDeptId;
     }
 
     // Get all active eligible employees in target department

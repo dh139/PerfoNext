@@ -1,28 +1,5 @@
 const mongoose = require('mongoose');
 
-const managerReviewDetailSchema = new mongoose.Schema({
-  category: {
-    type: String,
-    enum: ['quality', 'productivity', 'technical', 'communication', 'ownership', 'learning'],
-    required: true
-  },
-  kpiItemId: {
-    type: String,
-    required: true
-  },
-  score: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 5
-  },
-  comment: {
-    type: String,
-    required: [true, 'Comment is mandatory for Manager reviews.'],
-    trim: true
-  }
-});
-
 const managerReviewSchema = new mongoose.Schema(
   {
     reviewCycleId: {
@@ -53,7 +30,31 @@ const managerReviewSchema = new mongoose.Schema(
     submittedAt: {
       type: Date
     },
-    details: [managerReviewDetailSchema]
+    // 6 Core Manager Competencies (1 to 5 stars)
+    competencyRatings: {
+      communication: { type: Number, default: 4, min: 1, max: 5 },
+      ownership: { type: Number, default: 4, min: 1, max: 5 },
+      leadership: { type: Number, default: 4, min: 1, max: 5 },
+      teamwork: { type: Number, default: 4, min: 1, max: 5 },
+      learningAbility: { type: Number, default: 4, min: 1, max: 5 },
+      problemSolving: { type: Number, default: 4, min: 1, max: 5 }
+    },
+    overallComments: {
+      type: String,
+      default: ''
+    },
+    overallRating: {
+      type: Number,
+      default: 4
+    },
+    details: [
+      {
+        category: String,
+        kpiItemId: String,
+        score: Number,
+        comment: String
+      }
+    ]
   },
   { timestamps: true }
 );

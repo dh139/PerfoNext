@@ -3,6 +3,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera, Award } from 'lucide-react';
 import { getUserAvatarUrl } from '../utils/avatar';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 const Profile = () => {
   const { updateProfile } = useAuthStore();
@@ -248,7 +249,7 @@ const Profile = () => {
           </div>
           <div className="flex items-center gap-2 text-xs text-slate-600">
             <Calendar size={14} className="text-slate-400" />
-            <span>Joined {profile?.joiningDate ? new Date(profile.joiningDate).toLocaleDateString() : '—'}</span>
+            <span>Joined {profile?.joiningDate ? formatDateDDMMYYYY(profile.joiningDate) : '—'}</span>
           </div>
           {profile?.managerId && (
             <div className="flex items-center gap-2 text-xs text-slate-600">

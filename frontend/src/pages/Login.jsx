@@ -53,7 +53,7 @@ const Login = () => {
           <div className="p-3 bg-sky-600 rounded-xl text-white shadow-lg shadow-sky-600/25 mb-3">
             <Activity size={28} />
           </div>
-          <h2 className="text-xl font-bold text-slate-100 tracking-wide">PerformNext System Dashboard</h2>
+          <h2 className="text-xl font-bold text-slate-100 tracking-wide">PerfoNext System Dashboard</h2>
           <p className="text-xs text-slate-400 mt-1">Sign in to track and manage employee performance</p>
         </div>
 

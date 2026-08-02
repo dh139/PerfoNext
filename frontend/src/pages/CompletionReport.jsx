@@ -141,7 +141,8 @@ const CompletionReport = () => {
                     <span className="font-black text-sky-200">
                       {(() => {
                         const selected = cycles.find(c => c._id === selectedCycleId);
-                        return selected ? `${selected.reviewMonth} - ${selected.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide'}` : 'Select Cycle';
+                        const dName = selected?.departmentId?.departmentName || selected?.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide';
+                        return selected ? `${selected.reviewMonth} - ${dName}` : 'Select Cycle';
                       })()}
                     </span>
                     {(() => {
@@ -191,15 +192,14 @@ const CompletionReport = () => {
                         .filter(c => {
                           const isMgr = c.targetRole === 'manager';
                           const roleText = isMgr ? 'manager reporting manager ceo' : 'employee employee evaluation';
-                          const deptText = c.kpiTemplateId?.departmentId?.departmentName || 'org-wide';
-                          const tNameText = c.kpiTemplateId?.templateName || '';
-                          const text = `${c.reviewMonth} ${deptText} ${tNameText} ${roleText} ${c.status}`.toLowerCase();
+                          const deptText = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'org-wide';
+                          const text = `${c.reviewMonth} ${deptText} ${roleText} ${c.status}`.toLowerCase();
                           return text.includes(searchQuery.toLowerCase());
                         })
                         .map(c => {
                           const isMgr = c.targetRole === 'manager';
                           const isSelected = selectedCycleId === c._id;
-                          const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide';
+                          const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'Org-Wide';
 
                           return (
                             <button

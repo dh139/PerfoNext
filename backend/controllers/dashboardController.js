@@ -1,6 +1,5 @@
 const User = require('../models/User');
 const Department = require('../models/Department');
-const KpiTemplate = require('../models/KpiTemplate');
 const ReviewCycle = require('../models/ReviewCycle');
 const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
@@ -9,6 +8,7 @@ const Notification = require('../models/Notification');
 const AuditLog = require('../models/AuditLog');
 const EmployeeSkill = require('../models/EmployeeSkill');
 const Certification = require('../models/Certification');
+const WorkJournal = require('../models/WorkJournal');
 const { isEmployeeEligibleForCycle } = require('../utils/eligibility');
 
 const getDashboardData = async (req, res) => {
@@ -16,7 +16,7 @@ const getDashboardData = async (req, res) => {
     await ReviewCycle.autoCloseExpiredCycles();
     const { role, id: userId } = req.user;
     
-    // Fetch active review cycles (or cycles where any individual extension is granted)
+    // Fetch active review cycles
     const activeCycles = await ReviewCycle.find({
       $or: [
         { status: 'active' },
@@ -35,10 +35,9 @@ const getDashboardData = async (req, res) => {
       for (const cycle of activeCycles) {
         const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
         if (cycle.status !== 'active' && !isUnlockedForUser) {
-          continue; // Skip closed cycle unless THIS user was individually unlocked!
+          continue;
         }
 
-        // Filter by targetRole eligibility
         if (cycle.targetRole === 'manager' && user.role === 'employee') {
           continue;
         }
@@ -50,158 +49,106 @@ const getDashboardData = async (req, res) => {
           continue;
         }
 
-        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
-        if (template && template.departmentId) {
-          const empDeptId = user.departmentId?._id || user.departmentId;
-          if (empDeptId && template.departmentId.toString() !== empDeptId.toString()) {
+        if (cycle.departmentId) {
+          const cycleDeptId = cycle.departmentId._id ? cycle.departmentId._id.toString() : cycle.departmentId.toString();
+          const empDeptId = user.departmentId?._id ? user.departmentId._id.toString() : (user.departmentId ? user.departmentId.toString() : '');
+
+          if (!empDeptId || empDeptId !== cycleDeptId) {
             continue;
           }
         }
 
-        const assessment = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: userId });
-        if (!assessment || assessment.status === 'draft') {
+        const existingSelf = await SelfAssessment.findOne({
+          reviewCycleId: cycle._id,
+          employeeId: userId
+        });
+
+        if (!existingSelf || existingSelf.status !== 'submitted') {
           pendingSelfAssessments.push({
             cycleId: cycle._id,
             reviewMonth: cycle.reviewMonth,
             endDate: cycle.endDate,
-            assessmentId: assessment?._id || null,
-            status: assessment ? 'draft' : 'not_started'
+            status: existingSelf ? existingSelf.status : 'not_started'
           });
         }
       }
     }
 
+    const reviewScores = await ReviewScore.find({ employeeId: userId })
+      .populate('reviewCycleId')
+      .sort({ calculatedAt: -1 });
+
+    const notifications = await Notification.find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    const skillsCount = await EmployeeSkill.countDocuments({ employeeId: userId });
+    const certificationsCount = await Certification.countDocuments({ employeeId: userId });
+
+    let selfAssessmentStatus = 'none';
+    let managerReviewStatus = 'none';
+    let finalScoreFinalized = false;
+    let finalScore = null;
+    let ratingBand = null;
+    let activeCycleId = null;
+
+    // Filter activeCycles that apply to this user's department and targetRole
+    const relevantActiveCycles = activeCycles.filter(cycle => {
+      if (cycle.status !== 'active') {
+        const isUnlocked = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
+        if (!isUnlocked) return false;
+      }
+
+      if (cycle.targetRole === 'manager' && user.role === 'employee') return false;
+      if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(user.role)) return false;
+
+      if (cycle.departmentId) {
+        const cycleDeptId = cycle.departmentId._id ? cycle.departmentId._id.toString() : cycle.departmentId.toString();
+        const empDeptId = user.departmentId?._id ? user.departmentId._id.toString() : (user.departmentId ? user.departmentId.toString() : '');
+
+        if (!empDeptId || empDeptId !== cycleDeptId) return false;
+      }
+
+      if (user.joiningDate && !isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    if (relevantActiveCycles.length > 0) {
+      let currentCycle = relevantActiveCycles[0];
+      activeCycleId = currentCycle._id;
+
+      const self = await SelfAssessment.findOne({ reviewCycleId: currentCycle._id, employeeId: userId });
+      if (self) {
+        selfAssessmentStatus = self.status;
+      } else {
+        selfAssessmentStatus = 'pending';
+      }
+
+      const mgrRev = await ManagerReview.findOne({ reviewCycleId: currentCycle._id, employeeId: userId });
+      if (mgrRev) {
+        managerReviewStatus = mgrRev.status === 'submitted' ? 'complete' : 'waiting';
+      } else if (selfAssessmentStatus === 'submitted') {
+        managerReviewStatus = 'waiting';
+      }
+
+      const score = await ReviewScore.findOne({ reviewCycleId: currentCycle._id, employeeId: userId });
+      if (score) {
+        finalScoreFinalized = true;
+        finalScore = score.finalScore;
+        ratingBand = score.rating;
+      }
+    }
+
+    // Role-specific stats
     if (role === 'employee') {
-      // 1. Employee Dashboard Data
-
-      // Past review scores
-      const reviewScores = await ReviewScore.find({ employeeId: userId })
-        .populate({ path: 'reviewCycleId', select: 'reviewMonth' })
-        .sort('-createdAt');
-
-      // Unread notifications
-      const notifications = await Notification.find({ userId, isRead: false })
-        .sort('-createdAt')
-        .limit(5);
-
-      // Setup/journey metrics
-      const skillsCount = await EmployeeSkill.countDocuments({ employeeId: userId });
-      const certificationsCount = await Certification.countDocuments({ employeeId: userId });
-
-      let selfAssessmentStatus = 'none'; // 'pending', 'submitted', 'none'
-      let managerReviewStatus = 'none'; // 'waiting', 'complete', 'none'
-      let finalScoreFinalized = false;
-      let finalScore = null;
-      let ratingBand = null;
-      let activeCycleId = null;
-
-      const userAssessments = await SelfAssessment.find({ employeeId: userId });
-      const userCompletedCycleIds = [
-        ...userAssessments.map(a => a.reviewCycleId),
-        ...reviewScores.map(s => s.reviewCycleId?._id || s.reviewCycleId)
-      ].filter(Boolean);
-
-      const employeeRelevantCycles = await ReviewCycle.find({
-        $or: [
-          { status: 'active' },
-          { unlockedUserIds: userId },
-          { _id: { $in: userCompletedCycleIds } }
-        ]
-      }).sort({ createdAt: -1 });
-
-      const eligibleCycles = [];
-
-      for (const cycle of employeeRelevantCycles) {
-        const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
-        const hasExistingAssessmentOrScore = userCompletedCycleIds.some(cid => cid.toString() === cycle._id.toString());
-
-        if (cycle.status !== 'active' && !isUnlockedForUser && !hasExistingAssessmentOrScore) {
-          continue;
-        }
-
-        if (cycle.targetRole === 'manager') {
-          continue; // Skip manager-targeted cycles for employee role
-        }
-
-        // Filter by joining date eligibility
-        if (user.joiningDate && !isEmployeeEligibleForCycle(user.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
-          continue; // Skip this cycle for this employee as they are not eligible
-        }
-
-        // Filter by KPI Template's department
-        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
-        if (template && template.departmentId) {
-          const empDeptId = user.departmentId?._id || user.departmentId;
-          if (empDeptId && template.departmentId.toString() !== empDeptId.toString()) {
-            continue; // Skip this cycle for this employee
-          }
-        }
-        
-        let selfStatus = 'none';
-        const assessment = userAssessments.find(a => a.reviewCycleId?.toString() === cycle._id.toString());
-        if (!assessment || assessment.status === 'draft') {
-          selfStatus = 'pending';
-        } else {
-          selfStatus = 'submitted';
-        }
-
-        let mgrStatus = 'none';
-        const mgrReview = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: userId });
-        if (selfStatus === 'submitted') {
-          if (!mgrReview || mgrReview.status === 'draft') {
-            mgrStatus = 'waiting';
-          } else {
-            mgrStatus = 'complete';
-          }
-        }
-
-        let finalized = false;
-        let finalScoreValue = null;
-        let ratingBandValue = null;
-        const score = reviewScores.find(s => (s.reviewCycleId?._id || s.reviewCycleId)?.toString() === cycle._id.toString());
-        if (score) {
-          finalized = true;
-          finalScoreValue = score.finalScore;
-          ratingBandValue = score.rating;
-        }
-
-        eligibleCycles.push({
-          cycleId: cycle._id,
-          selfStatus,
-          mgrStatus,
-          finalized,
-          finalScoreValue,
-          ratingBandValue
-        });
-      }
-
-      // Priority Selector for Employee Journey Card:
-      // 1. Any active/unlocked cycle with selfStatus === 'pending'
-      let target = eligibleCycles.find(c => c.selfStatus === 'pending');
-      // 2. Any active/unlocked cycle with mgrStatus === 'waiting'
-      if (!target) {
-        target = eligibleCycles.find(c => c.mgrStatus === 'waiting');
-      }
-      // 3. Latest completed review score (100% Completed!)
-      if (!target) {
-        target = eligibleCycles.find(c => c.finalized);
-      }
-      // 4. Fallback to the first eligible cycle
-      if (!target && eligibleCycles.length > 0) {
-        target = eligibleCycles[0];
-      }
-
-      if (target) {
-        activeCycleId = target.cycleId;
-        selfAssessmentStatus = target.selfStatus;
-        managerReviewStatus = target.mgrStatus;
-        finalScoreFinalized = target.finalized;
-        finalScore = target.finalScoreValue;
-        ratingBand = target.ratingBandValue;
-      }
+      const dailyWorkLogs = await WorkJournal.find({ employeeId: userId }).sort({ completedDate: -1 });
+      const todayLogs = dailyWorkLogs.filter(i => new Date(i.completedDate).toDateString() === new Date().toDateString());
+      const monthLogs = dailyWorkLogs.filter(i => new Date(i.completedDate).getMonth() === new Date().getMonth());
 
       return res.json({
-        role,
         profile: user,
         pendingSelfAssessments,
         reviewScores,
@@ -214,278 +161,276 @@ const getDashboardData = async (req, res) => {
         finalScoreFinalized,
         finalScore,
         ratingBand,
-        activeCycleId
+        activeCycleId,
+        dailyWorkLogsCount: dailyWorkLogs.length,
+        todayLogsCount: todayLogs.length,
+        monthLogsCount: monthLogs.length
       });
     }
 
-      // Pending manager reviews for active cycles (for manager/executive/hr who have reportees)
-      let subordinates;
-      if (role === 'executive') {
-        subordinates = await User.find({
-          $or: [
-            { managerId: userId },
-            { role: { $in: ['manager', 'hr'] } }
-          ],
-          employmentStatus: 'active'
-        }).populate('departmentId designationId');
-      } else {
-        subordinates = await User.find({ managerId: userId, employmentStatus: 'active' }).populate('departmentId designationId');
-      }
-      const subordinateIds = subordinates.map(s => s._id);
+    if (role === 'manager') {
+      const mongoose = require('mongoose');
+      const team = await User.find({
+        $or: [
+          { managerId: userId },
+          { managerId: new mongoose.Types.ObjectId(userId) }
+        ],
+        employmentStatus: 'active'
+      }).select('firstName lastName email employeeCode designationId departmentId avatar role joiningDate');
+
+      const teamIds = team.map(t => t._id);
+
+      const pendingWorkLogs = await WorkJournal.countDocuments({
+        employeeId: { $in: teamIds },
+        status: 'submitted'
+      });
 
       const pendingManagerReviews = [];
       const pendingSelfAssessmentsFromSubordinates = [];
 
-      // Batch fetch all self-assessments and manager-reviews for active cycles & subordinates
-      const allSelfAsses = await SelfAssessment.find({
-        reviewCycleId: { $in: activeCycleIds },
-        employeeId: { $in: subordinateIds }
-      });
-      const allManRevs = await ManagerReview.find({
-        reviewCycleId: { $in: activeCycleIds },
-        employeeId: { $in: subordinateIds }
-      });
-
-      const selfAssMap = new Map();
-      allSelfAsses.forEach(sa => selfAssMap.set(`${sa.reviewCycleId.toString()}_${sa.employeeId.toString()}`, sa));
-
-      const manRevMap = new Map();
-      allManRevs.forEach(mr => manRevMap.set(`${mr.reviewCycleId.toString()}_${mr.employeeId.toString()}`, mr));
-
       for (const cycle of activeCycles) {
-        const isCycleActive = cycle.status === 'active';
-        const template = await KpiTemplate.findById(cycle.kpiTemplateId);
-        const targetDeptId = template?.departmentId || null;
+        if (cycle.status !== 'active') continue;
 
-        for (const sub of subordinates) {
-          const isSubUnlocked = cycle.unlockedUserIds?.some(uid => uid.toString() === sub._id.toString());
-          if (!isCycleActive && !isSubUnlocked) {
-            continue;
-          }
+        // Reporting Managers only evaluate employee cycles (targetRole === 'employee').
+        // Manager target cycles (targetRole === 'manager') are evaluated by CEO/Executive/Admin.
+        if (cycle.targetRole === 'manager') continue;
 
-          if (cycle.targetRole === 'manager' && sub.role === 'employee') {
-            continue;
-          }
-          if (cycle.targetRole === 'employee' && (sub.role === 'manager' || sub.role === 'hr')) {
-            continue;
-          }
+        for (const member of team) {
+          // Department scoping check
+          if (cycle.departmentId) {
+            const cycleDeptId = cycle.departmentId._id ? cycle.departmentId._id.toString() : cycle.departmentId.toString();
+            const memberDeptId = member.departmentId?._id ? member.departmentId._id.toString() : (member.departmentId ? member.departmentId.toString() : '');
 
-          if (!isEmployeeEligibleForCycle(sub.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
-            continue;
-          }
-
-          if (targetDeptId) {
-            const subDeptId = sub.departmentId?._id || sub.departmentId;
-            if (subDeptId && targetDeptId.toString() !== subDeptId.toString()) {
+            if (!memberDeptId || memberDeptId !== cycleDeptId) {
               continue;
             }
           }
 
-          const key = `${cycle._id.toString()}_${sub._id.toString()}`;
-          const selfAss = selfAssMap.get(key);
-          
-          if (!selfAss || selfAss.status !== 'submitted') {
+          // Target role check
+          if (cycle.targetRole === 'manager' && member.role === 'employee') continue;
+          if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(member.role)) continue;
+
+          // Eligibility check
+          if (member.joiningDate && !isEmployeeEligibleForCycle(member.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+            continue;
+          }
+
+          const self = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: member._id });
+          const mgrRev = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: member._id });
+
+          if (!self || self.status !== 'submitted') {
             pendingSelfAssessmentsFromSubordinates.push({
-              employee: sub,
-              cycleMonth: cycle.reviewMonth
-            });
-          }
-
-          const manRev = manRevMap.get(key);
-          if (!manRev || manRev.status === 'draft') {
-            pendingManagerReviews.push({
-              employee: sub,
-              cycleId: cycle._id,
+              employee: member,
               cycleMonth: cycle.reviewMonth,
-              reviewId: manRev?._id || null,
-              status: manRev ? 'draft' : 'not_started',
-              isEmployeeSubmitted: selfAss?.status === 'submitted'
+              cycleId: cycle._id
+            });
+          }
+
+          if (!mgrRev || mgrRev.status !== 'submitted') {
+            pendingManagerReviews.push({
+              employee: member,
+              cycleMonth: cycle.reviewMonth,
+              cycleId: cycle._id,
+              isEmployeeSubmitted: self ? self.status === 'submitted' : false
             });
           }
         }
       }
-
-      const teamScores = await ReviewScore.find({ employeeId: { $in: subordinateIds } })
-        .populate({ path: 'employeeId', select: 'firstName lastName employeeCode' })
-        .populate({ path: 'reviewCycleId', select: 'reviewMonth' })
-        .sort('-createdAt');
-
-      if (role === 'manager') {
-        return res.json({
-          role,
-          teamCount: subordinates.length,
-          pendingManagerReviews,
-          pendingSelfAssessmentsFromSubordinates,
-          teamScores,
-          pendingSelfAssessments
-        });
-      }
-
-    if (role === 'hr' || role === 'admin' || role === 'executive') {
-      // 3. HR & Admin & Executive Dashboard Data
-      const totalDepartments = await Department.countDocuments({ status: 'active' });
-      const departmentsList = await Department.find({ status: 'active' }).select('departmentName code').sort('departmentName');
-      const totalTemplates = await KpiTemplate.countDocuments({ status: 'active' });
-      const totalUsers = await User.countDocuments({ employmentStatus: 'active' });
-      const totalManagers = await User.countDocuments({ role: 'manager', employmentStatus: 'active' });
-
-      // Completion metrics for active cycles
-      const activeCycleMetrics = [];
-      for (const cycle of activeCycles) {
-        // Resolve department eligibility from KPI Template
-        const template = await KpiTemplate.findById(cycle.kpiTemplateId).populate('departmentId');
-        const targetDeptId = template?.departmentId?._id || template?.departmentId || null;
-
-        const employeeFilter = { employmentStatus: 'active' };
-        if (cycle.targetRole === 'manager') {
-          employeeFilter.role = { $in: ['manager', 'hr'] };
-        } else {
-          employeeFilter.role = 'employee';
-        }
-        if (targetDeptId) {
-          employeeFilter.departmentId = targetDeptId;
-        }
-
-        // Detailed employee submission status & timestamps
-        const eligibleUserListFull = await User.find(employeeFilter)
-          .populate('departmentId designationId')
-          .populate({ path: 'managerId', select: 'firstName lastName' });
-
-        const eligibleUserList = eligibleUserListFull.filter(emp =>
-          isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)
-        );
-
-        const totalEmployees = eligibleUserList.length > 0 ? eligibleUserList.length : 1;
-
-        const submissions = await Promise.all(eligibleUserList.map(async (emp) => {
-          const selfDoc = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
-          const mgrDoc = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
-          return {
-            employeeId: emp._id,
-            firstName: emp.firstName,
-            lastName: emp.lastName,
-            employeeCode: emp.employeeCode,
-            role: emp.role,
-            departmentName: emp.departmentId?.departmentName || '-',
-            designationName: emp.designationId?.designationName || '-',
-            managerName: emp.managerId ? `${emp.managerId.firstName} ${emp.managerId.lastName}` : 'No Manager',
-            selfSubmitted: selfDoc?.status === 'submitted',
-            selfSubmittedAt: selfDoc?.submittedAt || null,
-            managerSubmitted: mgrDoc?.status === 'submitted',
-            managerSubmittedAt: mgrDoc?.submittedAt || null
-          };
-        }));
-
-        const totalUsersCount = submissions.length;
-        const employeeSubmissions = submissions.filter(s => s.role === 'employee');
-        const managerSubmissions = submissions.filter(s => s.role === 'manager' || s.role === 'hr');
-
-        const selfSubmitted = submissions.filter(s => s.selfSubmitted).length;
-        const managerSubmitted = submissions.filter(s => s.managerSubmitted).length;
-        const bothCompleted = submissions.filter(s => s.selfSubmitted && s.managerSubmitted).length;
-
-        activeCycleMetrics.push({
-          cycleId: cycle._id,
-          reviewMonth: cycle.reviewMonth,
-          cycleType: cycle.cycleType,
-          targetRole: cycle.targetRole || 'employee',
-          templateName: template?.templateName || 'General Template',
-          departmentName: template?.departmentId?.departmentName || 'All Departments',
-          totalEmployees: totalUsersCount,
-          employeeCount: employeeSubmissions.length,
-          managerCount: managerSubmissions.length,
-          selfSubmittedPercent: totalUsersCount > 0 ? Math.round((selfSubmitted / totalUsersCount) * 100) : 0,
-          managerSubmittedPercent: totalUsersCount > 0 ? Math.round((managerSubmitted / totalUsersCount) * 100) : 0,
-          completedPercent: totalUsersCount > 0 ? Math.round((bothCompleted / totalUsersCount) * 100) : 0,
-          
-          // Employee specific stats
-          empSelfSubmittedPercent: employeeSubmissions.length > 0 ? Math.round((employeeSubmissions.filter(s => s.selfSubmitted).length / employeeSubmissions.length) * 100) : 0,
-          empManagerSubmittedPercent: employeeSubmissions.length > 0 ? Math.round((employeeSubmissions.filter(s => s.managerSubmitted).length / employeeSubmissions.length) * 100) : 0,
-          empCompletedPercent: employeeSubmissions.length > 0 ? Math.round((employeeSubmissions.filter(s => s.selfSubmitted && s.managerSubmitted).length / employeeSubmissions.length) * 100) : 0,
-          
-          // Manager/HR specific stats
-          mgrSelfSubmittedPercent: managerSubmissions.length > 0 ? Math.round((managerSubmissions.filter(s => s.selfSubmitted).length / managerSubmissions.length) * 100) : 0,
-          mgrManagerSubmittedPercent: managerSubmissions.length > 0 ? Math.round((managerSubmissions.filter(s => s.managerSubmitted).length / managerSubmissions.length) * 100) : 0,
-          mgrCompletedPercent: managerSubmissions.length > 0 ? Math.round((managerSubmissions.filter(s => s.selfSubmitted && s.managerSubmitted).length / managerSubmissions.length) * 100) : 0,
-          
-          submissions
-        });
-      }
-
-      // Average score per rating category overall
-      const scoreDistribution = await ReviewScore.aggregate([
-        {
-          $group: {
-            _id: '$rating',
-            count: { $sum: 1 }
-          }
-        }
-      ]);
-
-      // Recent audit logs
-      const recentAudits = await AuditLog.find()
-        .populate({ path: 'userId', select: 'firstName lastName email' })
-        .sort('-createdAt')
-        .limit(5);
-
-      // Fetch performance rankings for Management & HR (Unique user per ranking)
-      const allReviewScores = await ReviewScore.find()
-        .populate({ path: 'employeeId', populate: 'departmentId designationId' })
-        .populate({ path: 'reviewCycleId', select: 'reviewMonth cycleType' })
-        .sort('-createdAt');
-
-      const uniqueEmployeeLatestScores = new Map();
-      allReviewScores.forEach(s => {
-        if (s.employeeId && s.employeeId._id) {
-          const empIdStr = s.employeeId._id.toString();
-          if (!uniqueEmployeeLatestScores.has(empIdStr)) {
-            uniqueEmployeeLatestScores.set(empIdStr, s);
-          }
-        }
-      });
-
-      const uniqueScores = Array.from(uniqueEmployeeLatestScores.values());
-
-      const employeeScores = allReviewScores.filter(s => s.employeeId?.role === 'employee');
-      const managerScores = allReviewScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role));
-
-      const topEmployeesRanking = [...uniqueScores.filter(s => s.employeeId?.role === 'employee')].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
-      const topManagersRanking = [...uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role))].sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
-
-      const lowestEmployeesRanking = [...uniqueScores.filter(s => s.employeeId?.role === 'employee')].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
-      const lowestManagersRanking = [...uniqueScores.filter(s => ['manager', 'hr'].includes(s.employeeId?.role))].sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
 
       return res.json({
-        role,
-        stats: {
-          totalDepartments,
-          totalTemplates,
-          totalUsers,
-          totalManagers,
-          departmentsList
-        },
-        activeCycleMetrics,
-        scoreDistribution,
-        recentAudits,
-        teamCount: subordinates.length,
+        profile: user,
+        teamSize: team.length,
+        teamCount: team.length,
+        team,
+        pendingWorkLogs,
         pendingManagerReviews,
         pendingSelfAssessmentsFromSubordinates,
-        teamScores,
         pendingSelfAssessments,
-        topEmployeesRanking,
-        topManagersRanking,
-        lowestEmployeesRanking,
-        lowestManagersRanking,
-        allEmployeeScores: employeeScores,
-        allManagerScores: managerScores
+        activeCyclesCount: activeCycles.length,
+        notifications
       });
     }
 
-    res.status(400).json({ message: 'Role dashboard not defined.' });
+    if (role === 'hr' || role === 'admin' || role === 'executive') {
+      const totalEmployees = await User.countDocuments({ employmentStatus: 'active' });
+      const totalDepartments = await Department.countDocuments();
+      const totalTemplates = await ReviewCycle.countDocuments();
+      const totalManagers = await User.countDocuments({ role: { $in: ['manager', 'hr', 'admin'] }, employmentStatus: 'active' });
+
+      const stats = {
+        totalUsers: totalEmployees,
+        totalEmployees,
+        totalDepartments,
+        totalTemplates,
+        totalManagers,
+        activeCyclesCount: activeCycles.length
+      };
+
+      // 1. Build Active Cycle Metrics for HR Submission Progress
+      const activeCycleMetrics = [];
+      for (const cycle of activeCycles) {
+        const cycleDept = cycle.departmentId ? await Department.findById(cycle.departmentId) : null;
+        const deptName = cycleDept ? cycleDept.departmentName : 'All Departments';
+        const cycleDeptId = cycle.departmentId ? (cycle.departmentId._id || cycle.departmentId).toString() : null;
+
+        const allActiveUsers = await User.find({ employmentStatus: 'active' }).populate('departmentId managerId designationId');
+
+        const eligibleUsers = allActiveUsers.filter(emp => {
+          if (cycle.targetRole === 'manager' && emp.role === 'employee') return false;
+          if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(emp.role)) return false;
+
+          if (cycleDeptId) {
+            const empDeptId = emp.departmentId?._id ? emp.departmentId._id.toString() : (emp.departmentId ? emp.departmentId.toString() : '');
+            if (!empDeptId || empDeptId !== cycleDeptId) {
+              return false;
+            }
+          }
+
+          if (emp.joiningDate && !isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+            return false;
+          }
+
+          return true;
+        });
+        
+        let submittedSelfCount = 0;
+        let submittedMgrCount = 0;
+        let finalizedScoreCount = 0;
+
+        const cycleSubmissions = [];
+
+        for (const emp of eligibleUsers) {
+          const self = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
+          const mgrRev = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
+          const score = await ReviewScore.findOne({ reviewCycleId: cycle._id, employeeId: emp._id });
+
+          if (self && self.status === 'submitted') submittedSelfCount++;
+          if (mgrRev && mgrRev.status === 'submitted') submittedMgrCount++;
+          if (score) finalizedScoreCount++;
+
+          const mgrName = emp.managerId ? `${emp.managerId.firstName || ''} ${emp.managerId.lastName || ''}`.trim() : 'N/A';
+          const desName = emp.designationId?.title || '';
+
+          cycleSubmissions.push({
+            employee: emp,
+            employeeId: emp._id.toString(),
+            firstName: emp.firstName,
+            lastName: emp.lastName,
+            designationName: desName,
+            managerName: mgrName,
+            role: emp.role || 'employee',
+            selfSubmitted: self?.status === 'submitted',
+            managerSubmitted: mgrRev?.status === 'submitted',
+            finalized: !!score,
+            finalScore: score?.finalScore || null,
+            ratingBand: score?.rating || null
+          });
+        }
+
+        activeCycleMetrics.push({
+          cycle,
+          cycleId: cycle._id.toString(),
+          reviewMonth: cycle.reviewMonth,
+          targetRole: cycle.targetRole || 'employee',
+          departmentName: deptName,
+          totalEligible: eligibleUsers.length,
+          submittedSelfCount,
+          submittedMgrCount,
+          finalizedScoreCount,
+          submissions: cycleSubmissions
+        });
+      }
+
+      // 2. Fetch all review scores for HR organizational leaderboards
+      const allScores = await ReviewScore.find()
+        .populate('reviewCycleId')
+        .populate({
+          path: 'employeeId',
+          select: 'firstName lastName email employeeCode role designationId departmentId avatar',
+          populate: { path: 'departmentId designationId' }
+        })
+        .sort({ calculatedAt: -1 });
+
+      const allEmployeeScores = allScores.filter(s => s.employeeId?.role === 'employee');
+      const allManagerScores = allScores.filter(s => s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr');
+
+      // 3. Pending Manager Reviews for Executive / Admin / HR evaluation desk
+      const pendingManagerReviews = [];
+      const mongoose = require('mongoose');
+      const team = await User.find({
+        $or: [
+          { managerId: userId },
+          { managerId: new mongoose.Types.ObjectId(userId) },
+          { role: { $in: ['manager', 'hr'] } }
+        ],
+        employmentStatus: 'active'
+      }).populate('departmentId');
+      for (const cycle of activeCycles) {
+        if (cycle.status !== 'active') continue;
+
+        for (const member of team) {
+          // Department scoping check
+          if (cycle.departmentId) {
+            const cycleDeptId = cycle.departmentId._id ? cycle.departmentId._id.toString() : cycle.departmentId.toString();
+            const memberDeptId = member.departmentId?._id ? member.departmentId._id.toString() : (member.departmentId ? member.departmentId.toString() : '');
+
+            if (!memberDeptId || memberDeptId !== cycleDeptId) {
+              continue;
+            }
+          }
+
+          // Target role check
+          if (cycle.targetRole === 'manager' && member.role === 'employee') continue;
+          if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(member.role)) continue;
+
+          // Eligibility check
+          if (member.joiningDate && !isEmployeeEligibleForCycle(member.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
+            continue;
+          }
+
+          const self = await SelfAssessment.findOne({ reviewCycleId: cycle._id, employeeId: member._id });
+          const mgrRev = await ManagerReview.findOne({ reviewCycleId: cycle._id, employeeId: member._id });
+          if (!mgrRev || mgrRev.status !== 'submitted') {
+            pendingManagerReviews.push({
+              employee: member,
+              cycleMonth: cycle.reviewMonth,
+              cycleId: cycle._id,
+              isEmployeeSubmitted: self ? self.status === 'submitted' : false
+            });
+          }
+        }
+      }
+
+      // 4. Audit logs for audit trail tab
+      const recentAudits = await AuditLog.find().populate('userId', 'firstName lastName email role').sort({ createdAt: -1 }).limit(30);
+
+      return res.json({
+        profile: user,
+        stats,
+        totalEmployees,
+        totalDepartments,
+        totalTemplates,
+        totalManagers,
+        activeCyclesCount: activeCycles.length,
+        activeCycleMetrics,
+        pendingManagerReviews,
+        allEmployeeScores,
+        allManagerScores,
+        recentAudits,
+        notifications
+      });
+    }
+
+    return res.json({
+      profile: user,
+      notifications
+    });
   } catch (error) {
     console.error('getDashboardData error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-module.exports = { getDashboardData };
+module.exports = {
+  getDashboardData
+};

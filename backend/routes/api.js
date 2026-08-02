@@ -5,7 +5,6 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth');
 
 const authController = require('../controllers/authController');
 const userController = require('../controllers/userController');
-const kpiController = require('../controllers/kpiController');
 const cycleController = require('../controllers/cycleController');
 const dashboardController = require('../controllers/dashboardController');
 const reportController = require('../controllers/reportController');
@@ -29,10 +28,11 @@ const feedbackController = require('../controllers/feedbackController');
 const skillController = require('../controllers/skillController');
 const certificationController = require('../controllers/certificationController');
 const integrationController = require('../controllers/integrationController');
+const workJournalController = require('../controllers/workJournalController');
 
 const { authLimiter, publicLimiter, userActionLimiter } = require('../middlewares/rateLimiter');
 
-// ==================== AUTH ROUTES (Stricter + Exponential Backoff) ====================
+// ==================== AUTH ROUTES ====================
 router.post('/auth/login', authLimiter, validateLogin, authController.login);
 router.post('/auth/refresh', authLimiter, authController.refresh);
 router.post('/auth/logout', authController.logout);
@@ -41,12 +41,12 @@ router.post('/auth/forgot-password', authLimiter, validateForgotPassword, authCo
 router.post('/auth/verify-otp', authLimiter, authController.verifyOtp);
 router.post('/auth/reset-password', authLimiter, validateResetPassword, authController.resetPassword);
 
-// Public metadata routes for registration (Moderate Limits)
+// Public metadata routes
 router.get('/auth/departments', publicLimiter, userController.getDepartments);
 router.get('/auth/designations', publicLimiter, userController.getDesignations);
 router.get('/auth/managers', publicLimiter, userController.getPublicManagers);
 
-// ==================== PROTECTED ROUTES (Looser Authenticated User Limits) ====================
+// ==================== PROTECTED ROUTES ====================
 router.use(userActionLimiter);
 
 router.get('/users', verifyToken, userController.getUsers);
@@ -69,13 +69,6 @@ router.get('/designations', verifyToken, userController.getDesignations);
 router.post('/designations', verifyToken, authorizeRoles('admin', 'hr'), userController.createDesignation);
 router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateDesignation);
 
-// KPI Templates
-router.get('/kpi-templates', verifyToken, kpiController.getKpiTemplates);
-router.get('/kpi-templates/:id', verifyToken, kpiController.getKpiTemplateById);
-router.post('/kpi-templates', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.createKpiTemplate);
-router.patch('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.updateKpiTemplate);
-router.delete('/kpi-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), kpiController.deleteKpiTemplate);
-
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);
 router.get('/review-cycles/:id', verifyToken, cycleController.getReviewCycleById);
@@ -85,7 +78,7 @@ router.delete('/review-cycles/:id', verifyToken, authorizeRoles('admin', 'hr', '
 router.post('/review-cycles/:id/unlock-user', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), cycleController.unlockUserForCycle);
 router.post('/review-cycles/:id/relock-user', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), cycleController.relockUserForCycle);
 
-// Assessments & Reviews
+// Evidence Confirmation & Reviews
 router.get('/self-assessments', verifyToken, cycleController.getSelfAssessments);
 router.get('/self-assessments/:id', verifyToken, cycleController.getSelfAssessmentById);
 router.post('/self-assessments', verifyToken, authorizeRoles('employee', 'manager', 'hr', 'executive'), cycleController.submitSelfAssessment);
@@ -100,7 +93,7 @@ router.post('/review-scores/calculate', verifyToken, cycleController.calculateAg
 
 // Dashboards
 router.get('/dashboard/stats', verifyToken, dashboardController.getDashboardData);
-router.get('/dashboard/:role', verifyToken, dashboardController.getDashboardData); // For matching /api/dashboard/:role in PRD
+router.get('/dashboard/:role', verifyToken, dashboardController.getDashboardData);
 
 // Reports
 router.get('/reports/employee/:id', verifyToken, reportController.getEmployeeReport);
@@ -113,8 +106,6 @@ router.patch('/notifications/:id/read', verifyToken, notificationController.mark
 
 // Audit Logs
 router.get('/audit-logs', verifyToken, authorizeRoles('admin', 'hr', 'executive'), auditController.getAuditLogs);
-
-// ==================== PHASE 2 ROUTES ====================
 
 // PIP Routes
 router.get('/pips/suggestions', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), pipController.getPipSuggestions);
@@ -161,8 +152,24 @@ router.get('/integrations/attendance', verifyToken, integrationController.getAtt
 router.post('/integrations/attendance/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncAttendance);
 router.post('/integrations/attendance/batch-sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.batchSyncAttendance);
 router.post('/integrations/teams/webhook', verifyToken, authorizeRoles('admin', 'hr', 'manager'), integrationController.sendTeamsWebhook);
-router.get('/integrations/lms', verifyToken, integrationController.getLmsRecords);
-router.post('/integrations/lms/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncLmsRecord);
 router.get('/integrations/logs', verifyToken, authorizeRoles('admin', 'hr'), integrationController.getIntegrationLogs);
+
+// Daily Work Log & Continuous Performance Routes
+router.get('/work-journal', verifyToken, workJournalController.getWorkJournalItems);
+router.post('/work-journal', verifyToken, upload.single('file'), verifyFileMagicBytes, workJournalController.createWorkJournalItem);
+router.patch('/work-journal/:id', verifyToken, upload.single('file'), verifyFileMagicBytes, workJournalController.updateWorkJournalItem);
+router.delete('/work-journal/:id', verifyToken, workJournalController.deleteWorkJournalItem);
+router.get('/work-journal/pending-manager', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), workJournalController.getPendingManagerItems);
+router.patch('/work-journal/:id/review', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), workJournalController.reviewWorkJournalItem);
+router.post('/work-journal/batch-review', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), workJournalController.batchReviewWorkJournalItems);
+router.get('/work-journal/stats', verifyToken, workJournalController.getWorkJournalStats);
+router.get('/work-journal/timeline', verifyToken, workJournalController.getWorkJournalTimeline);
+
+// Work Journal Department Template Routes
+const workJournalTemplateController = require('../controllers/workJournalTemplateController');
+router.get('/work-journal-templates', verifyToken, workJournalTemplateController.getAllTemplates);
+router.get('/work-journal-templates/department/:departmentId', verifyToken, workJournalTemplateController.getTemplateByDepartment);
+router.post('/work-journal-templates', verifyToken, authorizeRoles('admin', 'hr', 'executive'), workJournalTemplateController.saveTemplate);
+router.delete('/work-journal-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), workJournalTemplateController.deleteTemplate);
 
 module.exports = router;

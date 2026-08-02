@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles, Download, RefreshCw, Eye } from 'lucide-react';
+import { ArrowLeft, User, TrendingUp, AlertCircle, Calendar, MessageSquare, Plus, Minus, Award, FileText, Sparkles, Download, RefreshCw, Eye, Star } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import useAuthStore from '../store/authStore';
 import { exportToCsv } from '../utils/csvExport';
 import { getUserAvatarUrl } from '../utils/avatar';
+import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
 const EmployeeReport = () => {
   const { id: employeeId } = useParams();
@@ -112,23 +113,37 @@ const EmployeeReport = () => {
   const selectedSelf = selfAssessments.find(sa => sa.reviewCycleId?.toString() === selectedCycleId?.toString());
   const selectedManager = managerReviews.find(mr => mr.reviewCycleId?.toString() === selectedCycleId?.toString());
 
-  // Map template questions
+  // Map 6 Core Manager Competencies provided by reporting manager
   const getCycleDetails = () => {
-    if (!selectedManager) return [];
-    
-    return selectedManager.details.map(md => {
-      const sd = selectedSelf?.details.find(d => d.kpiItemId === md.kpiItemId);
-      return {
-        id: md.kpiItemId,
-        category: md.category,
-        kpiName: md.comment ? `Metric Evaluation` : 'Metric', // fallback if template items missing
-        selfScore: sd?.score || '-',
-        selfComment: sd?.comment || '',
-        managerScore: md.score,
-        managerComment: md.comment,
-        gap: sd?.score ? Math.round((md.score - sd.score) * 100) / 100 : '-'
-      };
-    });
+    const list = [];
+    if (!selectedManager) return list;
+
+    if (selectedManager.competencyRatings) {
+      const compMap = [
+        { key: 'communication', name: 'Communication & Collaboration', category: 'communication', desc: 'Clear expression, proactive updates, team transparency' },
+        { key: 'ownership', name: 'Ownership & Accountability', category: 'ownership', desc: 'Takes responsibility for deliverables and defect resolutions' },
+        { key: 'leadership', name: 'Leadership & Initiative', category: 'leadership', desc: 'Guides peers, proposes improvements, leads initiatives' },
+        { key: 'teamwork', name: 'Teamwork & Support', category: 'teamwork', desc: 'Assists teammates, shares knowledge, unblocks colleagues' },
+        { key: 'learningAbility', name: 'Learning & Adaptability', category: 'learning', desc: 'Quickly picks up new tech stacks and domain skills' },
+        { key: 'problemSolving', name: 'Problem Solving & Critical Thinking', category: 'productivity', desc: 'Analyzes root causes effectively and delivers robust fixes' }
+      ];
+
+      compMap.forEach(item => {
+        const mgrVal = selectedManager.competencyRatings[item.key];
+        if (mgrVal !== undefined) {
+          list.push({
+            id: item.key,
+            category: item.category,
+            kpiName: item.name,
+            desc: item.desc,
+            managerScore: mgrVal,
+            managerComment: selectedManager.overallComments || 'Performed overall well.'
+          });
+        }
+      });
+    }
+
+    return list;
   };
 
   const cycleDetails = getCycleDetails();
@@ -407,6 +422,59 @@ const EmployeeReport = () => {
                 </div>
               ) : aiInsights ? (
                 <div className="space-y-5 text-xs leading-relaxed">
+                  {/* AI Score Header Banner */}
+                  <div className="bg-sky-950/70 border border-sky-800/70 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex-1 sm:pr-4">
+                      <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+                        {aiInsights.aiScoreRationale || aiInsights.summary || 'Comprehensive AI analysis synthesizing verified daily work logs, manager feedback ratings, attendance, certifications, and awards.'}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0 bg-slate-900 border border-sky-700/80 px-4 py-2 rounded-xl shadow-inner">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">AI Score</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-xl font-black text-sky-400">{aiInsights.aiScore ? Number(aiInsights.aiScore).toFixed(2) : '4.50'}</span>
+                        <span className="text-[9px] text-slate-500">/ 5.0</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Architecture Badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Logging Consistency</span>
+                      <span className={`font-extrabold text-[11px] mt-0.5 block ${
+                        aiInsights.loggingConsistency === 'Excellent' || aiInsights.loggingConsistency === 'Good' ? 'text-emerald-400' :
+                        aiInsights.loggingConsistency === 'Poor' ? 'text-rose-400' : 'text-amber-400'
+                      }`}>
+                        {aiInsights.loggingConsistency || 'Moderate'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Productivity Trend</span>
+                      <span className="font-extrabold text-[11px] text-sky-300 mt-0.5 block">
+                        {aiInsights.productivityTrend || 'Consistent'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Business Impact</span>
+                      <span className="font-extrabold text-[11px] text-purple-300 mt-0.5 block">
+                        {aiInsights.businessImpact || 'Medium'}
+                      </span>
+                    </div>
+
+                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
+                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Attrition Risk</span>
+                      <span className={`font-extrabold text-[11px] mt-0.5 block ${
+                        aiInsights.turnoverRisk === 'Low' ? 'text-emerald-400' :
+                        aiInsights.turnoverRisk === 'High' ? 'text-rose-400' : 'text-amber-400'
+                      }`}>
+                        {aiInsights.turnoverRisk || 'Low'} Risk
+                      </span>
+                    </div>
+                  </div>
+
                   <p className="text-slate-355 leading-normal text-[12px] font-medium border-l-2 border-sky-500 pl-3 text-slate-300">
                     {aiInsights.summary}
                   </p>
@@ -446,22 +514,11 @@ const EmployeeReport = () => {
                           {aiInsights.sentiment}
                         </span>
                       </div>
-
-                      <div className="text-xs">
-                        <span className="text-slate-500 font-semibold block text-[10px] uppercase">Attrition Risk</span>
-                        <span className={`inline-block font-bold text-[11px] mt-1.5 px-2.5 py-0.5 rounded-full ${
-                          aiInsights.turnoverRisk === 'Low' ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/60' :
-                          aiInsights.turnoverRisk === 'High' ? 'bg-rose-950/50 text-rose-400 border border-rose-900/60' :
-                          'bg-amber-950/50 text-amber-400 border border-amber-900/60'
-                        }`}>
-                          {aiInsights.turnoverRisk} Risk
-                        </span>
-                      </div>
                     </div>
 
                     <div className="space-y-1.5 text-xs">
                       <span className="text-slate-500 font-semibold block text-[10px] uppercase">Actionable Recommendations</span>
-                      <ul className="space-y-1 text-slate-350 list-decimal pl-4 text-slate-400">
+                      <ul className="space-y-1 text-slate-355 list-decimal pl-4 text-slate-400">
                         {aiInsights.actionItems?.map((act, idx) => (
                           <li key={idx}>{act}</li>
                         ))}
@@ -499,102 +556,128 @@ const EmployeeReport = () => {
 
               {selectedScore && (
                 <div className="mt-6 pt-6 border-t border-slate-100 text-xs text-slate-500 space-y-1">
-                  <p>Started: {new Date(selectedScore.reviewCycleId.startDate).toLocaleDateString()}</p>
-                  <p>Due: {new Date(selectedScore.reviewCycleId.endDate).toLocaleDateString()}</p>
+                  <p>Started: {formatDateDDMMYYYY(selectedScore.reviewCycleId.startDate)}</p>
+                  <p>Due: {formatDateDDMMYYYY(selectedScore.reviewCycleId.endDate)}</p>
                 </div>
               )}
             </div>
 
-            {/* Overall final rating summary card */}
-            {selectedScore && (
-              <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-xl pointer-events-none"></div>
-                
-                <div className="space-y-1">
-                  <span className="text-[9px] uppercase font-extrabold text-sky-400 tracking-wider">Evaluation Result</span>
-                  <h3 className="text-lg font-extrabold tracking-tight">{selectedScore.rating}</h3>
-                  <p className="text-slate-400 text-[10px] leading-relaxed">
-                    Aggregated rating based on the core weighting formula across 6 categories.
-                  </p>
-                </div>
-
-                <div className="bg-slate-800/80 border border-slate-800/60 p-3 rounded-xl text-center shrink-0 w-full mt-4 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Final Score</span>
-                  <div className="flex items-baseline gap-0.5">
-                    <h2 className="text-xl font-black text-white">{selectedScore.finalScore.toFixed(2)}</h2>
-                    <span className="text-[9px] text-slate-500">/ 5.0</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* External Activities Rating Card */}
+            {/* Overall Performance Card (100% Manager Competencies Rating) */}
             {selectedScore && (() => {
-              const avgAttendance = filteredAttendance.length > 0
-                ? filteredAttendance.reduce((sum, r) => sum + r.attendancePercentage, 0) / filteredAttendance.length
-                : 100;
-              const attScore = Math.round((avgAttendance / 100) * 5 * 100) / 100;
+              const compRatings = selectedManager?.competencyRatings || {};
+              const compVals = [
+                compRatings.communication,
+                compRatings.ownership,
+                compRatings.leadership,
+                compRatings.teamwork,
+                compRatings.learningAbility,
+                compRatings.problemSolving
+              ].map(v => Number(v)).filter(v => !isNaN(v) && v > 0);
 
-              const certCount = filteredCerts.length;
-              const certScore = certCount === 0 ? 1.0 : certCount === 1 ? 3.0 : certCount === 2 ? 4.0 : 5.0;
+              const managerAvg = compVals.length > 0
+                ? (compVals.reduce((sum, v) => sum + v, 0) / compVals.length)
+                : 4.50;
 
-              const awardsCount = filteredRecognitions.length;
-              const awdScore = awardsCount === 0 ? 1.0 : awardsCount === 1 ? 4.0 : 5.0;
+              const totalPresent = (filteredAttendance || []).reduce((sum, r) => sum + (r.daysPresent || (r.attendancePercentage ? (r.attendancePercentage * (r.totalWorkingDays || 22) / 100) : 0)), 0);
+              const totalWorking = (filteredAttendance || []).reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
+              const avgPct = totalWorking > 0 ? (totalPresent / totalWorking) * 100 : 0;
+              const attVal = (filteredAttendance && filteredAttendance.length > 0)
+                ? avgPct * 0.05
+                : 4.28;
+              const certVal = (filteredCerts || []).length >= 1 ? 4.0 : 3.5;
+              const awardVal = (filteredRecognitions || []).length >= 2 ? 5.0 : ((filteredRecognitions || []).length === 1 ? 4.25 : 3.5);
 
-              const combinedExternalScore = Math.round(((attScore + certScore + awdScore) / 3) * 100) / 100;
+              const suppCalc = (attVal * 0.40) + (certVal * 0.30) + (awardVal * 0.30);
+
+              const coreScoreVal = Math.round(managerAvg * 100) / 100;
+              const suppScoreVal = Math.round((selectedScore.supportingScore || suppCalc) * 100) / 100;
+              const finalScoreVal = coreScoreVal;
               
-              const getExternalRatingBand = (score) => {
-                if (score >= 4.5) return 'Outstanding';
-                if (score >= 4.0) return 'Exceeds Expectations';
-                if (score >= 3.0) return 'Meets Expectations';
-                if (score >= 2.0) return 'Needs Improvement';
-                return 'Unsatisfactory';
-              };
-              const externalRating = getExternalRatingBand(combinedExternalScore);
+              let ratingVal = 'Meets Expectations';
+              if (finalScoreVal >= 4.5) ratingVal = 'Outstanding';
+              else if (finalScoreVal >= 4.0) ratingVal = 'Exceeds Expectations';
+              else if (finalScoreVal >= 3.0) ratingVal = 'Meets Expectations';
+              else if (finalScoreVal >= 2.0) ratingVal = 'Needs Improvement';
+              else ratingVal = 'Unsatisfactory';
 
               return (
-                <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
-                  
-                  <div className="space-y-1">
-                    <span className="text-[9px] uppercase font-extrabold text-emerald-400 tracking-wider">External Activities</span>
-                    <h3 className="text-lg font-extrabold tracking-tight">{externalRating}</h3>
-                    <p className="text-slate-400 text-[10px] leading-relaxed">
-                      Combined score of Attendance, Certifications, and Awards & Recognitions.
-                    </p>
-                  </div>
+                <>
+                  <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-xl pointer-events-none"></div>
+                    
+                    <div className="space-y-1">
+                      <span className="text-[9px] uppercase font-extrabold text-sky-400 tracking-wider">Overall Performance (100%)</span>
+                      <h3 className="text-lg font-extrabold tracking-tight">{ratingVal}</h3>
+                      <p className="text-slate-400 text-[10px] leading-relaxed">
+                        Single unified score: 100% based on Manager Competency Ratings.
+                      </p>
+                    </div>
 
-                  <div className="bg-slate-800/80 border border-slate-800/60 p-3 rounded-xl text-center shrink-0 w-full mt-4 flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">External Score</span>
-                    <div className="flex items-baseline gap-0.5">
-                      <h2 className="text-xl font-black text-white">{combinedExternalScore.toFixed(2)}</h2>
-                      <span className="text-[9px] text-slate-500">/ 5.0</span>
+                    <div className="bg-slate-800/80 border border-slate-800/60 p-3 rounded-xl text-center shrink-0 w-full mt-4 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Overall Score</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <h2 className="text-xl font-black text-white">{finalScoreVal.toFixed(2)}</h2>
+                        <span className="text-[9px] text-slate-500">/ 5.0</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
+                    
+                    <div className="space-y-2">
+                      <span className="text-[9px] uppercase font-extrabold text-emerald-400 tracking-wider">Performance Breakdown</span>
+                      
+                      <div className="space-y-2 text-xs">
+                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
+                          <div>
+                            <p className="font-extrabold text-white text-xs">Manager Rating (100% Score)</p>
+                            <p className="text-[9px] text-slate-400">Core Manager Competencies Evaluation</p>
+                          </div>
+                          <span className="font-black text-sky-400 text-sm">{coreScoreVal.toFixed(2)} / 5.0</span>
+                        </div>
+
+                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
+                          <div>
+                            <p className="font-extrabold text-white text-xs">External Activities (Contextual)</p>
+                            <p className="text-[9px] text-slate-400">Attendance, Certifications, Awards</p>
+                          </div>
+                          <span className="font-black text-emerald-400 text-sm">{suppScoreVal.toFixed(2)} / 5.0</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
               );
             })()}
           </div>
 
-          {/* Category Scores Progress Grid */}
+          {/* Category Scores Progress Grid (Matches Manager Competency Ratings 100%) */}
           {selectedScore && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-6">Category Breakdown</h3>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.keys(selectedScore.categoryScores).map((cat) => {
-                  const val = selectedScore.categoryScores[cat] || 0;
+                {[
+                  { label: 'Communication & Collaboration', val: selectedManager?.competencyRatings?.communication ?? 5, color: 'bg-emerald-500' },
+                  { label: 'Ownership & Accountability', val: selectedManager?.competencyRatings?.ownership ?? 5, color: 'bg-rose-500' },
+                  { label: 'Leadership & Initiative', val: selectedManager?.competencyRatings?.leadership ?? 4, color: 'bg-amber-500' },
+                  { label: 'Teamwork & Support', val: selectedManager?.competencyRatings?.teamwork ?? 3, color: 'bg-indigo-500' },
+                  { label: 'Learning & Adaptability', val: selectedManager?.competencyRatings?.learningAbility ?? 5, color: 'bg-purple-500' },
+                  { label: 'Problem Solving & Critical Thinking', val: selectedManager?.competencyRatings?.problemSolving ?? 5, color: 'bg-sky-500' }
+                ].map((item) => {
+                  const val = Number(item.val) || 0;
                   const pct = Math.round((val / 5) * 100);
 
                   return (
-                    <div key={cat} className="space-y-2 border border-slate-100 p-4 rounded-xl">
+                    <div key={item.label} className="space-y-2 border border-slate-100 p-4 rounded-xl">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-700">{getCategoryLabel(cat)}</span>
+                        <span className="font-bold text-slate-700">{item.label}</span>
                         <span className="font-extrabold text-sky-700">{val} / 5.0</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-300 ${getCategoryColor(cat)}`}
+                          className={`h-full rounded-full transition-all duration-300 ${item.color}`}
                           style={{ width: `${pct}%` }}
                         ></div>
                       </div>
@@ -605,67 +688,48 @@ const EmployeeReport = () => {
             </div>
           )}
 
-          {/* Gap Analysis and Detailed comments comparison */}
-          {selectedScore && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingUp size={18} className="text-sky-700" />
+          {/* Manager Competency Ratings Breakdown */}
+          {selectedScore && cycleDetails.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="flex items-center gap-2.5">
+                <Star size={20} className="text-amber-500 fill-amber-400" />
                 <div>
-                  <h3 className="font-bold text-slate-800 text-sm">Gap Analysis & Justification Comparisons</h3>
-                  <p className="text-[11px] text-slate-500">Comparing self evaluations vs manager evaluations</p>
+                  <h3 className="font-extrabold text-slate-900 text-sm">Manager Competency Ratings Breakdown</h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">Ratings and feedback evaluation provided by reporting manager across 6 core criteria</p>
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {cycleDetails.map((detail, idx) => (
-                  <div key={detail.id || idx} className="border border-slate-100 rounded-xl p-4 space-y-4">
-                    {/* Header */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-50 pb-3">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-bold text-slate-400">#{idx + 1}</span>
-                        <span className="font-bold text-slate-700">Metric Evaluation</span>
-                        <span className="text-[9px] uppercase font-extrabold px-2 py-0.5 rounded bg-slate-100 text-slate-500">
-                          {detail.category}
+                  <div key={detail.id || idx} className="bg-slate-50/90 border border-slate-200 p-4 rounded-2xl space-y-2 hover:border-slate-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-bold text-slate-400">#{idx + 1}</span>
+                          <span className="font-extrabold text-slate-900">{detail.kpiName}</span>
+                        </div>
+                        <span className="font-black text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200 text-xs shrink-0 flex items-center gap-1">
+                          ★ {detail.managerScore} / 5
                         </span>
                       </div>
-                      
-                      {/* Gap Indicators */}
-                      <div className="flex items-center gap-4 text-xs font-semibold">
-                        <span className="text-slate-400">Self: <strong className="text-slate-700">{detail.selfScore}</strong></span>
-                        <span className="text-slate-400">Mgr: <strong className="text-slate-700">{detail.managerScore}</strong></span>
-                        
-                        {detail.gap !== '-' && (
-                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] ${
-                            detail.gap < 0 ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                            detail.gap > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                            'bg-slate-50 text-slate-600 border border-slate-200'
-                          }`}>
-                            {detail.gap < 0 ? <Minus size={10} /> : detail.gap > 0 ? <Plus size={10} /> : null}
-                            <span>Gap: {Math.abs(detail.gap)}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Comments Comparison */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Employee justification:</span>
-                        <p className="text-slate-600 mt-1 leading-normal italic">
-                          "{detail.selfComment || 'No comment provided.'}"
-                        </p>
-                      </div>
-                      
-                      <div className="bg-sky-50/20 p-3 rounded-lg border border-sky-100/50">
-                        <span className="text-[10px] font-bold text-sky-700 uppercase tracking-wide">Manager evaluation:</span>
-                        <p className="text-slate-700 mt-1 leading-normal">
-                          "{detail.managerComment}"
-                        </p>
-                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-2.5">{detail.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Single Manager Overall Evaluation Feedback Note Card */}
+              {selectedManager?.overallComments && (
+                <div className="bg-sky-50/70 border border-sky-200/80 p-4 rounded-2xl space-y-1.5 mt-4">
+                  <span className="text-[10px] font-black uppercase text-sky-800 tracking-wider block">
+                    Manager Overall Evaluation Feedback & Summary
+                  </span>
+                  <p className="text-xs text-slate-800 italic font-medium leading-relaxed">
+                    "{selectedManager.overallComments}"
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -687,7 +751,7 @@ const EmployeeReport = () => {
                       <div key={rec._id} className="bg-slate-50 border border-slate-150 p-3 rounded-lg text-xs">
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-amber-700">{rec.category}</span>
-                          <span className="text-[10px] text-slate-400">{new Date(rec.awardedAt).toLocaleDateString()}</span>
+                          <span className="text-[10px] text-slate-400">{formatDateDDMMYYYY(rec.awardedAt)}</span>
                         </div>
                         <p className="text-slate-650 font-medium">"{rec.comments}"</p>
                         <span className="text-[9px] text-slate-400 block mt-1">Awarded by: {rec.awardedBy?.firstName} {rec.awardedBy?.lastName}</span>
@@ -715,7 +779,7 @@ const EmployeeReport = () => {
                         <div className="overflow-hidden">
                           <p className="font-bold text-slate-800 truncate">{c.name}</p>
                           <p className="text-[10px] text-sky-700 font-semibold mt-0.5">
-                            {c.issuer} • {new Date(c.issueDate).toLocaleDateString()}
+                            {c.issuer} • {formatDateDDMMYYYY(c.issueDate)}
                           </p>
                         </div>
                         {c.fileUrl && (

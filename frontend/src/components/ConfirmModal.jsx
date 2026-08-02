@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 
 const ConfirmModal = ({
   open,
+  isOpen,
   title = 'Are you sure?',
   message,
   confirmLabel = 'Confirm',
@@ -11,7 +12,8 @@ const ConfirmModal = ({
   onConfirm,
   onCancel
 }) => {
-  if (!open) return null;
+  const show = open !== undefined ? open : (isOpen !== undefined ? isOpen : false);
+  if (!show) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-center items-center p-4">

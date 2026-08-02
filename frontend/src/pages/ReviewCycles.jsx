@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Calendar, Plus, ToggleLeft, ToggleRight, CheckCircle2, Trash2, Unlock, Lock, UserCheck, Search } from 'lucide-react';
+import { AlertCircle, Calendar, Plus, CheckCircle2, Trash2, Unlock, Lock, UserCheck, Search, Building } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import ConfirmModal from '../components/ConfirmModal';
 import TablePagination from '../components/TablePagination';
+const formatDateDDMMYYYY = (dateVal) => {
+  if (!dateVal) return 'N/A';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return 'N/A';
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const year = d.getUTCFullYear();
+  return `${day}/${month}/${year}`;
+};
 
 const ReviewCycles = () => {
   const { user } = useAuthStore();
   const [cycles, setCycles] = useState([]);
-  const [templates, setTemplates] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pendingStatusChange, setPendingStatusChange] = useState(null);
@@ -70,13 +79,11 @@ const ReviewCycles = () => {
     if (!unlockModalCycle) return [];
 
     const cycleDeptId = (
-      unlockModalCycle.kpiTemplateId?.departmentId?._id ||
-      unlockModalCycle.kpiTemplateId?.departmentId ||
       unlockModalCycle.departmentId?._id ||
       unlockModalCycle.departmentId || ''
     ).toString();
 
-    const cycleDeptName = (unlockModalCycle.kpiTemplateId?.departmentId?.departmentName || '').toLowerCase();
+    const cycleDeptName = (unlockModalCycle.departmentId?.departmentName || '').toLowerCase();
     const isAllDepts = !cycleDeptId || cycleDeptName.includes('all department') || cycleDeptName === 'all';
     const targetRole = unlockModalCycle.targetRole || 'all';
 
@@ -111,7 +118,7 @@ const ReviewCycles = () => {
   const [reviewMonth, setReviewMonth] = useState(getCurrentDefaultReviewMonth());
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [kpiTemplateId, setKpiTemplateId] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [cycleType, setCycleType] = useState('quarterly');
   const [targetRole, setTargetRole] = useState(user?.role === 'executive' ? 'manager' : 'employee');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -150,7 +157,6 @@ const ReviewCycles = () => {
     }));
   };
 
-  // Reset default reviewMonth when cycleType changes
   useEffect(() => {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
@@ -165,24 +171,29 @@ const ReviewCycles = () => {
     }
   }, [cycleType]);
 
-  // Dynamically calculate suggested startDate and endDate based on current date and selected period
   useEffect(() => {
-    if (!reviewMonth) return;
+    if (showCreateModal) {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    setStartDate(todayStr);
-    setEndDate(todayStr);
-  }, [reviewMonth, cycleType]);
+      const due = new Date();
+      due.setDate(due.getDate() + 14);
+      const dueStr = due.toISOString().split('T')[0];
+
+      setStartDate(todayStr);
+      setEndDate(dueStr);
+    }
+  }, [showCreateModal]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError('');
       const cyclesRes = await api.get('/api/review-cycles');
       setCycles(cyclesRes.data);
 
-      const templatesRes = await api.get('/api/kpi-templates');
-      setTemplates(templatesRes.data.filter(t => t.status === 'active'));
-      if (templatesRes.data.length > 0) setKpiTemplateId(templatesRes.data[0]._id);
+      const deptRes = await api.get('/api/departments');
+      setDepartments(deptRes.data || []);
     } catch (err) {
       console.error(err);
       setError('Failed to load review cycles.');
@@ -197,11 +208,14 @@ const ReviewCycles = () => {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    setError('');
     setCreateError('');
 
-    if (!reviewMonth || !startDate || !endDate || !kpiTemplateId) {
-      setCreateError('All fields are required.');
+    if (!reviewMonth) {
+      setCreateError('Please select target period.');
+      return;
+    }
+    if (!startDate || !endDate) {
+      setCreateError('Please select both Start Date and Evaluation Due Date.');
       return;
     }
 
@@ -210,211 +224,178 @@ const ReviewCycles = () => {
         reviewMonth,
         startDate,
         endDate,
-        kpiTemplateId,
+        departmentId: departmentId || null,
         cycleType,
-        targetRole,
-        status: 'draft'
+        targetRole
       });
 
-      // Reset
-      setCreateError('');
+      toast.success('Review cycle created successfully!');
       setShowCreateModal(false);
       fetchData();
     } catch (err) {
       console.error(err);
-      const msg = err.response?.data?.message || 'Failed to create review cycle.';
-      setCreateError(msg);
-      toast.error(msg);
+      setCreateError(err.response?.data?.message || 'Failed to create review cycle.');
     }
   };
 
-  const handleUpdateStatus = (id, currentStatus) => {
-    let nextStatus = 'draft';
-    if (currentStatus === 'draft') nextStatus = 'active';
-    else if (currentStatus === 'active') nextStatus = 'closed';
-    else return; // Closed is final
-
-    setPendingStatusChange({ id, nextStatus });
-  };
-
-  const confirmUpdateStatus = async () => {
+  const handleConfirmStatusUpdate = async () => {
     if (!pendingStatusChange) return;
-    const { id, nextStatus } = pendingStatusChange;
-    setPendingStatusChange(null);
+    const { id, currentStatus } = pendingStatusChange;
+    const newStatus = currentStatus === 'draft' ? 'active' : 'closed';
+
     try {
-      await api.patch(`/api/review-cycles/${id}`, { status: nextStatus });
-      toast.success(`Review cycle ${nextStatus === 'active' ? 'activated' : 'closed'} successfully.`);
+      await api.patch(`/api/review-cycles/${id}`, { status: newStatus });
+      toast.success(`Review cycle status updated to ${newStatus}.`);
       fetchData();
     } catch (err) {
       console.error(err);
-      toast.error('Failed to update cycle status.');
+      toast.error(err.response?.data?.message || 'Failed to update cycle status.');
+    } finally {
+      setPendingStatusChange(null);
     }
   };
 
-  const confirmDeleteCycle = async () => {
+  const handleConfirmDelete = async () => {
     if (!pendingDeleteCycle) return;
-    const id = pendingDeleteCycle._id;
-    setPendingDeleteCycle(null);
     try {
-      await api.delete(`/api/review-cycles/${id}`);
+      await api.delete(`/api/review-cycles/${pendingDeleteCycle._id}`);
       toast.success('Review cycle deleted successfully.');
       fetchData();
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to delete review cycle.');
+    } finally {
+      setPendingDeleteCycle(null);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-[50vh]">
-        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const filteredCycles = cycles.filter(c => {
+    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+    const term = searchTerm.toLowerCase();
+    const deptName = (c.departmentId?.departmentName || '').toLowerCase();
+    const matchesSearch =
+      !searchTerm ||
+      c.reviewMonth.toLowerCase().includes(term) ||
+      c.cycleType.toLowerCase().includes(term) ||
+      deptName.includes(term);
+
+    return matchesStatus && matchesSearch;
+  });
 
   const CYCLE_PAGE_SIZE = 10;
-
-  // Sort latest review cycles first (createdAt descending, or startDate descending)
-  const sortedCycles = [...cycles].sort((a, b) => {
-    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.startDate ? new Date(a.startDate).getTime() : 0);
-    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.startDate ? new Date(b.startDate).getTime() : 0);
-    if (timeA !== timeB) return timeB - timeA;
-    return String(b._id || '').localeCompare(String(a._id || ''));
-  });
-
-  const filteredCycles = sortedCycles.filter(c => {
-    const monthMatch = (c.reviewMonth || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const tNameMatch = (c.kpiTemplateId?.templateName || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSearch = monthMatch || tNameMatch;
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalCyclePages = Math.max(1, Math.ceil(filteredCycles.length / CYCLE_PAGE_SIZE));
+  const totalCyclePages = Math.ceil(filteredCycles.length / CYCLE_PAGE_SIZE) || 1;
   const safeCyclePage = Math.min(cyclePage, totalCyclePages);
+
   const paginatedCycles = filteredCycles.slice(
     (safeCyclePage - 1) * CYCLE_PAGE_SIZE,
     safeCyclePage * CYCLE_PAGE_SIZE
   );
 
-  const totalCyclesCount = cycles.length;
-  const activeCyclesCount = cycles.filter(c => c.status === 'active').length;
-  const closedCyclesCount = cycles.filter(c => c.status === 'closed').length;
-  const draftCyclesCount = cycles.filter(c => c.status === 'draft').length;
-
   return (
-    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
-      
-      {/* Hallmark Hero Header */}
+    <div className="space-y-6 text-xs text-slate-800 animate-fade-in">
+      {/* Hero Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-500/10 to-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-        
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-400/30 tracking-wider">
                 Appraisal Schedule
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Cycle Automation Engine
-              </span>
+              <span className="text-[10px] text-slate-400 font-medium">Cycle Automation Engine</span>
             </div>
-            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
+            <h1 className="text-2xl font-black text-white tracking-tight">
               Performance Review Cycles Engine
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Configure review periods, calendar dates, evaluation schedules, & active template pairings.
+            <p className="text-xs text-slate-400 mt-1 max-w-xl">
+              Configure review periods, calendar dates, evaluation schedules, & target department pairings.
             </p>
           </div>
 
-          <button
-            onClick={() => {
-              setCreateError('');
-              setShowCreateModal(true);
-            }}
-            className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer"
-          >
-            <Plus size={18} />
-            <span>Launch New Review Cycle</span>
-          </button>
+          {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
+            <button
+              onClick={() => {
+                setShowCreateModal(true);
+                setCreateError('');
+              }}
+              className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg cursor-pointer transition-all shrink-0"
+            >
+              <Plus size={18} />
+              <span>+ Launch New Review Cycle</span>
+            </button>
+          )}
         </div>
 
-        {/* Summary Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+        {/* Quick Stat Badges */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800">
+          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Cycles</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{totalCyclesCount}</h2>
-              <span className="text-[9px] text-sky-400 font-medium">Recorded periods</span>
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Total Cycles</span>
+              <span className="text-lg font-black text-white">{cycles.length}</span>
+              <span className="text-[9px] text-slate-400 block">Recorded periods</span>
             </div>
-            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
-              <Calendar size={20} />
+            <div className="p-2.5 bg-slate-700/50 text-sky-400 rounded-xl">
+              <Calendar size={18} />
             </div>
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Cycles</p>
-              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">{activeCyclesCount}</h2>
-              <span className="text-[9px] text-emerald-400 font-medium">Currently open</span>
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Active Cycles</span>
+              <span className="text-lg font-black text-emerald-400">{cycles.filter(c => c.status === 'active').length}</span>
+              <span className="text-[9px] text-emerald-300 block">Currently open</span>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 size={20} />
+            <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+              <CheckCircle2 size={18} />
             </div>
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Closed Cycles</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{closedCyclesCount}</h2>
-              <span className="text-[9px] text-slate-400 font-medium">Archived appraisal periods</span>
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Closed Cycles</span>
+              <span className="text-lg font-black text-slate-300">{cycles.filter(c => c.status === 'closed').length}</span>
+              <span className="text-[9px] text-slate-400 block">Archived appraisal periods</span>
             </div>
-            <div className="p-3 bg-slate-700/50 rounded-xl text-slate-400 border border-slate-600/50">
-              <Calendar size={20} />
+            <div className="p-2.5 bg-slate-700/50 text-slate-400 rounded-xl">
+              <Calendar size={18} />
             </div>
           </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Draft Cycles</p>
-              <h2 className="text-xl font-extrabold text-amber-400 mt-0.5">{draftCyclesCount}</h2>
-              <span className="text-[9px] text-amber-400 font-medium">Pending activation</span>
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Draft Cycles</span>
+              <span className="text-lg font-black text-amber-400">{cycles.filter(c => c.status === 'draft').length}</span>
+              <span className="text-[9px] text-amber-300 block">Pending activation</span>
             </div>
-            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <AlertCircle size={20} />
+            <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
+              <AlertCircle size={18} />
             </div>
           </div>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2 font-bold text-xs">
-          <AlertCircle size={16} className="text-rose-600 shrink-0" />
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 font-bold text-xs flex items-center gap-2.5">
+          <AlertCircle size={18} className="text-rose-600 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
-      {/* Cycle List Table Workbench */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+      {/* Main Review Cycles Table */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
           <div>
-            <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
-              <span>Evaluation Cycle Schedule</span>
-              <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
-                {filteredCycles.length} Cycles Listed
-              </span>
-            </h3>
+            <h3 className="font-extrabold text-slate-900 text-sm">Evaluation Cycle Schedule</h3>
+            <span className="text-[10px] text-slate-400 font-medium">{filteredCycles.length} Cycles Listed</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setCyclePage(1);
               }}
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
             >
               <option value="all">All Cycle Statuses</option>
               <option value="active">Active Only</option>
@@ -424,7 +405,7 @@ const ReviewCycles = () => {
 
             <input
               type="text"
-              placeholder="Search month or template..."
+              placeholder="Search month or department..."
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value);
@@ -435,7 +416,11 @@ const ReviewCycles = () => {
           </div>
         </div>
 
-        {filteredCycles.length === 0 ? (
+        {loading ? (
+          <div className="py-12 text-center">
+            <div className="w-6 h-6 border-2 border-sky-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          </div>
+        ) : filteredCycles.length === 0 ? (
           <div className="py-16 text-center bg-slate-50/50 rounded-2xl border border-slate-100 space-y-2">
             <Calendar className="mx-auto text-slate-300" size={36} />
             <p className="text-slate-500 font-bold text-xs">No review cycles found matching your query.</p>
@@ -449,7 +434,7 @@ const ReviewCycles = () => {
                     <th className="py-3 px-4 rounded-l-xl">Cycle Period</th>
                     <th className="py-3 px-4">Target Audience</th>
                     <th className="py-3 px-4">Cycle Type</th>
-                    <th className="py-3 px-4">KPI Template Pairing</th>
+                    <th className="py-3 px-4">Target Department</th>
                     <th className="py-3 px-4">Start Date</th>
                     <th className="py-3 px-4">Due Date</th>
                     <th className="py-3 px-4">Status</th>
@@ -475,13 +460,13 @@ const ReviewCycles = () => {
                         {c.cycleType === 'half_yearly' ? 'Half-Yearly' : c.cycleType === 'yearly' || c.cycleType === 'annual' ? 'Yearly' : c.cycleType === 'quarterly' ? 'Quarterly' : (c.cycleType || 'monthly')}
                       </td>
                       <td className="py-4 px-4 font-bold text-sky-800">
-                        {c.kpiTemplateId?.templateName || 'General KPI Template'}
+                        {c.departmentId?.departmentName || 'All Departments (Org-Wide)'}
                       </td>
                       <td className="py-4 px-4 text-slate-500 font-medium">
-                        {new Date(c.startDate).toLocaleDateString()}
+                        {formatDateDDMMYYYY(c.startDate)}
                       </td>
                       <td className="py-4 px-4 text-slate-500 font-medium">
-                        {new Date(c.endDate).toLocaleDateString()}
+                        {formatDateDDMMYYYY(c.endDate)}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex flex-col items-start gap-1">
@@ -515,7 +500,7 @@ const ReviewCycles = () => {
 
                           {c.status !== 'closed' ? (
                             <button
-                              onClick={() => handleUpdateStatus(c._id, c.status)}
+                              onClick={() => setPendingStatusChange({ id: c._id, currentStatus: c.status })}
                               className={`font-black text-xs px-3.5 py-1.5 rounded-xl border transition-colors cursor-pointer shadow-3xs ${
                                 c.status === 'draft' ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700' : 'bg-rose-600 hover:bg-rose-700 text-white border-rose-700'
                               }`}
@@ -592,11 +577,6 @@ const ReviewCycles = () => {
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
-                  <p className="text-[9px] text-slate-400 mt-0.5">
-                    {cycleType === 'quarterly' && 'Select Q1, Q2, Q3, or Q4 period.'}
-                    {cycleType === 'half_yearly' && 'Select H1 (First Half) or H2 (Second Half) period.'}
-                    {['yearly', 'annual'].includes(cycleType) && 'Select target review year.'}
-                  </p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -627,63 +607,56 @@ const ReviewCycles = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">KPI Template Pairing *</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department *</label>
                 <select
-                  value={kpiTemplateId}
-                  onChange={(e) => setKpiTemplateId(e.target.value)}
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
-                  required
                 >
-                  {templates.map(t => (
-                    <option key={t._id} value={t._id}>
-                      {t.templateName} ({t.departmentId ? `Dept: ${t.departmentId.departmentName}` : 'Org-Wide'})
+                  <option value="">All Departments (Org-Wide Review)</option>
+                  {departments.map(d => (
+                    <option key={d._id} value={d._id}>
+                      {d.departmentName}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Cycle Start Date *</label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-800 font-medium cursor-pointer"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Evaluation Due Date *</label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-slate-800 font-medium cursor-pointer"
-                      required
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Cycle Start Date *</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                    required
+                  />
                 </div>
-                <p className="text-[9px] text-slate-400 mt-1 italic">
-                  * Dates pre-populate automatically based on period, but you can select any custom Start & Due Date.
-                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Evaluation Due Date *</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                    required
+                  />
+                </div>
               </div>
 
-
-
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs px-4 py-2 rounded-xl cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors"
+                  className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black cursor-pointer shadow-md transition-colors"
                 >
                   Create Cycle
                 </button>
@@ -693,140 +666,29 @@ const ReviewCycles = () => {
         </div>
       )}
 
-      <ConfirmModal
-        open={!!pendingStatusChange}
-        title="Update Review Cycle Status?"
-        message={`Are you sure you want to change cycle status to "${pendingStatusChange?.nextStatus?.toUpperCase()}"?`}
-        confirmLabel="Confirm Status Change"
-        danger={pendingStatusChange?.nextStatus === 'closed'}
-        onConfirm={confirmUpdateStatus}
-        onCancel={() => setPendingStatusChange(null)}
-      />
-
-      <ConfirmModal
-        open={!!pendingDeleteCycle}
-        title="Delete Review Cycle?"
-        message={`Are you sure you want to delete review cycle "${pendingDeleteCycle?.reviewMonth}" (${pendingDeleteCycle?.kpiTemplateId?.templateName || 'Cycle'})? This action will permanently remove associated self-assessments and evaluation scores.`}
-        confirmLabel="Delete Cycle"
-        danger={true}
-        onConfirm={confirmDeleteCycle}
-        onCancel={() => setPendingDeleteCycle(null)}
-      />
-
-      {/* Individual Extension / Unlock Modal */}
-      {unlockModalCycle && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5 border border-slate-100 text-xs">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-amber-50 rounded-xl text-amber-600">
-                  <Unlock size={18} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm">Grant Individual Review Extension</h3>
-                  <p className="text-[11px] text-slate-500">
-                    Re-open cycle "{unlockModalCycle.reviewMonth}" ({unlockModalCycle.kpiTemplateId?.departmentId?.departmentName || 'All Departments'} • {unlockModalCycle.targetRole === 'manager' ? 'Managers' : 'Employees'})
-                  </p>
-                </div>
-              </div>
-              <button onClick={() => setUnlockModalCycle(null)} className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer">✕</button>
-            </div>
-
-            {/* Grant Extension Section */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Select Employee to Re-Open / Unlock Cycle</label>
-              
-              {/* Search User Input */}
-              <input
-                type="text"
-                placeholder="Filter employee by name..."
-                value={userSearchTerm}
-                onChange={(e) => setUserSearchTerm(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none text-xs font-semibold text-slate-700 mb-2"
-              />
-
-              <div className="flex gap-2">
-                <select
-                  value={selectedUserIdToUnlock}
-                  onChange={(e) => setSelectedUserIdToUnlock(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
-                >
-                  <option value="">Select Employee...</option>
-                  {getEligibleUsersForUnlockModal()
-                    .filter(u => {
-                      const fullName = `${u.firstName} ${u.lastName}`.toLowerCase();
-                      return fullName.includes(userSearchTerm.toLowerCase()) || u.employeeCode?.toLowerCase().includes(userSearchTerm.toLowerCase());
-                    })
-                    .filter(u => !unlockModalCycle.unlockedUserIds?.some(un => (un._id || un).toString() === u._id.toString()))
-                    .map(u => {
-                      const deptName = u.departmentId?.departmentName || 'Dept';
-                      return (
-                        <option key={u._id} value={u._id}>
-                          {u.firstName} {u.lastName} ({u.employeeCode || 'EMP'}) • {deptName} • {u.role?.toUpperCase()}
-                        </option>
-                      );
-                    })}
-                </select>
-
-                <button
-                  disabled={!selectedUserIdToUnlock}
-                  onClick={() => {
-                    handleGrantUnlock(selectedUserIdToUnlock);
-                    setSelectedUserIdToUnlock('');
-                  }}
-                  className="bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold text-xs px-4 py-2.5 rounded-xl shrink-0 shadow-md cursor-pointer transition-colors"
-                >
-                  Unlock User
-                </button>
-              </div>
-            </div>
-
-            {/* Currently Unlocked Users */}
-            <div className="space-y-2 pt-3 border-t border-slate-100">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
-                Currently Unlocked / Extension Granted ({unlockModalCycle.unlockedUserIds?.length || 0})
-              </span>
-
-              {(!unlockModalCycle.unlockedUserIds || unlockModalCycle.unlockedUserIds.length === 0) ? (
-                <div className="bg-slate-50 p-3 rounded-xl text-center text-slate-400 font-medium text-xs">
-                  No individual extensions active for this review cycle.
-                </div>
-              ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                  {unlockModalCycle.unlockedUserIds.map(u => {
-                    const uObj = typeof u === 'object' ? u : usersList.find(usr => usr._id === u) || { _id: u, firstName: 'User', lastName: '' };
-                    return (
-                      <div key={uObj._id} className="bg-amber-50/70 border border-amber-200 p-2.5 rounded-xl flex justify-between items-center text-xs">
-                        <div>
-                          <span className="font-bold text-slate-800">{uObj.firstName} {uObj.lastName}</span>
-                          <span className="text-[10px] text-slate-500 block">{uObj.email} • {uObj.employeeCode}</span>
-                        </div>
-
-                        <button
-                          onClick={() => handleRevokeUnlock(uObj._id)}
-                          className="text-[10px] font-bold text-rose-700 hover:text-rose-900 bg-white border border-rose-200 px-2.5 py-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        >
-                          Revoke / Relock
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setUnlockModalCycle(null)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer"
-              >
-                Close Modal
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Confirmation Modal for Status Updates */}
+      {pendingStatusChange && (
+        <ConfirmModal
+          open={true}
+          isOpen={true}
+          title={pendingStatusChange.currentStatus === 'draft' ? 'Activate Review Cycle' : 'Close Review Cycle'}
+          message={`Are you sure you want to ${pendingStatusChange.currentStatus === 'draft' ? 'activate' : 'close'} this review cycle?`}
+          onConfirm={handleConfirmStatusUpdate}
+          onCancel={() => setPendingStatusChange(null)}
+        />
       )}
 
+      {/* Confirmation Modal for Delete */}
+      {pendingDeleteCycle && (
+        <ConfirmModal
+          open={true}
+          isOpen={true}
+          title="Delete Review Cycle"
+          message={`Are you sure you want to delete review cycle "${pendingDeleteCycle.reviewMonth}"? This action cannot be undone.`}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setPendingDeleteCycle(null)}
+        />
+      )}
     </div>
   );
 };

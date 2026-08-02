@@ -50,7 +50,7 @@ const IntegrationsWorkspace = () => {
   // Teams Webhook state
   const [teamsForm, setTeamsForm] = useState({
     webhookUrl: '',
-    title: 'PerformNext Performance Cycle Reminder',
+    title: 'PerfoNext Performance Cycle Reminder',
     message: 'Attention Team! The July 2026 Monthly Performance Review Cycle is closing soon. Please complete all pending assessments.'
   });
 

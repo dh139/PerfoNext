@@ -11,12 +11,11 @@ import ForgotPassword from './pages/ForgotPassword';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import Notifications from './pages/Notifications';
-import SelfAssessmentForm from './pages/SelfAssessmentForm';
+import QuarterlyEvidenceConfirmation from './pages/QuarterlyEvidenceConfirmation';
 import ManagerReviewForm from './pages/ManagerReviewForm';
 import EmployeeReport from './pages/EmployeeReport';
 import DepartmentReports from './pages/DepartmentReports';
 import CompletionReport from './pages/CompletionReport';
-import KpiTemplates from './pages/KpiTemplates';
 import ReviewCycles from './pages/ReviewCycles';
 import UserManagement from './pages/UserManagement';
 import OrgStructure from './pages/OrgStructure';
@@ -28,7 +27,8 @@ import FeedbackCenter from './pages/FeedbackCenter';
 import SkillMatrix from './pages/SkillMatrix';
 import Certifications from './pages/Certifications';
 import IntegrationsWorkspace from './pages/IntegrationsWorkspace';
-import LandingPage from './pages/LandingPage';
+import WorkJournal from './pages/WorkJournal';
+import WorkJournalTemplates from './pages/WorkJournalTemplates';
 import useAuthStore from './store/authStore';
 
 function App() {
@@ -72,20 +72,22 @@ function App() {
           {/* Recognitions Workspace */}
           <Route path="/recognitions" element={<RecognitionsWorkspace />} />
 
-          {/* Phase 3 Workspaces */}
+          {/* Workspaces */}
+          <Route path="/performance/work-journal" element={<WorkJournal />} />
           <Route path="/feedback" element={<FeedbackCenter />} />
           <Route path="/skills" element={<SkillMatrix />} />
           <Route path="/certifications" element={<Certifications />} />
 
-          {/* Phase 4 Ecosystem Integrations */}
+          {/* Ecosystem Integrations */}
           <Route path="/integrations" element={<IntegrationsWorkspace />} />
           
-          {/* Employee Report (Self check) */}
+          {/* Employee Report */}
           <Route path="/reports/employee/:id" element={<EmployeeReport />} />
           
-          {/* Self Assessment Form */}
+          {/* Quarterly Evidence Confirmation */}
           <Route element={<ProtectedRoute allowedRoles={['employee', 'manager', 'hr', 'executive']} />}>
-            <Route path="/assessment/:cycleId" element={<SelfAssessmentForm />} />
+            <Route path="/assessment/:cycleId" element={<QuarterlyEvidenceConfirmation />} />
+            <Route path="/review/confirm/:cycleId" element={<QuarterlyEvidenceConfirmation />} />
           </Route>
 
           {/* Manager Review Form */}
@@ -97,14 +99,13 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/reports/department" element={<DepartmentReports />} />
             <Route path="/reports/completion" element={<CompletionReport />} />
-            <Route path="/hr/kpis" element={<KpiTemplates />} />
-            <Route path="/hr/kpi-templates" element={<KpiTemplates />} />
           </Route>
 
           {/* Sub-group: HR, Admin, Executive */}
           <Route element={<ProtectedRoute allowedRoles={['hr', 'admin', 'executive']} />}>
             <Route path="/admin/users" element={<UserManagement />} />
             <Route path="/hr/cycles" element={<ReviewCycles />} />
+            <Route path="/management/work-journal-forms" element={<WorkJournalTemplates />} />
             <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
           </Route>

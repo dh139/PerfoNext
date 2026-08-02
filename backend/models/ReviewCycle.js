@@ -31,7 +31,11 @@ const reviewCycleSchema = new mongoose.Schema(
     kpiTemplateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'KpiTemplate',
-      required: true
+      required: false
+    },
+    departmentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department'
     },
     targetRole: {
       type: String,

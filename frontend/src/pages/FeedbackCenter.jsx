@@ -1023,7 +1023,7 @@ const FeedbackCenter = () => {
                       required
                     >
                       {filteredCycles.map(c => {
-                        const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                        const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
                         const targetLabel = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
                         return (
                           <option key={c._id} value={c._id}>
@@ -1324,7 +1324,7 @@ const FeedbackCenter = () => {
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
               >
                 {getFilteredCyclesForSubject(summaryEmployeeId).map(c => {
-                  const deptName = c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
+                  const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
                   return (
                     <option key={c._id} value={c._id}>
                       Month: {c.reviewMonth} — Dept: {deptName} ({c.cycleType})

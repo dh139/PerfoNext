@@ -75,6 +75,21 @@ const createRecognition = async (req, res) => {
       awardedAt: awardedAt ? new Date(awardedAt) : new Date()
     });
 
+    // Auto-sync into Work Journal Evidence Repository
+    try {
+      const { syncAwardEvidence } = require('../services/autoEvidenceService');
+      await syncAwardEvidence({
+        _id: recognition._id,
+        recipientId: employeeId,
+        title: `${category} Award`,
+        citation: comments,
+        badgeType: category,
+        createdAt: recognition.awardedAt
+      });
+    } catch (e) {
+      console.error('Auto-evidence award sync error:', e);
+    }
+
     const populated = await Recognition.findById(recognition._id)
       .populate({ path: 'employeeId', select: 'firstName lastName' });
 

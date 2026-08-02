@@ -29,7 +29,7 @@ const getEmailWrapper = (title, contentHtml) => {
         <!-- Header -->
         <tr>
           <td style="background-color: #0f172a; padding: 24px; text-align: center; border-bottom: 3px solid #0ea5e9;">
-            <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">PerformNext</span>
+            <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">PerfoNext</span>
             <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px;">Enterprise Performance Platform</div>
           </td>
         </tr>
@@ -53,7 +53,7 @@ const getEmailWrapper = (title, contentHtml) => {
         <!-- Footer -->
         <tr>
           <td style="background-color: #f8fafc; padding: 24px; text-align: center; border-top: 1px solid #f1f5f9; color: #94a3b8; font-size: 11px; line-height: 1.5;">
-            <p style="margin: 0; font-weight: 600; color: #64748b;">PerformNext Corporation</p>
+            <p style="margin: 0; font-weight: 600; color: #64748b;">PerfoNext Corporation</p>
             <p style="margin: 4px 0 0 0;">This is an automated system notification. Please do not reply directly to this email.</p>
           </td>
         </tr>
@@ -63,13 +63,13 @@ const getEmailWrapper = (title, contentHtml) => {
 };
 
 const sendOtpEmail = async (toEmail, otp) => {
-  const subject = 'PerformNext Password Reset OTP';
-  const text = `Your One-Time Password (OTP) to reset your PerformNext account password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.`;
+  const subject = 'PerfoNext Password Reset OTP';
+  const text = `Your One-Time Password (OTP) to reset your PerfoNext account password is: ${otp}\n\nThis OTP is valid for 10 minutes. If you did not request a password reset, please ignore this email.`;
   const html = getEmailWrapper(
     'Password Reset Request',
     `
       <p style="margin-top: 0;">Hello,</p>
-      <p>We received a request to reset the password for your PerformNext account. Use the One-Time Password (OTP) below to proceed:</p>
+      <p>We received a request to reset the password for your PerfoNext account. Use the One-Time Password (OTP) below to proceed:</p>
       <div style="text-align: center; margin: 32px 0;">
         <div style="display: inline-block; background-color: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 12px; padding: 16px 32px; font-size: 32px; font-weight: 800; letter-spacing: 6px; color: #0ea5e9;">
           ${otp}
@@ -96,16 +96,16 @@ const sendOtpEmail = async (toEmail, otp) => {
 };
 
 const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password) => {
-  const subject = 'Welcome to PerformNext - Account Created Successfully';
+  const subject = 'Welcome to PerfoNext - Account Created Successfully';
   const roleTitle = role === 'admin' ? 'Administrator' : role === 'hr' ? 'HR Manager' : role === 'manager' ? 'Reporting Manager' : role === 'executive' ? 'CEO / Management' : 'Employee';
   
-  const text = `Hello ${firstName},\n\nWelcome to PerformNext (Enterprise Performance Platform)!\nYour account has been created successfully.\n\nAccount Details:\n- Employee Code: ${employeeCode}\n- Registered Email: ${toEmail}\n- Temporary Password: ${password || 'PerformNext2026!'}\n- System Role: ${roleTitle}\n\nYou can now log in to the PerformNext portal.\n\nBest regards,\nPerformNext Team`;
+  const text = `Hello ${firstName},\n\nWelcome to PerfoNext (Enterprise Performance Platform)!\nYour account has been created successfully.\n\nAccount Details:\n- Employee Code: ${employeeCode}\n- Registered Email: ${toEmail}\n- Temporary Password: ${password || 'PerfoNext2026!'}\n- System Role: ${roleTitle}\n\nYou can now log in to the PerfoNext portal.\n\nBest regards,\nPerfoNext Team`;
   
   const html = getEmailWrapper(
-    'Welcome to PerformNext!',
+    'Welcome to PerfoNext!',
     `
       <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
-      <p>Your account on the PerformNext platform has been created successfully. Below are your login and configuration details:</p>
+      <p>Your account on the PerfoNext platform has been created successfully. Below are your login and configuration details:</p>
       
       <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 24px 0;">
         <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
@@ -150,7 +150,7 @@ const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password
 
 const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endDate) => {
   const subject = `New Performance Review Cycle Started (${reviewMonth})`;
-  const text = `Hello ${firstName},\n\nA new performance review cycle for ${reviewMonth} has officially started.\nPlease complete and submit your self-assessment in the PerformNext portal before ${new Date(endDate).toLocaleDateString()}.\n\nBest regards,\nPerformNext Team`;
+  const text = `Hello ${firstName},\n\nA new performance review cycle for ${reviewMonth} has officially started.\nPlease complete and submit your self-assessment in the PerfoNext portal before ${new Date(endDate).toLocaleDateString()}.\n\nBest regards,\nPerfoNext Team`;
   const html = getEmailWrapper(
     'Performance Review Cycle Open',
     `
@@ -162,7 +162,7 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
         <span style="color: #1d4ed8; font-size: 20px; font-weight: 800; display: block;">${new Date(endDate).toLocaleDateString()}</span>
       </div>
 
-      <p>Log in to your PerformNext Dashboard and select <strong>Continue Review</strong> to complete your scoring sheet.</p>
+      <p>Log in to your PerfoNext Dashboard and select <strong>Continue Review</strong> to complete your scoring sheet.</p>
     `
   );
 
@@ -183,7 +183,7 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
 
 const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, employeeName, reviewMonth) => {
   const subject = `Self-Assessment Submitted: ${employeeName} (${reviewMonth})`;
-  const text = `Hello ${managerName},\n\n${employeeName} has submitted their self-assessment for the ${reviewMonth} review cycle.\nPlease log in to PerformNext to conduct and submit your manager review.\n\nBest regards,\nPerformNext Team`;
+  const text = `Hello ${managerName},\n\n${employeeName} has submitted their self-assessment for the ${reviewMonth} review cycle.\nPlease log in to PerfoNext to conduct and submit your manager review.\n\nBest regards,\nPerfoNext Team`;
   const html = getEmailWrapper(
     'Self-Assessment Action Required',
     `
@@ -215,7 +215,7 @@ const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, emplo
 
 const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, reviewMonth, finalScore, rating) => {
   const subject = `Performance Evaluation Summary Published (${reviewMonth})`;
-  const text = `Hello ${employeeName},\n\nYour performance review score for ${reviewMonth} has been computed.\nFinal Rating: ${finalScore} / 5.0 (${rating})\n\nYou can log in to PerformNext to view your complete performance report.\n\nBest regards,\nPerformNext Team`;
+  const text = `Hello ${employeeName},\n\nYour performance review score for ${reviewMonth} has been computed.\nFinal Rating: ${finalScore} / 5.0 (${rating})\n\nYou can log in to PerfoNext to view your complete performance report.\n\nBest regards,\nPerfoNext Team`;
   const html = getEmailWrapper(
     'Evaluation Summary Published',
     `
@@ -249,7 +249,7 @@ const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, review
 
 const sendIndividualExtensionEmail = async (toEmail, firstName, reviewMonth, endDate) => {
   const subject = `Individual Extension Granted: Performance Review Cycle (${reviewMonth})`;
-  const text = `Hello ${firstName},\n\nAn individual extension has been granted for your account. The performance review cycle for "${reviewMonth}" has been specially re-opened/unlocked for you.\n\nPlease log in to PerformNext to complete and submit your self-assessment.\n\nBest regards,\nPerformNext Team`;
+  const text = `Hello ${firstName},\n\nAn individual extension has been granted for your account. The performance review cycle for "${reviewMonth}" has been specially re-opened/unlocked for you.\n\nPlease log in to PerfoNext to complete and submit your self-assessment.\n\nBest regards,\nPerfoNext Team`;
   const html = getEmailWrapper(
     'Individual Review Extension Granted',
     `
@@ -262,7 +262,7 @@ const sendIndividualExtensionEmail = async (toEmail, firstName, reviewMonth, end
         ${endDate ? `<span style="color: #78350f; font-size: 12px; font-weight: 600; display: block; margin-top: 4px;">Submission Deadline: ${new Date(endDate).toLocaleDateString()}</span>` : ''}
       </div>
 
-      <p>Please log in to your PerformNext Dashboard and click <strong>Continue Review</strong> to complete and submit your self-assessment.</p>
+      <p>Please log in to your PerfoNext Dashboard and click <strong>Continue Review</strong> to complete and submit your self-assessment.</p>
     `
   );
 

@@ -168,12 +168,12 @@ const EmployeeDashboard = ({ data, user }) => {
       action: null
     },
     {
-      label: 'Self Assessment',
+      label: 'Quarterly Evidence Confirmation',
       desc: selfAssessmentStatus === 'none' 
         ? 'No active review cycles at this time.' 
         : selfAssessmentStatus === 'pending'
-        ? 'Evaluate your KPIs and add self-comments.'
-        : 'Self assessment successfully submitted.',
+        ? 'Review and confirm your automatically collected evidence.'
+        : 'Quarterly evidence successfully confirmed.',
       status: selfAssessmentStatus === 'submitted' ? 'complete' : selfAssessmentStatus === 'pending' ? 'warning' : 'locked',
       icon: selfAssessmentStatus === 'submitted' 
         ? <CheckCircle2 size={16} className="text-emerald-600" /> 
@@ -186,8 +186,8 @@ const EmployeeDashboard = ({ data, user }) => {
         ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
         : 'bg-slate-50 text-slate-500 border-slate-100',
       action: selfAssessmentStatus === 'pending' ? {
-        text: 'Continue Review',
-        link: `/assessment/${activeCycleId}`
+        text: 'Confirm Evidence',
+        link: `/review/confirm/${activeCycleId}`
       } : null
     },
     {
@@ -256,7 +256,7 @@ const EmployeeDashboard = ({ data, user }) => {
                 <BookOpen size={18} />
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 text-sm">Your PerformNext Journey</h3>
+                <h3 className="font-bold text-slate-800 text-sm">Your PerfoNext Journey</h3>
                 <p className="text-[11px] text-slate-500">Track and complete your employee lifecycle tasks</p>
               </div>
             </div>
@@ -418,13 +418,18 @@ const EmployeeDashboard = ({ data, user }) => {
 // ==================== SUB-DASHBOARD: MANAGER ====================
 
 const ManagerDashboard = ({ data, user }) => {
+  const navigate = useNavigate();
   const {
     teamCount = 0,
+    teamSize = 0,
+    pendingWorkLogs = 0,
     pendingManagerReviews = [],
     pendingSelfAssessmentsFromSubordinates = [],
     teamScores = [],
     pendingSelfAssessments = []
   } = data || {};
+
+  const totalEmployees = teamCount || teamSize || 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -434,50 +439,63 @@ const ManagerDashboard = ({ data, user }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[9px] uppercase font-extrabold px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-400/30">Action Required</span>
-              <h3 className="font-bold text-sm">Your Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+              <h3 className="font-bold text-sm">Your Quarterly Evidence Confirmation Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
             </div>
-            <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
+            <p className="text-xs text-sky-200 mt-1">Please confirm your verified work evidence for the active review cycle.</p>
           </div>
           <Link
-            to={`/assessment/${pendingSelfAssessments[0].cycleId}`}
+            to={`/review/confirm/${pendingSelfAssessments[0].cycleId}`}
             className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow transition-colors shrink-0"
           >
-            Start Self Assessment &rarr;
+            Confirm Evidence &rarr;
           </Link>
         </div>
       )}
 
       {/* Counters Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-sm relative overflow-hidden flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-sm relative overflow-hidden flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Direct Reportees</p>
-            <h2 className="text-3xl font-extrabold text-white mt-2">{teamCount} Employees</h2>
+            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Direct Reportees</p>
+            <h2 className="text-2xl font-black text-white mt-1.5">{totalEmployees} Employees</h2>
           </div>
-          <div className="p-3 bg-slate-800 rounded-xl text-slate-400">
-            <Users size={24} />
+          <div className="p-3 bg-slate-800 rounded-xl text-sky-400">
+            <Users size={22} />
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div
+          onClick={() => navigate('/performance/work-journal')}
+          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-sky-300 transition-colors"
+        >
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Awaiting Manager Review</p>
-            <h2 className="text-3xl font-extrabold text-slate-800 mt-2">
+            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pending Work Log Verification</p>
+            <h2 className="text-2xl font-black text-rose-600 mt-1.5">{pendingWorkLogs} Logs</h2>
+          </div>
+          <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
+            <ClipboardList size={22} />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Quarterly Reviews Awaiting</p>
+            <h2 className="text-2xl font-black text-slate-800 mt-1.5">
               {pendingManagerReviews.filter(r => r.isEmployeeSubmitted).length}
             </h2>
           </div>
           <div className="p-3 bg-amber-50 rounded-xl text-amber-700">
-            <Clock size={24} />
+            <Clock size={22} />
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pending Self-Assessment</p>
-            <h2 className="text-3xl font-extrabold text-slate-800 mt-2">{pendingSelfAssessmentsFromSubordinates.length}</h2>
+            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Subordinate Evidence Confirmations</p>
+            <h2 className="text-2xl font-black text-slate-800 mt-1.5">{pendingSelfAssessmentsFromSubordinates.length}</h2>
           </div>
           <div className="p-3 bg-sky-50 rounded-xl text-sky-700">
-            <FileText size={24} />
+            <FileText size={22} />
           </div>
         </div>
       </div>
@@ -736,13 +754,6 @@ const HRDashboard = ({ data, user }) => {
               <span>New Review Cycle</span>
             </Link>
             <Link
-              to="/hr/templates"
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-colors cursor-pointer"
-            >
-              <Briefcase size={16} />
-              <span>KPI Templates</span>
-            </Link>
-            <Link
               to="/admin/users"
               className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-colors cursor-pointer"
             >
@@ -758,7 +769,7 @@ const HRDashboard = ({ data, user }) => {
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Employees</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || 0}</h2>
+              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || stats.totalEmployees || 0}</h2>
               <span className="text-[9px] text-sky-400 font-medium">Workforce headcount</span>
             </div>
             <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
@@ -779,12 +790,12 @@ const HRDashboard = ({ data, user }) => {
 
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">KPI Templates</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalTemplates || 0}</h2>
-              <span className="text-[9px] text-amber-400 font-medium">Configured frameworks</span>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Review Cycles</p>
+              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.activeCyclesCount || 0}</h2>
+              <span className="text-[9px] text-amber-400 font-medium">Active evaluation periods</span>
             </div>
             <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <Briefcase size={20} />
+              <Calendar size={20} />
             </div>
           </div>
 
@@ -909,28 +920,27 @@ const HRDashboard = ({ data, user }) => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {activeCycleMetrics.map((item) => {
+              {activeCycleMetrics.map((item, cycleIdx) => {
                 const isManagerCycle = item.targetRole === 'manager';
-                const visibleSubmissions = item.submissions?.filter(sub =>
-                  isManagerCycle ? (sub.role === 'manager' || sub.role === 'hr') : sub.role === 'employee'
-                ) || [];
+                const visibleSubmissions = item.submissions || [];
                 const totalCount = visibleSubmissions.length;
                 const selfCount = visibleSubmissions.filter(s => s.selfSubmitted).length;
                 const mgrCount = visibleSubmissions.filter(s => s.managerSubmitted).length;
-                const completePercent = totalCount > 0 ? Math.round((visibleSubmissions.filter(s => s.selfSubmitted && s.managerSubmitted).length / totalCount) * 100) : 0;
+                const completePercent = totalCount > 0 ? Math.round((visibleSubmissions.filter(s => s.managerSubmitted).length / totalCount) * 100) : 0;
 
                 const selfPercent = totalCount > 0 ? Math.round((selfCount / totalCount) * 100) : 0;
                 const mgrPercent = totalCount > 0 ? Math.round((mgrCount / totalCount) * 100) : 0;
 
-                const isExpanded = expandedCycleId === item.cycleId;
+                const currentCycleId = item.cycleId || item.cycle?._id || `cycle-${cycleIdx}`;
+                const isExpanded = expandedCycleId === currentCycleId;
 
                 return (
-                  <div key={item.cycleId} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
+                  <div key={currentCycleId} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
                     <div className="flex justify-between items-start border-b border-slate-200/80 pb-3">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-sky-50 text-sky-700 rounded border border-sky-100">
-                            Cycle Month: {item.reviewMonth}
+                            Cycle Month: {item.reviewMonth || item.cycle?.reviewMonth}
                           </span>
                           <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded border ${
                             isManagerCycle ? 'bg-purple-100 text-purple-800 border-purple-200' : 'bg-blue-100 text-blue-800 border-blue-200'
@@ -939,7 +949,7 @@ const HRDashboard = ({ data, user }) => {
                           </span>
                         </div>
                         <h4 className="font-extrabold text-slate-800 text-xs mt-1">
-                          Dept: {item.departmentName}
+                          Dept: {item.departmentName || 'All Departments'}
                         </h4>
                       </div>
                       <span className="text-xs font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
@@ -950,7 +960,7 @@ const HRDashboard = ({ data, user }) => {
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div className="bg-white border border-slate-200 p-3 rounded-xl">
                         <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                          {isManagerCycle ? 'Phase 1: Manager Self-Assessment' : 'Phase 1: Employee Self-Assessment'}
+                          {isManagerCycle ? 'Phase 1: Manager Self-Assessment' : 'Phase 1: Employee Evidence'}
                         </span>
                         <span className="font-bold text-slate-800 text-sm mt-0.5 block">{selfCount} / {totalCount} ({selfPercent}%)</span>
                       </div>
@@ -963,40 +973,48 @@ const HRDashboard = ({ data, user }) => {
                     </div>
 
                     <button
-                      onClick={() => setExpandedCycleId(isExpanded ? null : item.cycleId)}
+                      onClick={() => setExpandedCycleId(isExpanded ? null : currentCycleId)}
                       className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-xs text-slate-700 transition-colors cursor-pointer"
                     >
                       {isExpanded
                         ? (isManagerCycle ? 'Hide Manager Breakdown ↑' : 'Hide Employee Breakdown ↑')
-                        : (isManagerCycle ? `View Manager Breakdown (${visibleSubmissions.length}) ↓` : `View Employee Breakdown (${visibleSubmissions.length}) ↓`)
+                        : (isManagerCycle ? `View Manager Breakdown (${totalCount}) ↓` : `View Employee Breakdown (${totalCount}) ↓`)
                       }
                     </button>
 
                     {isExpanded && (
                       <div className="space-y-2 pt-2 animate-fade-in border-t border-slate-200">
-                        {visibleSubmissions.length === 0 ? (
+                        {totalCount === 0 ? (
                           <p className="text-slate-400 text-xs italic py-2 text-center">No participants registered in this cycle group.</p>
                         ) : (
-                          visibleSubmissions.map(sub => (
-                            <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
-                              <div>
-                                <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
-                                <p className="text-[10px] text-slate-400">{sub.designationName} • Manager: {sub.managerName}</p>
+                          visibleSubmissions.map((sub, empIdx) => {
+                            const empObj = sub.employee || {};
+                            const empIdKey = empObj._id ? empObj._id.toString() : `sub-${empIdx}`;
+                            const empName = `${empObj.firstName || 'Employee'} ${empObj.lastName || ''}`;
+                            const desigName = empObj.designationId?.designationName || empObj.designationName || 'Team Member';
+                            const mgrName = empObj.managerId ? `${empObj.managerId.firstName || ''} ${empObj.managerId.lastName || ''}` : 'Unassigned';
+
+                            return (
+                              <div key={empIdKey} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                                <div>
+                                  <p className="font-bold text-slate-800">{empName}</p>
+                                  <p className="text-[10px] text-slate-400">{desigName} • Manager: {mgrName}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                    sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
+                                  </span>
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                    sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                  sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                                }`}>
-                                  Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
-                                </span>
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                  sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                                }`}>
-                                  {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -2814,26 +2832,36 @@ const ExecutiveDashboard = ({ data, user }) => {
                         {visibleSubmissions.length === 0 ? (
                           <p className="text-slate-400 text-xs italic py-2 text-center">No participants registered in this cycle group.</p>
                         ) : (
-                          visibleSubmissions.map(sub => (
-                            <div key={sub.employeeId} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
-                              <div>
-                                <p className="font-bold text-slate-800">{sub.firstName} {sub.lastName}</p>
-                                <p className="text-[10px] text-slate-400">{sub.designationName} • Manager: {sub.managerName}</p>
+                          visibleSubmissions.map((sub, idx) => {
+                            const empObj = sub.employee || sub;
+                            const empName = `${empObj.firstName || ''} ${empObj.lastName || ''}`.trim() || 'Employee';
+                            const desName = empObj.designationId?.title || sub.designationName || '';
+                            const mgrObj = empObj.managerId;
+                            const mgrName = mgrObj ? `${mgrObj.firstName || ''} ${mgrObj.lastName || ''}`.trim() : (sub.managerName || 'N/A');
+
+                            return (
+                              <div key={sub.employeeId || empObj._id || idx} className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
+                                <div>
+                                  <p className="font-bold text-slate-800">{empName}</p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {desName ? `${desName} • ` : ''}Manager: {mgrName}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                    sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                  }`}>
+                                    Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
+                                  </span>
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
+                                    sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                  sub.selfSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                                }`}>
-                                  Self: {sub.selfSubmitted ? 'Submitted' : 'Pending'}
-                                </span>
-                                <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded ${
-                                  sub.managerSubmitted ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                                }`}>
-                                  {isManagerCycle ? 'CEO: ' : 'Manager: '}{sub.managerSubmitted ? 'Graded' : 'Pending'}
-                                </span>
-                              </div>
-                            </div>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}
