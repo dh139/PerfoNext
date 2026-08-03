@@ -60,7 +60,7 @@ const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDa
   if (isNaN(rawJd.getTime())) return true;
 
   const jd = new Date(Date.UTC(rawJd.getUTCFullYear(), rawJd.getUTCMonth(), rawJd.getUTCDate(), 0, 0, 0, 0));
-  const { reviewStart, reviewEnd } = getCycleEvaluationPeriod(cycleType, reviewMonth, startDate, endDate);
+  const { reviewStart, reviewEnd, minDaysRequired } = getCycleEvaluationPeriod(cycleType, reviewMonth, startDate, endDate);
 
   const now = new Date();
   const nowUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
@@ -72,6 +72,15 @@ const isEmployeeEligibleForCycle = (joiningDate, cycleType, reviewMonth, startDa
 
   // 2. Employee cannot be eligible if joining date is after the review period ended
   if (jd > reviewEnd) {
+    return false;
+  }
+
+  // 3. Enforce minimum service days requirement (evalStart to reviewEnd must be >= minDaysRequired)
+  const evalStart = jd > reviewStart ? jd : reviewStart;
+  const diffTime = reviewEnd.getTime() - evalStart.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays < minDaysRequired) {
     return false;
   }
 

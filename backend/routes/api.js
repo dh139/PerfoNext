@@ -29,6 +29,7 @@ const skillController = require('../controllers/skillController');
 const certificationController = require('../controllers/certificationController');
 const integrationController = require('../controllers/integrationController');
 const workJournalController = require('../controllers/workJournalController');
+const attendanceController = require('../controllers/attendanceController');
 
 const { authLimiter, publicLimiter, userActionLimiter } = require('../middlewares/rateLimiter');
 
@@ -171,5 +172,18 @@ router.get('/work-journal-templates', verifyToken, workJournalTemplateController
 router.get('/work-journal-templates/department/:departmentId', verifyToken, workJournalTemplateController.getTemplateByDepartment);
 router.post('/work-journal-templates', verifyToken, authorizeRoles('admin', 'hr', 'executive'), workJournalTemplateController.saveTemplate);
 router.delete('/work-journal-templates/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), workJournalTemplateController.deleteTemplate);
+
+// Enterprise Attendance Punching Routes
+router.post('/attendance/punch-in', verifyToken, attendanceController.punchIn);
+router.post('/attendance/punch-out', verifyToken, attendanceController.punchOut);
+router.get('/attendance/today', verifyToken, attendanceController.getTodayAttendance);
+router.get('/attendance/history', verifyToken, attendanceController.getHistory);
+router.get('/attendance/calendar', verifyToken, attendanceController.getCalendar);
+router.post('/attendance/regularization', verifyToken, attendanceController.submitRegularization);
+router.get('/attendance/pending-regularization', verifyToken, attendanceController.getPendingRegularizations);
+router.post('/attendance/review-regularization', verifyToken, attendanceController.reviewRegularization);
+router.get('/ceo/attendance-summary', verifyToken, authorizeRoles('executive', 'admin'), attendanceController.getCeoSummary);
+router.get('/hr/attendance-summary', verifyToken, authorizeRoles('hr', 'admin'), attendanceController.getHrSummary);
+router.get('/attendance/by-date', verifyToken, authorizeRoles('hr', 'admin', 'executive'), attendanceController.getAttendanceByDate);
 
 module.exports = router;

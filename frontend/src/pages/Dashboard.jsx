@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { getUserAvatarUrl } from '../utils/avatar';
+import { toast } from '../store/toastStore';
 import {
   User,
   Calendar,
@@ -10,6 +11,9 @@ import {
   FileText,
   Users,
   ChevronRight,
+  MapPin,
+  UserCheck,
+  RefreshCw,
   ChevronLeft,
   Activity,
   Briefcase,
@@ -34,6 +38,295 @@ import {
   Plus,
   AlertTriangle
 } from 'lucide-react';
+const PunchCard = () => {
+  const [todayPunch, setTodayPunch] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showRegModal, setShowRegModal] = useState(false);
+  const [regDate, setRegDate] = useState(new Date().toISOString().split('T')[0]);
+  const [regIn, setRegIn] = useState('09:00');
+  const [regOut, setRegOut] = useState('18:00');
+  const [regReason, setRegReason] = useState('');
+  const [submittingReg, setSubmittingReg] = useState(false);
+  const [timeTick, setTimeTick] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeTick(t => t + 1);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getNetWorkingTime = () => {
+    if (!todayPunch || !todayPunch.punchIn) return '00h 00m';
+    if (todayPunch.punchOut) {
+      return formatDuration(todayPunch.workingMinutes);
+    }
+    const elapsed = Math.max(0, Math.round((new Date().getTime() - new Date(todayPunch.punchIn).getTime()) / 60000));
+    return formatDuration(elapsed);
+  };
+
+  const fetchTodayPunch = async () => {
+    try {
+      setLoading(true);
+      const res = await api.get('/api/attendance/today');
+      setTodayPunch(res.data);
+    } catch (err) {
+      console.error('Failed to fetch today punch:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTodayPunch();
+  }, []);
+
+  const handlePunchIn = async () => {
+    try {
+      const res = await api.post('/api/attendance/punch-in', { location: 'Office' });
+      setTodayPunch(res.data.punch);
+      toast.success('Punched In successfully. Have a productive day!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to punch in.');
+    }
+  };
+
+  const handlePunchOut = async () => {
+    try {
+      const res = await api.post('/api/attendance/punch-out');
+      setTodayPunch(res.data.punch);
+      toast.success('Punched Out successfully. Good work today!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to punch out.');
+    }
+  };
+
+  const handleRegSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setSubmittingReg(true);
+      const pinDate = new Date(`${regDate}T${regIn}:00`);
+      const poutDate = new Date(`${regDate}T${regOut}:00`);
+      
+      if (poutDate <= pinDate) {
+        toast.error('Punch Out must be after Punch In.');
+        return;
+      }
+      
+      await api.post('/api/attendance/regularization', {
+        date: regDate,
+        requestedPunchIn: pinDate,
+        requestedPunchOut: poutDate,
+        reason: regReason
+      });
+      
+      toast.success('Regularization request submitted for review.');
+      setShowRegModal(false);
+      setRegReason('');
+      fetchTodayPunch();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit regularization.');
+    } finally {
+      setSubmittingReg(false);
+    }
+  };
+
+  const formatTime = (dateVal) => {
+    if (!dateVal) return '--';
+    const d = new Date(dateVal);
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  };
+
+  const formatDuration = (mins) => {
+    if (!mins) return '00h 00m';
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex items-center justify-center h-48 animate-pulse">
+        <div className="flex flex-col items-center gap-2">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-500"></div>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Syncing Attendance...</span>
+        </div>
+      </div>
+    );
+  }
+
+  const hasPunchedIn = todayPunch && todayPunch.punchIn;
+  const hasPunchedOut = todayPunch && todayPunch.punchOut;
+
+  // Status mapping colors
+  const statusColors = {
+    'Present': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'Half Day': 'bg-amber-50 text-amber-700 border-amber-200',
+    'Absent': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Incomplete': 'bg-sky-50 text-sky-700 border-sky-200 animate-pulse',
+    'Not Punched Yet': 'bg-slate-50 text-slate-500 border-slate-200'
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between h-full hover:shadow-md transition-all duration-300">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Clock size={16} className="text-slate-400" />
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Today's Attendance</h4>
+          </div>
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${statusColors[todayPunch?.status || 'Not Punched Yet']}`}>
+            {todayPunch?.status || 'Not Punched Yet'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4 text-xs font-semibold text-slate-700">
+          <div>
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Punch In</span>
+            <span className="text-slate-800 text-[13px] font-bold">{formatTime(todayPunch?.punchIn)}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Punch Out</span>
+            <span className="text-slate-800 text-[13px] font-bold">{formatTime(todayPunch?.punchOut)}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Net Working Time</span>
+            <span className="text-slate-800 text-[13px] font-bold">{getNetWorkingTime()}</span>
+          </div>
+          <div>
+            <span className="text-[9px] text-slate-400 font-bold uppercase block">Late By / OT</span>
+            <span className="text-slate-800 text-[13px] font-bold">
+              {todayPunch?.lateMinutes > 0 ? `${todayPunch.lateMinutes}m Late` : todayPunch?.overtimeMinutes > 0 ? `${formatDuration(todayPunch.overtimeMinutes)} OT` : '--'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium px-1 mb-4">
+          <span>Office Hours: 09:00 AM – 06:00 PM</span>
+          {todayPunch?.regularizationStatus === 'pending' && (
+            <span className="text-amber-600 font-bold animate-pulse">⚠️ Regularization Pending</span>
+          )}
+          {todayPunch?.regularizationStatus === 'approved' && (
+            <span className="text-emerald-600 font-bold">✔ Regularized</span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {!hasPunchedIn ? (
+          <button
+            onClick={handlePunchIn}
+            className="flex-1 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-bold text-xs py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer text-center"
+          >
+            Punch In
+          </button>
+        ) : !hasPunchedOut ? (
+          <button
+            onClick={handlePunchOut}
+            className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer text-center"
+          >
+            Punch Out
+          </button>
+        ) : (
+          <div className="flex-1 text-center bg-slate-50 border border-slate-200 text-slate-400 text-xs py-3 rounded-xl font-bold">
+            Shift Completed
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowRegModal(true)}
+          className="bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 p-3 rounded-xl transition-all cursor-pointer"
+          title="Request Regularization"
+        >
+          <RefreshCw size={14} className={submittingReg ? 'animate-spin' : ''} />
+        </button>
+      </div>
+
+      {/* Regularization Modal */}
+      {showRegModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-scale-in">
+            <h3 className="font-extrabold text-slate-800 text-sm mb-1">Request Attendance Regularization</h3>
+            <p className="text-[10px] text-slate-400 mb-4 uppercase font-bold tracking-wider">Submit shift time correction</p>
+
+            <form onSubmit={handleRegSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Date</label>
+                <input
+                  type="date"
+                  value={regDate}
+                  onChange={(e) => setRegDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Punch In Time</label>
+                  <input
+                    type="time"
+                    value={regIn}
+                    onChange={(e) => setRegIn(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Punch Out Time</label>
+                  <input
+                    type="time"
+                    value={regOut}
+                    onChange={(e) => setRegOut(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-700 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Reason for correction</label>
+                <textarea
+                  value={regReason}
+                  onChange={(e) => setRegReason(e.target.value)}
+                  placeholder="e.g. Forgot to punch out / worked from client location..."
+                  rows={3}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-700 outline-none resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRegModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-2.5 rounded-xl border border-slate-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingReg}
+                  className="flex-1 bg-sky-700 hover:bg-sky-850 text-white text-xs font-bold py-2.5 rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {submittingReg ? 'Submitting...' : 'Submit'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const Dashboard = () => {
   const { user } = useAuthStore();
@@ -114,7 +407,8 @@ const EmployeeDashboard = ({ data, user }) => {
     finalScoreFinalized = false,
     finalScore = null,
     ratingBand = null,
-    activeCycleId = null
+    activeCycleId = null,
+    activeCycleType = null
   } = data || {};
 
   // Lifecycle journey calculation
@@ -127,6 +421,9 @@ const EmployeeDashboard = ({ data, user }) => {
   if (managerReviewStatus === 'complete') completedStages++;
 
   const progressPercent = Math.round((completedStages / totalStages) * 100);
+
+  const type = activeCycleType || (pendingSelfAssessments && pendingSelfAssessments[0]?.cycleType) || '';
+  const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
 
   const checklistItems = [
     {
@@ -168,12 +465,12 @@ const EmployeeDashboard = ({ data, user }) => {
       action: null
     },
     {
-      label: 'Quarterly Evidence Confirmation',
+      label: `${typeLabel} Evidence Confirmation`,
       desc: selfAssessmentStatus === 'none' 
         ? 'No active review cycles at this time.' 
         : selfAssessmentStatus === 'pending'
         ? 'Review and confirm your automatically collected evidence.'
-        : 'Quarterly evidence successfully confirmed.',
+        : `${typeLabel} evidence successfully confirmed.`,
       status: selfAssessmentStatus === 'submitted' ? 'complete' : selfAssessmentStatus === 'pending' ? 'warning' : 'locked',
       icon: selfAssessmentStatus === 'submitted' 
         ? <CheckCircle2 size={16} className="text-emerald-600" /> 
@@ -246,7 +543,7 @@ const EmployeeDashboard = ({ data, user }) => {
         )}
       </div>
 
-      {/* Bento Grid */}
+      {/* Bento Grid: Journey Checklist (2/3) + Punch Card (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Your Journey Checklist Card */}
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col space-y-6">
@@ -312,38 +609,44 @@ const EmployeeDashboard = ({ data, user }) => {
           </div>
         </div>
 
-        {/* Notifications Sidebar inside Bento Grid */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
-                <Bell size={18} />
-              </div>
-              <h3 className="font-bold text-slate-800 text-sm">Recent Alerts</h3>
-            </div>
-            <Link to="/notifications" className="text-[11px] font-semibold text-sky-700 hover:underline">
-              View All
-            </Link>
-          </div>
+        {/* Punch Card — right sidebar */}
+        <div className="flex flex-col gap-5">
+          <PunchCard />
 
-          <div className="flex-1 space-y-4">
-            {notifications.length === 0 ? (
-              <p className="text-slate-400 text-xs py-8 text-center">No new notifications.</p>
-            ) : (
-              notifications.map((n) => (
-                <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                  <p className="text-slate-700 leading-normal">{n.message}</p>
-                  <span className="text-[9px] text-slate-400 block mt-1">
-                    {new Date(n.createdAt).toLocaleDateString()}
-                  </span>
+          {/* Recent Alerts — stacked below PunchCard */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col flex-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
+                  <Bell size={16} />
                 </div>
-              ))
-            )}
+                <h3 className="font-bold text-slate-800 text-sm">Recent Alerts</h3>
+              </div>
+              <Link to="/notifications" className="text-[11px] font-semibold text-sky-700 hover:underline">
+                View All
+              </Link>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto max-h-48">
+              {notifications.length === 0 ? (
+                <p className="text-slate-400 text-xs py-6 text-center">No new notifications.</p>
+              ) : (
+                notifications.map((n) => (
+                  <div key={n._id} className="text-xs border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
+                    <p className="text-slate-700 leading-normal">{n.message}</p>
+                    <span className="text-[9px] text-slate-400 block mt-1">
+                      {new Date(n.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Score History Section */}
-        <div className="lg:col-span-3 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+      {/* Score History Section */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-indigo-50 rounded-lg text-indigo-700">
@@ -410,7 +713,6 @@ const EmployeeDashboard = ({ data, user }) => {
             </div>
           )}
         </div>
-      </div>
     </div>
   );
 };
@@ -431,6 +733,31 @@ const ManagerDashboard = ({ data, user }) => {
 
   const totalEmployees = teamCount || teamSize || 0;
 
+  const [pendingRegs, setPendingRegs] = useState([]);
+
+  const fetchPendingRegs = async () => {
+    try {
+      const res = await api.get('/api/attendance/pending-regularization');
+      setPendingRegs(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingRegs();
+  }, []);
+
+  const handleReviewReg = async (id, status) => {
+    try {
+      await api.post('/api/attendance/review-regularization', { id, status });
+      toast.success(`Regularization request ${status} successfully.`);
+      fetchPendingRegs();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to review request.');
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Self Assessment Action Banner */}
@@ -439,7 +766,13 @@ const ManagerDashboard = ({ data, user }) => {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[9px] uppercase font-extrabold px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-400/30">Action Required</span>
-              <h3 className="font-bold text-sm">Your Quarterly Evidence Confirmation Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+              {(() => {
+                const type = pendingSelfAssessments[0].cycleType || '';
+                const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
+                return (
+                  <h3 className="font-bold text-sm">Your {typeLabel} Evidence Confirmation Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+                );
+              })()}
             </div>
             <p className="text-xs text-sky-200 mt-1">Please confirm your verified work evidence for the active review cycle.</p>
           </div>
@@ -479,7 +812,7 @@ const ManagerDashboard = ({ data, user }) => {
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Quarterly Reviews Awaiting</p>
+            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Reviews Awaiting</p>
             <h2 className="text-2xl font-black text-slate-800 mt-1.5">
               {pendingManagerReviews.filter(r => r.isEmployeeSubmitted).length}
             </h2>
@@ -500,9 +833,9 @@ const ManagerDashboard = ({ data, user }) => {
         </div>
       </div>
 
-      {/* Bento Grid */}
+      {/* Main Bento Grid: Reviews (2/3) + Sidebar (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Reviews Table */}
+        {/* Left: Pending Reviews (2/3 width) */}
         <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-6">
             <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
@@ -558,34 +891,76 @@ const ManagerDashboard = ({ data, user }) => {
           )}
         </div>
 
-        {/* Team Ratings Summary */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-indigo-50 rounded-lg text-indigo-700">
-              <Activity size={18} />
-            </div>
-            <h3 className="font-bold text-slate-800 text-sm">Recent Team Ratings</h3>
-          </div>
+        {/* Right sidebar: Punch Card + Regularizations (1/3 width) */}
+        <div className="flex flex-col gap-5">
+          <PunchCard />
 
-          <div className="flex-1 space-y-4">
-            {teamScores.length === 0 ? (
-              <p className="text-slate-400 text-xs py-8 text-center">No scores computed yet.</p>
-            ) : (
-              teamScores.map((score) => (
-                <div key={score._id} className="text-xs flex items-center justify-between border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                  <div>
-                    <p className="font-bold text-slate-800">
-                      {score.employeeId?.firstName} {score.employeeId?.lastName}
-                    </p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Cycle: {score.reviewCycleId?.reviewMonth}</p>
+          {/* Pending Regularizations */}
+          {pendingRegs.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <RefreshCw size={15} className="text-amber-500 animate-spin" />
+                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Pending Regularizations</h4>
+              </div>
+              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                {pendingRegs.map(reg => (
+                  <div key={reg._id} className="text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2">
+                    <div className="space-y-0.5">
+                      <p className="font-bold text-slate-800">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
+                      <p className="text-[10px] text-slate-400">Date: {new Date(reg.date).toLocaleDateString()}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {new Date(reg.requestedPunchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} – {new Date(reg.requestedPunchOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </p>
+                      <p className="text-[10px] text-slate-500 italic">"{reg.regularizationReason}"</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'approved')}
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'rejected')}
+                        className="flex-1 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="font-extrabold text-sky-700 text-sm">{score.finalScore}</span>
-                    <p className="text-[9px] font-semibold text-slate-500 uppercase mt-0.5">{score.rating}</p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Team Ratings Summary */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col flex-1">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-700">
+                <Activity size={16} />
+              </div>
+              <h3 className="font-bold text-slate-800 text-sm">Recent Team Ratings</h3>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto max-h-52">
+              {teamScores.length === 0 ? (
+                <p className="text-slate-400 text-xs py-6 text-center">No scores computed yet.</p>
+              ) : (
+                teamScores.map((score) => (
+                  <div key={score._id} className="text-xs flex items-center justify-between border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
+                    <div>
+                      <p className="font-bold text-slate-800">
+                        {score.employeeId?.firstName} {score.employeeId?.lastName}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Cycle: {score.reviewCycleId?.reviewMonth}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-extrabold text-sky-700 text-sm">{score.finalScore}</span>
+                      <p className="text-[9px] font-semibold text-slate-500 uppercase mt-0.5">{score.rating}</p>
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -610,7 +985,70 @@ const HRDashboard = ({ data, user }) => {
     recentAudits = []
   } = data || {};
 
-  const [activeTab, setActiveTab] = useState('cycles'); // 'cycles', 'direct_reports', 'leaderboard', 'audits'
+  const [activeTab, setActiveTab] = useState('cycles'); // 'cycles', 'direct_reports', 'leaderboard', 'audits', 'attendance'
+  const [hrSummary, setHrSummary] = useState(null);
+  const [loadingHrSummary, setLoadingHrSummary] = useState(true);
+  const [pendingRegs, setPendingRegs] = useState([]);
+
+
+  // Date-based attendance viewer
+  const todayIso = new Date().toISOString().split('T')[0];
+  const [dateViewDate, setDateViewDate] = useState(todayIso);
+  const [dateAttendance, setDateAttendance] = useState(null);
+  const [loadingDateAttendance, setLoadingDateAttendance] = useState(false);
+  const [dateAttendanceSearch, setDateAttendanceSearch] = useState('');
+  const [dateAttendancePage, setDateAttendancePage] = useState(1);
+
+  const fetchAttendanceByDate = async (d) => {
+    try {
+      setLoadingDateAttendance(true);
+      const res = await api.get(`/api/attendance/by-date?date=${d}`);
+      setDateAttendance(res.data);
+      setDateAttendancePage(1); // Reset page on date change
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDateAttendance(false);
+    }
+  };
+
+  const fetchHrSummary = async () => {
+    try {
+      setLoadingHrSummary(true);
+      const res = await api.get('/api/hr/attendance-summary');
+      setHrSummary(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingHrSummary(false);
+    }
+  };
+
+  const fetchPendingRegs = async () => {
+    try {
+      const res = await api.get('/api/attendance/pending-regularization');
+      setPendingRegs(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    fetchHrSummary();
+    fetchPendingRegs();
+    fetchAttendanceByDate(todayIso);
+  }, []);
+
+  const handleReviewReg = async (id, status) => {
+    try {
+      await api.post('/api/attendance/review-regularization', { id, status });
+      toast.success(`Regularization request ${status} successfully.`);
+      fetchPendingRegs();
+      fetchHrSummary();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to review request.');
+    }
+  };
 
   // Cycles Tab State
   const [expandedCycleId, setExpandedCycleId] = useState(null);
@@ -815,21 +1253,27 @@ const HRDashboard = ({ data, user }) => {
 
       {/* HR Self Assessment Action Banner (Displayed prominent OUTSIDE tabs) */}
       {user?.role !== 'admin' && pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
-        <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800 animate-fade-in">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30">Action Required</span>
-              <h3 className="font-bold text-sm">Your HR Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+        (() => {
+          const type = pendingSelfAssessments[0].cycleType || '';
+          const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
+          return (
+            <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800 animate-fade-in">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30">Action Required</span>
+                  <h3 className="font-bold text-sm">Your {typeLabel} Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+                </div>
+                <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
+              </div>
+              <Link
+                to={`/review/confirm/${pendingSelfAssessments[0].cycleId}`}
+                className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition-colors shrink-0"
+              >
+                Confirm Evidence &rarr;
+              </Link>
             </div>
-            <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
-          </div>
-          <Link
-            to={`/assessment/${pendingSelfAssessments[0].cycleId}`}
-            className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-2.5 rounded-xl shadow transition-colors shrink-0"
-          >
-            Start Self Assessment &rarr;
-          </Link>
-        </div>
+          );
+        })()
       )}
 
       {/* Tabbed HR Control Navigation Bar */}
@@ -893,10 +1337,330 @@ const HRDashboard = ({ data, user }) => {
           <Activity size={16} />
           <span>Audit Trail & Activity</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'attendance' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock size={16} />
+          <span>Attendance Control Desk</span>
+        </button>
       </div>
 
       {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
       {activeTab === 'tree' && <OrgTreeHierarchy />}
+
+      {/* TAB: ATTENDANCE CONTROL DESK */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-6 animate-fade-in text-xs font-semibold text-slate-700">
+
+          {/* Date-based Attendance Viewer */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-[13px] flex items-center gap-2">
+                  <Calendar size={16} className="text-sky-600" />
+                  Daily Attendance Register
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">View every employee's punch in/out for any date</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="date"
+                  value={dateViewDate}
+                  max={todayIso}
+                  onChange={(e) => { setDateViewDate(e.target.value); fetchAttendanceByDate(e.target.value); }}
+                  className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                />
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-48">
+                  <Search size={13} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search employee..."
+                    value={dateAttendanceSearch}
+                    onChange={(e) => { setDateAttendanceSearch(e.target.value); setDateAttendancePage(1); }}
+                    className="bg-transparent text-xs text-slate-700 outline-none w-full"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {loadingDateAttendance ? (
+              <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-500"></div></div>
+            ) : !dateAttendance ? (
+              <p className="text-slate-400 text-center py-6">No data. Select a date.</p>
+            ) : (() => {
+              const filtered = dateAttendance.records.filter(r =>
+                r.name.toLowerCase().includes(dateAttendanceSearch.toLowerCase()) ||
+                r.code.toLowerCase().includes(dateAttendanceSearch.toLowerCase()) ||
+                r.department.toLowerCase().includes(dateAttendanceSearch.toLowerCase())
+              );
+              const ITEMS_PER_PAGE = 10;
+              const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+              const safeCurrentPage = Math.min(dateAttendancePage, totalPages);
+              const paginatedRecords = filtered.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
+              const statusColor = (s) => {
+                if (s === 'Present') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
+                if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
+                if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
+                return 'text-rose-600 bg-rose-50 border-rose-200';
+              };
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500">
+                    <span className="text-emerald-600">✓ Present: {dateAttendance.records.filter(r => r.status === 'Present').length}</span>
+                    <span className="text-amber-600">◑ Half Day: {dateAttendance.records.filter(r => r.status === 'Half Day').length}</span>
+                    <span className="text-rose-600">✗ Absent: {dateAttendance.records.filter(r => r.status === 'Absent').length}</span>
+                    <span className="text-slate-400">({filtered.length} shown)</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
+                          <th className="py-2 px-3">Employee</th>
+                          <th className="py-2 px-3">Dept</th>
+                          <th className="py-2 px-3">Punch In</th>
+                          <th className="py-2 px-3">Punch Out</th>
+                          <th className="py-2 px-3">Working Hrs</th>
+                          <th className="py-2 px-3">Late</th>
+                          <th className="py-2 px-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {paginatedRecords.map((r, i) => (
+                          <tr key={i} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2.5 px-3">
+                              <p className="font-bold text-slate-800">{r.name}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-500">{r.department}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchIn || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchOut || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 text-slate-600">
+                              {r.workingMinutes > 0 || r.punchIn ? (
+                                `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && dateViewDate === todayIso ? ' (Active)' : ''}`
+                              ) : '--'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(r.status)}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100 text-xs">
+                    <p className="text-slate-500 font-medium text-[11px]">
+                      Showing <span className="font-bold text-slate-800">{(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{' '}
+                      <span className="font-bold text-slate-800">{Math.min(safeCurrentPage * ITEMS_PER_PAGE, filtered.length)}</span> of{' '}
+                      <span className="font-bold text-slate-800">{filtered.length}</span> records
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setDateAttendancePage(prev => Math.max(prev - 1, 1))}
+                        disabled={safeCurrentPage === 1}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft size={13} />
+                        <span>Prev</span>
+                      </button>
+
+                      <span className="px-3 py-1 bg-sky-50 text-sky-800 font-black rounded-lg text-[11px] border border-sky-100">
+                        {safeCurrentPage} / {totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setDateAttendancePage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={safeCurrentPage >= totalPages}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Punch Card & Org Stats Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <PunchCard />
+            </div>
+
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Today's Attendance Stats</h3>
+              {loadingHrSummary ? (
+                <div className="py-8 flex justify-center items-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500"></div>
+                </div>
+              ) : !hrSummary ? (
+                <p className="text-slate-400 font-medium">No metrics loaded.</p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Present</span>
+                    <span className="text-lg font-black text-emerald-600 mt-1 block">{hrSummary.present} Employees</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Late</span>
+                    <span className="text-lg font-black text-rose-600 mt-1 block">{hrSummary.late} Employees</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Half Day</span>
+                    <span className="text-lg font-black text-amber-600 mt-1 block">{hrSummary.halfDay} Employees</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Employees Active Working</span>
+                    <span className="text-lg font-black text-sky-600 mt-1 block">{hrSummary.workingCount} Active</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Not Punched Yet</span>
+                    <span className="text-lg font-black text-slate-400 mt-1 block">{hrSummary.notPunchedCount} Staff</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Pending Regularizations</span>
+                    <span className={`text-lg font-black mt-1 block ${hrSummary.pendingRegularizationCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-400'}`}>
+                      {hrSummary.pendingRegularizationCount} Requests
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Regularizations Review Section */}
+          {pendingRegs.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <RefreshCw size={16} className="text-amber-500 animate-spin" />
+                <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">Pending Regularization Requests ({pendingRegs.length})</h4>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingRegs.map(reg => (
+                  <div key={reg._id} className="text-xs p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-800">{reg.employeeId?.firstName} {reg.employeeId?.lastName} ({reg.employeeId?.employeeCode || 'N/A'})</p>
+                      <p className="text-[10px] text-slate-400">Date: {new Date(reg.date).toLocaleDateString()} | Req: {new Date(reg.requestedPunchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(reg.requestedPunchOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                      <p className="text-[10px] text-slate-500 italic mt-0.5">"{reg.regularizationReason}"</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'approved')}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl shadow transition-colors cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'rejected')}
+                        className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl shadow transition-colors cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Org Lists Row */}
+          {!loadingHrSummary && hrSummary && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Working List */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="font-extrabold text-slate-800 text-[13px] mb-4 flex items-center justify-between">
+                  <span>Currently Working</span>
+                  <span className="bg-sky-50 text-sky-700 px-2 py-0.5 rounded-full border border-sky-100 text-[10px]">
+                    {hrSummary.workingCount}
+                  </span>
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                  {hrSummary.workingList?.length === 0 ? (
+                    <p className="text-slate-400 text-xs py-8 text-center font-medium">No employees actively clocked in right now.</p>
+                  ) : (
+                    hrSummary.workingList?.map((emp, i) => (
+                      <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                        <div>
+                          <span className="font-bold text-slate-800 block">{emp.name}</span>
+                          <span className="text-[9px] text-slate-400 block mt-0.5">Code: {emp.code}</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-slate-500">
+                          In: {new Date(emp.punchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Late Arrivals List */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="font-extrabold text-slate-800 text-[13px] mb-4 flex items-center justify-between">
+                  <span>Late Arrivals Today</span>
+                  <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded-full border border-rose-100 text-[10px]">
+                    {hrSummary.lateEmployees?.length}
+                  </span>
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                  {hrSummary.lateEmployees?.length === 0 ? (
+                    <p className="text-slate-400 text-xs py-8 text-center font-medium">All employees arrived on time today!</p>
+                  ) : (
+                    hrSummary.lateEmployees?.map((emp, i) => (
+                      <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                        <span className="font-bold text-slate-800">{emp.name}</span>
+                        <span className="bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded border border-rose-200 font-bold text-[10px]">
+                          {emp.lateMinutes}m late
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Absent / Not Punched List */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                <h3 className="font-extrabold text-slate-800 text-[13px] mb-4 flex items-center justify-between">
+                  <span>Not Punched Yet / Absent</span>
+                  <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full border border-slate-250 text-[10px]">
+                    {hrSummary.absentEmployees?.length}
+                  </span>
+                </h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                  {hrSummary.absentEmployees?.length === 0 ? (
+                    <p className="text-slate-400 text-xs py-8 text-center font-medium">100% attendance recorded today.</p>
+                  ) : (
+                    hrSummary.absentEmployees?.map((name, i) => (
+                      <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                        {name}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+        </div>
+      )}
 
       {/* TAB 1: ACTIVE REVIEW CYCLES PROGRESS */}
       {activeTab === 'cycles' && (
@@ -2115,7 +2879,47 @@ const ExecutiveDashboard = ({ data, user }) => {
     recentAudits = []
   } = data || {};
 
-  const [activeTab, setActiveTab] = useState('grading'); // 'grading', 'leaderboard', 'cycles', 'audits'
+  const [activeTab, setActiveTab] = useState('grading'); // 'grading', 'leaderboard', 'cycles', 'audits', 'attendance'
+  const [ceoSummary, setCeoSummary] = useState(null);
+  const [loadingCeoSummary, setLoadingCeoSummary] = useState(true);
+
+  // Date-based attendance viewer
+  const ceotodayIso = new Date().toISOString().split('T')[0];
+  const [ceoDateViewDate, setCeoDateViewDate] = useState(ceotodayIso);
+  const [ceoDateAttendance, setCeoDateAttendance] = useState(null);
+  const [loadingCeoDateAttendance, setLoadingCeoDateAttendance] = useState(false);
+  const [ceoDateSearch, setCeoDateSearch] = useState('');
+  const [ceoDatePage, setCeoDatePage] = useState(1);
+
+  const fetchCeoAttendanceByDate = async (d) => {
+    try {
+      setLoadingCeoDateAttendance(true);
+      const res = await api.get(`/api/attendance/by-date?date=${d}`);
+      setCeoDateAttendance(res.data);
+      setCeoDatePage(1); // Reset page on date change
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingCeoDateAttendance(false);
+    }
+  };
+
+  const fetchCeoSummary = async () => {
+    try {
+      setLoadingCeoSummary(true);
+      const res = await api.get('/api/ceo/attendance-summary');
+      setCeoSummary(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingCeoSummary(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCeoSummary();
+    fetchCeoAttendanceByDate(ceotodayIso);
+  }, []);
   
   // Grading Tab State
   const [gradingSearch, setGradingSearch] = useState('');
@@ -2351,10 +3155,267 @@ const ExecutiveDashboard = ({ data, user }) => {
           <Activity size={16} />
           <span>Audit Trail & Activity</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('attendance')}
+          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'attendance' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Clock size={16} />
+          <span>Attendance Analytics</span>
+        </button>
       </div>
 
       {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
       {activeTab === 'tree' && <OrgTreeHierarchy />}
+
+      {/* TAB: ATTENDANCE ANALYTICS */}
+      {activeTab === 'attendance' && (
+        <div className="space-y-6 animate-fade-in text-xs font-semibold text-slate-700">
+
+          {/* Date-based Attendance Viewer */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-[13px] flex items-center gap-2">
+                  <Calendar size={16} className="text-sky-600" />
+                  Daily Attendance Register
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">View every employee's punch in/out for any date</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="date"
+                  value={ceoDateViewDate}
+                  max={ceotodayIso}
+                  onChange={(e) => { setCeoDateViewDate(e.target.value); fetchCeoAttendanceByDate(e.target.value); }}
+                  className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                />
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-48">
+                  <Search size={13} className="text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search employee..."
+                    value={ceoDateSearch}
+                    onChange={(e) => { setCeoDateSearch(e.target.value); setCeoDatePage(1); }}
+                    className="bg-transparent text-xs text-slate-700 outline-none w-full"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {loadingCeoDateAttendance ? (
+              <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-sky-500"></div></div>
+            ) : !ceoDateAttendance ? (
+              <p className="text-slate-400 text-center py-6">No data. Select a date.</p>
+            ) : (() => {
+              const filtered = ceoDateAttendance.records.filter(r =>
+                r.name.toLowerCase().includes(ceoDateSearch.toLowerCase()) ||
+                r.code.toLowerCase().includes(ceoDateSearch.toLowerCase()) ||
+                r.department.toLowerCase().includes(ceoDateSearch.toLowerCase())
+              );
+              const ITEMS_PER_PAGE = 10;
+              const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+              const safeCurrentPage = Math.min(ceoDatePage, totalPages);
+              const paginatedRecords = filtered.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
+              const statusColor = (s) => {
+                if (s === 'Present') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
+                if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
+                if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
+                return 'text-rose-600 bg-rose-50 border-rose-200';
+              };
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500">
+                    <span className="text-emerald-600">✓ Present: {ceoDateAttendance.records.filter(r => r.status === 'Present').length}</span>
+                    <span className="text-amber-600">◑ Half Day: {ceoDateAttendance.records.filter(r => r.status === 'Half Day').length}</span>
+                    <span className="text-rose-600">✗ Absent: {ceoDateAttendance.records.filter(r => r.status === 'Absent').length}</span>
+                    <span className="text-slate-400">({filtered.length} shown)</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100">
+                          <th className="py-2 px-3">Employee</th>
+                          <th className="py-2 px-3">Dept</th>
+                          <th className="py-2 px-3">Punch In</th>
+                          <th className="py-2 px-3">Punch Out</th>
+                          <th className="py-2 px-3">Working Hrs</th>
+                          <th className="py-2 px-3">Late</th>
+                          <th className="py-2 px-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {paginatedRecords.map((r, i) => (
+                          <tr key={i} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2.5 px-3">
+                              <p className="font-bold text-slate-800">{r.name}</p>
+                              <p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-500">{r.department}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchIn || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchOut || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 text-slate-600">
+                              {r.workingMinutes > 0 || r.punchIn ? (
+                                `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && ceoDateViewDate === ceotodayIso ? ' (Active)' : ''}`
+                              ) : '--'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(r.status)}`}>
+                                {r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-slate-100 text-xs">
+                    <p className="text-slate-500 font-medium text-[11px]">
+                      Showing <span className="font-bold text-slate-800">{(safeCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> to{' '}
+                      <span className="font-bold text-slate-800">{Math.min(safeCurrentPage * ITEMS_PER_PAGE, filtered.length)}</span> of{' '}
+                      <span className="font-bold text-slate-800">{filtered.length}</span> records
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setCeoDatePage(prev => Math.max(prev - 1, 1))}
+                        disabled={safeCurrentPage === 1}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <ChevronLeft size={13} />
+                        <span>Prev</span>
+                      </button>
+
+                      <span className="px-3 py-1 bg-sky-50 text-sky-800 font-black rounded-lg text-[11px] border border-sky-100">
+                        {safeCurrentPage} / {totalPages}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => setCeoDatePage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={safeCurrentPage >= totalPages}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Today's High-Level Stats */}
+          {loadingCeoSummary ? (
+            <div className="py-12 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-3xl shadow-sm">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mb-2"></div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Syncing Org Attendance Stats...</span>
+            </div>
+          ) : ceoSummary && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Today's Attendance</p>
+                  <h2 className="text-2xl font-black text-slate-800 mt-1">{ceoSummary.attendancePercentage}%</h2>
+                  <span className="text-[9px] text-emerald-600 font-bold block mt-1">Present: {ceoSummary.present} | Half Day: {ceoSummary.halfDay}</span>
+                </div>
+                
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Late Arrivals Rate</p>
+                  <h2 className="text-2xl font-black text-rose-600 mt-1">{ceoSummary.latePercentage}%</h2>
+                  <span className="text-[9px] text-rose-600 font-bold block mt-1">{ceoSummary.late} late arrivals today</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Average Login Time</p>
+                  <h2 className="text-2xl font-black text-indigo-600 mt-1">{ceoSummary.avgLoginTime}</h2>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-1">First punch today</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Average Logout Time</p>
+                  <h2 className="text-2xl font-black text-sky-600 mt-1">{ceoSummary.avgLogoutTime}</h2>
+                  <span className="text-[9px] text-slate-400 font-medium block mt-1">Last punch today</span>
+                </div>
+              </div>
+
+              {/* Detail Rows */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Department breakdown */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Department-wise Attendance</h3>
+                    <div className="space-y-4">
+                      {ceoSummary.deptBreakdown?.map((d, i) => (
+                        <div key={i} className="flex justify-between items-center pb-2 border-b border-slate-50 last:border-0">
+                          <div>
+                            <span className="font-bold text-slate-700">{d.departmentName}</span>
+                            <span className="text-[9px] text-slate-400 block mt-0.5">{d.active} active staff</span>
+                          </div>
+                          <span className={`text-[12px] font-black ${d.percentage >= 90 ? 'text-emerald-600' : d.percentage >= 80 ? 'text-amber-600' : 'text-rose-600'}`}>
+                            {d.percentage}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Late Arrivals List */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Late Arrivals Today</h3>
+                    <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                      {ceoSummary.lateEmployees?.length === 0 ? (
+                        <p className="text-slate-400 text-xs py-8 text-center font-medium">All reportees arrived on time today!</p>
+                      ) : (
+                        ceoSummary.lateEmployees?.map((emp, i) => (
+                          <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                            <span className="font-bold text-slate-800">{emp.name}</span>
+                            <span className="bg-rose-50 text-rose-700 px-2 py-0.5 rounded border border-rose-200 font-bold text-[10px]">
+                              {emp.lateMinutes} mins late
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Not Punched / Absent List */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Not Punched Yet / Absent</h3>
+                    <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+                      {ceoSummary.absentEmployees?.length === 0 ? (
+                        <p className="text-slate-400 text-xs py-8 text-center font-medium">100% punch completion reached today.</p>
+                      ) : (
+                        ceoSummary.absentEmployees?.map((name, i) => (
+                          <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                            {name}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* TAB 1: DIRECT SUBORDINATES GRADING TABLE */}
       {activeTab === 'grading' && (

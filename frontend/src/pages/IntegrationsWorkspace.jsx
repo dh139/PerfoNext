@@ -46,6 +46,29 @@ const IntegrationsWorkspace = () => {
   const [tableDeptFilter, setTableDeptFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [attendanceModalUser, setAttendanceModalUser] = useState(null);
+  const [modalTab, setModalTab] = useState('monthly'); // 'monthly' | 'daily'
+  const [modalDailyPunches, setModalDailyPunches] = useState([]);
+  const [loadingDailyPunches, setLoadingDailyPunches] = useState(false);
+
+  useEffect(() => {
+    if (!attendanceModalUser) {
+      setModalDailyPunches([]);
+      setModalTab('monthly');
+      return;
+    }
+    const fetchDailyPunches = async () => {
+      try {
+        setLoadingDailyPunches(true);
+        const res = await api.get(`/api/attendance/history?employeeId=${attendanceModalUser._id}`);
+        setModalDailyPunches(res.data);
+      } catch (err) {
+        console.error('Failed to fetch modal daily punches:', err);
+      } finally {
+        setLoadingDailyPunches(false);
+      }
+    };
+    fetchDailyPunches();
+  }, [attendanceModalUser]);
 
   // Teams Webhook state
   const [teamsForm, setTeamsForm] = useState({
@@ -399,358 +422,10 @@ const IntegrationsWorkspace = () => {
         const paginatedRecords = filteredAttendanceRecords.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
 
         return (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="space-y-6">
             
-            {/* Sync Trigger Console (Admin / HR) */}
-            {(user?.role === 'hr' || user?.role === 'admin') && (
-              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4 h-fit">
-                <div className="flex justify-between items-center border-b pb-3">
-                  <div>
-                    <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">Sync HRMS Attendance</h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">Push or simulate HRMS webhook payloads</p>
-                  </div>
-                  
-                  {/* Mode Switcher */}
-                  <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setSyncMode('single')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                        syncMode === 'single' ? 'bg-white text-sky-700 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Single Employee
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSyncMode('batch')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition-all cursor-pointer ${
-                        syncMode === 'batch' ? 'bg-white text-emerald-700 shadow-xs border border-slate-200' : 'text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      Bulk Department
-                    </button>
-                  </div>
-                </div>
-
-                {/* SINGLE EMPLOYEE SYNC FORM */}
-                {syncMode === 'single' && (
-                  <form onSubmit={handleAttendanceSync} className="space-y-3.5">
-                    {/* Department Filter for Employee List */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                          <Building2 size={11} className="text-slate-400" />
-                          <span>Filter Department</span>
-                        </label>
-                        <span className="text-[9px] font-bold text-slate-400">
-                          {filteredFormUsers.length} Eligible
-                        </span>
-                      </div>
-                      <select
-                        value={formDeptFilter}
-                        onChange={(e) => setFormDeptFilter(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
-                      >
-                        <option value="all">All Departments ({users.length} Total Users)</option>
-                        {departments.map(d => (
-                          <option key={d._id} value={d._id}>{d.departmentName}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Search & Select Employee (Enterprise Combobox) */}
-                    <div className="space-y-1 relative">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                          <Users size={11} className="text-slate-400" />
-                          <span>Select Employee</span>
-                        </label>
-                        <span className="text-[9px] text-sky-600 font-extrabold">
-                          {filteredFormUsers.length} Available
-                        </span>
-                      </div>
-
-                      {/* Trigger Button */}
-                      <button
-                        type="button"
-                        onClick={() => setEmpComboboxOpen(!empComboboxOpen)}
-                        className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-2xl text-xs font-semibold text-slate-800 text-left transition-all cursor-pointer shadow-xs"
-                      >
-                        {(() => {
-                          const selected = users.find(u => u._id === attendanceForm.employeeId);
-                          if (!selected) {
-                            return <span className="text-slate-400 italic">Click to search & select employee...</span>;
-                          }
-                          const deptName = selected.departmentId?.departmentName || 'No Dept';
-                          return (
-                            <div className="flex items-center gap-2 min-w-0">
-                              <img
-                                src={getUserAvatarUrl(selected)}
-                                alt="Avatar"
-                                className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <span className="font-extrabold text-slate-900 block truncate">
-                                  {selected.firstName} {selected.lastName}
-                                </span>
-                                <div className="flex items-center gap-1 text-[9px] text-slate-400">
-                                  <span className="font-mono text-slate-500 font-bold">{selected.employeeCode || 'EMP'}</span>
-                                  <span>•</span>
-                                  <span className="truncate">{deptName}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                        <span className="text-slate-400 text-[10px] ml-2 shrink-0">▼</span>
-                      </button>
-
-                      {/* Floating Combobox Popover */}
-                      {empComboboxOpen && (
-                        <>
-                          <div
-                            className="fixed inset-0 z-20"
-                            onClick={() => setEmpComboboxOpen(false)}
-                          />
-                          <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-3xl shadow-2xl z-30 p-3 space-y-2.5 animate-fade-in text-slate-800">
-                            {/* Live Search Input */}
-                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs">
-                              <Search size={14} className="text-slate-400 shrink-0" />
-                              <input
-                                type="text"
-                                value={formUserSearch}
-                                onChange={(e) => setFormUserSearch(e.target.value)}
-                                placeholder="Search name, code (EMP004), department..."
-                                className="w-full bg-transparent text-xs text-slate-800 outline-none font-medium"
-                                autoFocus
-                              />
-                            </div>
-
-                            {/* Department Quick Filter Pills (HR / Admin only) */}
-                            {(user?.role === 'hr' || user?.role === 'admin') && (
-                              <div className="flex items-center gap-1 overflow-x-auto pb-1 custom-scrollbar">
-                                <button
-                                  type="button"
-                                  onClick={() => setFormDeptFilter('all')}
-                                  className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
-                                    formDeptFilter === 'all'
-                                      ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                                  }`}
-                                >
-                                  All ({users.length})
-                                </button>
-                                {departments.map(d => (
-                                  <button
-                                    key={d._id}
-                                    type="button"
-                                    onClick={() => setFormDeptFilter(d._id)}
-                                    className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold whitespace-nowrap transition-colors cursor-pointer border ${
-                                      formDeptFilter.toString() === d._id.toString()
-                                        ? 'bg-sky-100 text-sky-800 border-sky-300'
-                                        : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                                    }`}
-                                  >
-                                    {d.departmentName}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Searchable Options List */}
-                            <div className="max-h-60 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                              {filteredFormUsers.length === 0 ? (
-                                <div className="p-4 text-center text-slate-400 text-xs italic">
-                                  No employees match your search query.
-                                </div>
-                              ) : (
-                                filteredFormUsers.map(u => {
-                                  const isSelected = attendanceForm.employeeId === u._id;
-                                  const deptName = u.departmentId?.departmentName || 'No Dept';
-
-                                  return (
-                                    <button
-                                      key={u._id}
-                                      type="button"
-                                      onClick={() => {
-                                        setAttendanceForm(prev => ({ ...prev, employeeId: u._id }));
-                                        setEmpComboboxOpen(false);
-                                      }}
-                                      className={`w-full text-left p-2.5 rounded-2xl text-xs flex items-center justify-between transition-all cursor-pointer border ${
-                                        isSelected
-                                          ? 'bg-sky-50 text-sky-950 font-bold border-sky-300 shadow-xs'
-                                          : 'hover:bg-slate-50 text-slate-700 border-slate-100'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2.5 min-w-0">
-                                        <img
-                                          src={getUserAvatarUrl(u)}
-                                          alt="Avatar"
-                                          className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                                        />
-                                        <div className="min-w-0">
-                                          <p className="font-extrabold text-slate-900 text-xs truncate">
-                                            {u.firstName} {u.lastName}
-                                          </p>
-                                          <div className="flex items-center gap-1.5 text-[9px] text-slate-400">
-                                            <span className="font-mono text-slate-500 font-bold">{u.employeeCode || 'EMP'}</span>
-                                            <span>•</span>
-                                            <span className="truncate">{deptName}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <span className={`text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded border shrink-0 ${
-                                        u.role === 'manager' || u.role === 'hr'
-                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                          : 'bg-slate-100 text-slate-600 border-slate-200'
-                                      }`}>
-                                        {u.role}
-                                      </span>
-                                    </button>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Review Month</label>
-                      <input
-                        type="month"
-                        value={attendanceForm.month}
-                        onChange={(e) => setAttendanceForm({ ...attendanceForm, month: e.target.value })}
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-slate-700 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Working Days</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={attendanceForm.totalWorkingDays}
-                          onChange={(e) => setAttendanceForm({ ...attendanceForm, totalWorkingDays: +e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Days Present</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={attendanceForm.totalWorkingDays}
-                          value={attendanceForm.daysPresent}
-                          onChange={(e) => setAttendanceForm({ ...attendanceForm, daysPresent: +e.target.value })}
-                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl flex justify-between items-center text-sky-800 font-bold text-xs">
-                      <span>Calculated Attendance %:</span>
-                      <span className="text-sm">{calculatedPct}%</span>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading || !attendanceForm.employeeId}
-                      className="w-full bg-sky-700 hover:bg-sky-800 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-xs transition-colors uppercase text-[10px] flex justify-center items-center gap-2"
-                    >
-                      <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                      <span>Simulate HRMS Webhook Pull</span>
-                    </button>
-                  </form>
-                )}
-
-                {/* BULK DEPARTMENT SYNC FORM */}
-                {syncMode === 'batch' && (
-                  <form onSubmit={handleBatchAttendanceSync} className="space-y-3.5">
-                    <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-[11px] leading-relaxed">
-                      <p className="font-bold">⚡ Bulk Webhook Sync Mode</p>
-                      <p className="text-[10px] text-emerald-700 mt-0.5">
-                        Sync attendance records for an entire department or company in 1-click.
-                      </p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department</label>
-                      <select
-                        value={batchDeptId}
-                        onChange={(e) => setBatchDeptId(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-semibold text-slate-700 text-xs cursor-pointer"
-                      >
-                        <option value="all">All Departments ({users.length} Active Employees)</option>
-                        {departments.map(d => (
-                          <option key={d._id} value={d._id}>{d.departmentName}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Review Month</label>
-                      <input
-                        type="month"
-                        value={batchMonth}
-                        onChange={(e) => setBatchMonth(e.target.value)}
-                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none font-bold text-slate-700 text-xs"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Total Working Days</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          value={batchWorkingDays}
-                          onChange={(e) => setBatchWorkingDays(+e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
-                          required
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-500 uppercase">Days Present</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max={batchWorkingDays}
-                          value={batchDaysPresent}
-                          onChange={(e) => setBatchDaysPresent(+e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl outline-none text-xs"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl cursor-pointer shadow-xs transition-colors uppercase text-[10px] flex justify-center items-center gap-2"
-                    >
-                      <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                      <span>Execute Batch HRMS Webhook Sync</span>
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-
             {/* Attendance Registry & Audit Table (With Filters & Pagination) */}
-            <div className={`${(user?.role === 'hr' || user?.role === 'admin') ? 'lg:col-span-2' : 'lg:col-span-3'} bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4`}>
+            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
               
               {/* Header & Controls Bar */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b pb-4">
@@ -1044,44 +719,128 @@ const IntegrationsWorkspace = () => {
                 </div>
               </div>
 
-              <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-xl">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="bg-slate-55 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase">
-                      <th className="p-3">Month</th>
-                      <th className="p-3">Present / Working Days</th>
-                      <th className="p-3 text-right">Attendance %</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {attendanceModalUser.records && attendanceModalUser.records.length > 0 ? (
-                      attendanceModalUser.records.map(rec => (
-                        <tr key={rec._id} className="hover:bg-slate-50/50">
-                          <td className="p-3 font-bold text-slate-700">{rec.month}</td>
-                          <td className="p-3 text-slate-650 font-medium">
-                            {rec.daysPresent} / {rec.totalWorkingDays} days
-                          </td>
-                          <td className="p-3 text-right">
-                            <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
-                              rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                              rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                              'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
-                              {rec.attendancePercentage}%
-                            </span>
+              {/* Tab Selector inside Modal */}
+              <div className="flex border-b border-slate-100 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setModalTab('monthly')}
+                  className={`flex-1 pb-2 text-xs font-bold border-b-2 text-center transition-all cursor-pointer ${
+                    modalTab === 'monthly' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  Month-wise Summary
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalTab('daily')}
+                  className={`flex-1 pb-2 text-xs font-bold border-b-2 text-center transition-all cursor-pointer ${
+                    modalTab === 'daily' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  Date-wise Punch Logs
+                </button>
+              </div>
+
+              {modalTab === 'monthly' && (
+                <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase">
+                        <th className="p-3">Month</th>
+                        <th className="p-3">Present / Working Days</th>
+                        <th className="p-3 text-right">Attendance %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {attendanceModalUser.records && attendanceModalUser.records.length > 0 ? (
+                        attendanceModalUser.records.map(rec => (
+                          <tr key={rec._id} className="hover:bg-slate-50/50">
+                            <td className="p-3 font-bold text-slate-700">{rec.month}</td>
+                            <td className="p-3 text-slate-600 font-medium">
+                              {rec.daysPresent} / {rec.totalWorkingDays} days
+                            </td>
+                            <td className="p-3 text-right">
+                              <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
+                                rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}>
+                                {rec.attendancePercentage}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="3" className="p-6 text-center text-slate-400 italic">
+                            No attendance records found for this employee.
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="3" className="p-6 text-center text-slate-400 italic">
-                          No attendance records found for this employee.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {modalTab === 'daily' && (
+                <div className="max-h-60 overflow-y-auto border border-slate-100 rounded-xl">
+                  {loadingDailyPunches ? (
+                    <div className="py-10 flex justify-center"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500"></div></div>
+                  ) : modalDailyPunches.length > 0 ? (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[9px] font-bold text-slate-400 uppercase">
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Punch In</th>
+                          <th className="p-3">Punch Out</th>
+                          <th className="p-3">Working Hrs</th>
+                          <th className="p-3 text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {modalDailyPunches.map(p => {
+                          const statusColor = (s) => {
+                            if (s === 'Present') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                            if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
+                            if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
+                            if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
+                            return 'text-rose-600 bg-rose-50 border-rose-200';
+                          };
+                          const formatTimeStr = (t) => {
+                            if (!t) return '--';
+                            const dt = new Date(t);
+                            const h = dt.getHours();
+                            const m = dt.getMinutes();
+                            const ampm = h >= 12 ? 'PM' : 'AM';
+                            return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+                          };
+                          return (
+                            <tr key={p._id} className="hover:bg-slate-50/50">
+                              <td className="p-3 font-bold text-slate-700">
+                                {new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </td>
+                              <td className="p-3 font-semibold text-slate-700">{formatTimeStr(p.punchIn)}</td>
+                              <td className="p-3 font-semibold text-slate-700">{formatTimeStr(p.punchOut)}</td>
+                              <td className="p-3 text-slate-500 font-medium">
+                                {p.workingMinutes > 0 ? `${Math.floor(p.workingMinutes/60)}h ${p.workingMinutes%60}m` : p.punchIn ? '0h 0m' : '--'}
+                              </td>
+                              <td className="p-3 text-right">
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(p.status)}`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-6 text-center text-slate-400 italic">
+                      No punch records found for this employee.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end pt-2">

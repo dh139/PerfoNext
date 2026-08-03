@@ -478,8 +478,19 @@ const submitManagerReview = async (req, res) => {
 
     // Verify manager assignment or HR/Admin/Executive access
     const employee = await User.findById(employeeId);
-    if (!employee || (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin', 'executive'].includes(req.user.role))) {
-      return res.status(403).json({ message: 'You are not the designated manager for this employee.' });
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found.' });
+    }
+
+    const isManagerOrHRReview = employee.role === 'manager' || employee.role === 'hr' || cycle.targetRole === 'manager';
+    if (isManagerOrHRReview) {
+      if (req.user.role !== 'executive' && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Only the CEO (Executive) or Admin can evaluate managers and HR.' });
+      }
+    } else {
+      if (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin', 'executive'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'You are not the designated manager for this employee.' });
+      }
     }
 
     // Verify employee eligibility based on joining date

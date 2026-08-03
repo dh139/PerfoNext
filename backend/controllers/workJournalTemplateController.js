@@ -30,7 +30,7 @@ const getSmartDefaultsForDepartment = (deptName = '') => {
       ],
       customFields: [
         { label: 'Client / Company Name', fieldKey: 'clientName', fieldType: 'text', placeholder: 'e.g. Acme Corp', required: false },
-        { label: 'Deal Value ($)', fieldKey: 'dealValue', fieldType: 'number', placeholder: 'e.g. 5000', required: false },
+        { label: 'Deal Value (RS)', fieldKey: 'dealValue', fieldType: 'number', placeholder: 'e.g. 5000', required: false },
         { label: 'Lead / Deal Stage', fieldKey: 'dealStage', fieldType: 'select', options: ['Prospecting', 'Qualified', 'Proposal Sent', 'Closed Won', 'Closed Lost'], required: false }
       ]
     };
@@ -89,7 +89,7 @@ const getSmartDefaultsForDepartment = (deptName = '') => {
       ],
       customFields: [
         { label: 'Voucher / Invoice Reference', fieldKey: 'voucherNo', fieldType: 'text', placeholder: 'e.g. INV-2026-88', required: false },
-        { label: 'Transaction Amount ($)', fieldKey: 'transactionAmount', fieldType: 'number', placeholder: 'e.g. 1250.00', required: false }
+        { label: 'Transaction Amount (RS)', fieldKey: 'transactionAmount', fieldType: 'number', placeholder: 'e.g. 1250.00', required: false }
       ]
     };
   }

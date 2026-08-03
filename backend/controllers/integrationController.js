@@ -1,28 +1,97 @@
 const Attendance = require('../models/Attendance');
+const AttendancePunch = require('../models/AttendancePunch');
 const IntegrationLog = require('../models/IntegrationLog');
 const User = require('../models/User');
+
+// Helper to calculate total weekdays (excluding Saturday and Sunday) in a given month.
+// For the current month, we limit the counting up to today's date.
+function getWeekdayCount(monthStr) {
+  const [year, month] = monthStr.split('-').map(Number);
+  const now = new Date();
+  const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
+  
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = isCurrentMonth ? now : new Date(year, month, 0);
+  
+  let count = 0;
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) { // Exclude Sunday (0) and Saturday (6)
+      count++;
+    }
+  }
+  return Math.max(1, count); // Avoid division by zero
+}
 
 // ==================== ATTENDANCE INTEGRATION ====================
 const getAttendance = async (req, res) => {
   try {
     const { employeeId, month } = req.query;
-    const filter = {};
-
+    
+    // Setup filter for user queries
+    const userQuery = {};
     if (req.user.role === 'employee') {
-      filter.employeeId = req.user.id;
+      userQuery._id = req.user.id;
     } else if (employeeId) {
-      filter.employeeId = employeeId;
+      userQuery._id = employeeId;
+    } else {
+      userQuery.role = { $in: ['employee', 'manager', 'hr'] };
     }
 
-    if (month) filter.month = month;
+    const users = await User.find(userQuery)
+      .populate('departmentId designationId')
+      .lean();
 
-    const records = await Attendance.find(filter)
-      .populate({
-        path: 'employeeId',
-        select: 'firstName lastName employeeCode email departmentId designationId profilePhoto gender role',
-        populate: { path: 'departmentId designationId' }
-      })
-      .sort('-month');
+    // Setup filter for daily punches
+    const punchQuery = {};
+    if (req.user.role === 'employee') {
+      punchQuery.employeeId = req.user.id;
+    } else if (employeeId) {
+      punchQuery.employeeId = employeeId;
+    }
+
+    if (month) {
+      punchQuery.month = month;
+    }
+
+    const punches = await AttendancePunch.find(punchQuery).lean();
+
+    // Get list of unique months to calculate summaries for
+    const uniqueMonths = month ? [month] : Array.from(new Set(punches.map(p => p.month)));
+    if (uniqueMonths.length === 0) {
+      const now = new Date();
+      uniqueMonths.push(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    }
+
+    const records = [];
+
+    // For every user and month, compile dynamic monthly summaries
+    users.forEach(user => {
+      uniqueMonths.forEach(m => {
+        const userMonthPunches = punches.filter(p => p.employeeId.toString() === user._id.toString() && p.month === m);
+        
+        let daysPresent = 0;
+        userMonthPunches.forEach(p => {
+          if (p.status === 'Present') daysPresent += 1;
+          else if (p.status === 'Half Day') daysPresent += 0.5;
+        });
+
+        const totalWorkingDays = getWeekdayCount(m);
+        const attendancePercentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
+
+        records.push({
+          _id: `${user._id}_${m}`,
+          employeeId: user,
+          month: m,
+          totalWorkingDays,
+          daysPresent,
+          attendancePercentage
+        });
+      });
+    });
+
+    // Sort records descending by month, then employee name
+    records.sort((a, b) => b.month.localeCompare(a.month));
 
     res.json(records);
   } catch (error) {

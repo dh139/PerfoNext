@@ -394,7 +394,7 @@ const WorkJournal = () => {
             </div>
             <h1 className="text-2xl font-black tracking-tight text-white">Daily Work Log & Evidence Center</h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Log your completed work daily with supporting proof. Approved work logs become verified evidence for quarterly reviews.
+              Log your completed work daily with supporting proof. Approved work logs become verified evidence for performance reviews.
             </p>
           </div>
 

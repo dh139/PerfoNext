@@ -679,7 +679,7 @@ const WorkJournalTemplates = () => {
                       type="text"
                       value={newFieldLabel}
                       onChange={(e) => setNewFieldLabel(e.target.value)}
-                      placeholder="e.g. Client Name or Deal Value ($)"
+                      placeholder="e.g. Client Name or Deal Value (RS)"
                       className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>

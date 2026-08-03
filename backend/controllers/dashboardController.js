@@ -31,7 +31,7 @@ const getDashboardData = async (req, res) => {
 
     const pendingSelfAssessments = [];
     
-    if (user && user.role !== 'executive' && user.role !== 'admin') {
+    if (user) {
       for (const cycle of activeCycles) {
         const isUnlockedForUser = cycle.unlockedUserIds?.some(uid => uid.toString() === userId.toString());
         if (cycle.status !== 'active' && !isUnlockedForUser) {
@@ -68,6 +68,7 @@ const getDashboardData = async (req, res) => {
             cycleId: cycle._id,
             reviewMonth: cycle.reviewMonth,
             endDate: cycle.endDate,
+            cycleType: cycle.cycleType,
             status: existingSelf ? existingSelf.status : 'not_started'
           });
         }
@@ -91,6 +92,7 @@ const getDashboardData = async (req, res) => {
     let finalScore = null;
     let ratingBand = null;
     let activeCycleId = null;
+    let activeCycleType = null;
 
     // Filter activeCycles that apply to this user's department and targetRole
     const relevantActiveCycles = activeCycles.filter(cycle => {
@@ -119,6 +121,7 @@ const getDashboardData = async (req, res) => {
     if (relevantActiveCycles.length > 0) {
       let currentCycle = relevantActiveCycles[0];
       activeCycleId = currentCycle._id;
+      activeCycleType = currentCycle.cycleType;
 
       const self = await SelfAssessment.findOne({ reviewCycleId: currentCycle._id, employeeId: userId });
       if (self) {
@@ -162,6 +165,7 @@ const getDashboardData = async (req, res) => {
         finalScore,
         ratingBand,
         activeCycleId,
+        activeCycleType,
         dailyWorkLogsCount: dailyWorkLogs.length,
         todayLogsCount: todayLogs.length,
         monthLogsCount: monthLogs.length
@@ -247,7 +251,14 @@ const getDashboardData = async (req, res) => {
         pendingSelfAssessmentsFromSubordinates,
         pendingSelfAssessments,
         activeCyclesCount: activeCycles.length,
-        notifications
+        notifications,
+        selfAssessmentStatus,
+        managerReviewStatus,
+        finalScoreFinalized,
+        finalScore,
+        ratingBand,
+        activeCycleId,
+        activeCycleType
       });
     }
 
@@ -357,14 +368,19 @@ const getDashboardData = async (req, res) => {
       // 3. Pending Manager Reviews for Executive / Admin / HR evaluation desk
       const pendingManagerReviews = [];
       const mongoose = require('mongoose');
-      const team = await User.find({
+      const teamQuery = {
         $or: [
           { managerId: userId },
-          { managerId: new mongoose.Types.ObjectId(userId) },
-          { role: { $in: ['manager', 'hr'] } }
+          { managerId: new mongoose.Types.ObjectId(userId) }
         ],
         employmentStatus: 'active'
-      }).populate('departmentId');
+      };
+
+      if (user.role === 'executive') {
+        teamQuery.$or.push({ role: { $in: ['manager', 'hr'] } });
+      }
+
+      const team = await User.find(teamQuery).populate('departmentId');
       for (const cycle of activeCycles) {
         if (cycle.status !== 'active') continue;
 
@@ -417,7 +433,14 @@ const getDashboardData = async (req, res) => {
         allEmployeeScores,
         allManagerScores,
         recentAudits,
-        notifications
+        notifications,
+        pendingSelfAssessments,
+        selfAssessmentStatus,
+        managerReviewStatus,
+        finalScoreFinalized,
+        finalScore,
+        ratingBand,
+        activeCycleId
       });
     }
 

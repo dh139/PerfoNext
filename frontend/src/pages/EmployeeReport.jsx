@@ -438,39 +438,15 @@ const EmployeeReport = () => {
                     </div>
                   </div>
 
-                  {/* 4 Architecture Badges */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
+                  {/* Logging Consistency Badge */}
+                  <div className="flex">
+                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs inline-block">
                       <span className="text-[9px] text-slate-400 font-bold uppercase block">Logging Consistency</span>
                       <span className={`font-extrabold text-[11px] mt-0.5 block ${
                         aiInsights.loggingConsistency === 'Excellent' || aiInsights.loggingConsistency === 'Good' ? 'text-emerald-400' :
                         aiInsights.loggingConsistency === 'Poor' ? 'text-rose-400' : 'text-amber-400'
                       }`}>
                         {aiInsights.loggingConsistency || 'Moderate'}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
-                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Productivity Trend</span>
-                      <span className="font-extrabold text-[11px] text-sky-300 mt-0.5 block">
-                        {aiInsights.productivityTrend || 'Consistent'}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
-                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Business Impact</span>
-                      <span className="font-extrabold text-[11px] text-purple-300 mt-0.5 block">
-                        {aiInsights.businessImpact || 'Medium'}
-                      </span>
-                    </div>
-
-                    <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-xs">
-                      <span className="text-[9px] text-slate-400 font-bold uppercase block">Attrition Risk</span>
-                      <span className={`font-extrabold text-[11px] mt-0.5 block ${
-                        aiInsights.turnoverRisk === 'Low' ? 'text-emerald-400' :
-                        aiInsights.turnoverRisk === 'High' ? 'text-rose-400' : 'text-amber-400'
-                      }`}>
-                        {aiInsights.turnoverRisk || 'Low'} Risk
                       </span>
                     </div>
                   </div>
@@ -539,7 +515,11 @@ const EmployeeReport = () => {
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar size={16} className="text-slate-400" />
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Review Cycle Month</h4>
+                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    {selectedScore?.reviewCycleId?.cycleType === 'yearly' || selectedScore?.reviewCycleId?.cycleType === 'annual' ? 'Review Cycle Year' :
+                     selectedScore?.reviewCycleId?.cycleType === 'half_yearly' ? 'Review Cycle Half-Year' :
+                     selectedScore?.reviewCycleId?.cycleType === 'quarterly' ? 'Review Cycle Quarter' : 'Review Cycle Month'}
+                  </h4>
                 </div>
                 <select
                   value={selectedCycleId}
@@ -548,7 +528,9 @@ const EmployeeReport = () => {
                 >
                   {scores.map(s => (
                     <option key={s.reviewCycleId._id} value={s.reviewCycleId._id}>
-                      Month: {s.reviewCycleId.reviewMonth}
+                      {s.reviewCycleId.cycleType === 'yearly' || s.reviewCycleId.cycleType === 'annual' ? 'Year: ' :
+                       s.reviewCycleId.cycleType === 'half_yearly' ? 'Half-Year: ' :
+                       s.reviewCycleId.cycleType === 'quarterly' ? 'Quarter: ' : 'Month: '}{s.reviewCycleId.reviewMonth}
                     </option>
                   ))}
                 </select>

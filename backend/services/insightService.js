@@ -4,10 +4,12 @@ const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 const Certification = require('../models/Certification');
 const Attendance = require('../models/Attendance');
+const AttendancePunch = require('../models/AttendancePunch');
 const Recognition = require('../models/Recognition');
 const AIReport = require('../models/AIReport');
 const ReviewCycle = require('../models/ReviewCycle');
 const WorkJournal = require('../models/WorkJournal');
+const WorkJournalTemplate = require('../models/WorkJournalTemplate');
 const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
@@ -119,10 +121,7 @@ const getAiInsights = async (employeeId, cycleId) => {
         strengths: cachedReport.strengths || [],
         improvements: cachedReport.improvements || [],
         sentiment: cachedReport.sentiment || 'Neutral',
-        turnoverRisk: cachedReport.turnoverRisk || 'Low',
-        productivityTrend: cachedReport.productivityTrend || 'Consistent',
         loggingConsistency: cachedReport.loggingConsistency || 'Moderate',
-        businessImpact: cachedReport.businessImpact || 'Medium',
         actionItems: cachedReport.actionItems || [],
         startDate: cachedReport.startDate || startBound,
         endDate: cachedReport.endDate || endBound,
@@ -186,6 +185,7 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
 
   const months = getMonthsInRange(startBound, endBound);
   const attendanceRecords = await Attendance.find({ employeeId, month: { $in: months } }).sort('month');
+  const dailyPunches = await AttendancePunch.find({ employeeId, date: { $gte: startBound, $lte: endBound } }).sort('date');
 
   // Work Journal Verified Evidence strictly in cycle window
   const workJournalItems = await WorkJournal.find({
@@ -213,20 +213,47 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
     }
   }
 
+  const deptId = employee.departmentId?._id || employee.departmentId;
+  const journalTemplate = deptId ? await WorkJournalTemplate.findOne({ departmentId: deptId }) : null;
+  const customFieldMap = {};
+  if (journalTemplate && journalTemplate.customFields) {
+    journalTemplate.customFields.forEach(f => {
+      customFieldMap[f.fieldKey] = f.label;
+    });
+  }
+
+  const actualLogs = workJournalItems.filter(w => !['certification', 'recognition', 'award'].includes(w.category?.toLowerCase()));
+  const actualLogsCount = actualLogs.length;
+
   // Construct analysis prompt context matching PerfoNext Architecture
   let historyContext = `EMPLOYEE EVIDENCE PROFILE (Evaluation Period: ${formatDateDDMMYYYY(startBound)} to ${formatDateDDMMYYYY(endBound)})
 Employee: ${employee.firstName} ${employee.lastName} (Code: ${employee.employeeCode})
 Designation: ${employee.designationId?.designationName || 'N/A'}
 Department: ${employee.departmentId?.departmentName || 'N/A'}
 
-1. VERIFIED APPROVED DAILY WORK LOGS (${workJournalItems.length} Entries Logged in Quarter):
+Note: The employee has logged a TOTAL of ${workJournalItems.length} records in their work journal, but only ${actualLogsCount} are ACTUAL daily work logs (the rest are certifications/awards recorded in the work journal). You MUST strictly apply the logging compliance penalty scale based on the ${actualLogsCount} actual daily work logs (severe under-logging penalty for 0-3 actual logs).
+
+1. VERIFIED APPROVED DAILY WORK LOGS (${workJournalItems.length} Entries Logged in this entire cycle period):
 `;
 
   if (workJournalItems.length === 0) {
     historyContext += '- Zero approved daily work logs recorded in this period.\n';
   } else {
     workJournalItems.forEach((w, idx) => {
-      historyContext += `${idx + 1}. [Category: ${w.category}] Title: "${w.title}" | Project: "${w.project || 'General'}" | Date Completed: ${formatDateDDMMYYYY(w.completedDate)} | Hours Logged: ${w.hoursSpent || 0} Hrs | Work Summary & Output Result: "${w.resultSummary || 'N/A'}" | Manager Review Note: "${w.managerFeedback || 'Good Work'}" | Evidence Proof Type: ${w.evidenceType}\n`;
+      let customFieldsStr = '';
+      if (w.customFieldsData && typeof w.customFieldsData === 'object' && Object.keys(w.customFieldsData).length > 0) {
+        const fields = [];
+        for (const [key, val] of Object.entries(w.customFieldsData)) {
+          if (val !== undefined && val !== null && val !== '') {
+            const label = customFieldMap[key] || key;
+            fields.push(`"${label}": "${val}"`);
+          }
+        }
+        if (fields.length > 0) {
+          customFieldsStr = ' | Custom Questions: ' + fields.join(', ');
+        }
+      }
+      historyContext += `${idx + 1}. [Category: ${w.category}] Title: "${w.title}" | Project: "${w.project || 'General'}" | Date Completed: ${formatDateDDMMYYYY(w.completedDate)} | Hours Logged: ${w.hoursSpent || 0} Hrs | Work Summary & Output Result: "${w.resultSummary || 'N/A'}" | Manager Review Note: "${w.managerFeedback || 'Good Work'}" | Evidence Proof Type: ${w.evidenceType}${customFieldsStr}\n`;
     });
   }
 
@@ -249,14 +276,78 @@ Department: ${employee.departmentId?.departmentName || 'N/A'}
     });
   }
 
-  historyContext += '\n3. ATTENDANCE PERCENTAGE RECORDS:\n';
-  if (attendanceRecords.length === 0) {
-    historyContext += '- No attendance records synchronized for this evaluation window.\n';
-  } else {
-    attendanceRecords.forEach(att => {
-      historyContext += `- Month: ${att.month} | Attendance: ${att.attendancePercentage}%\n`;
-    });
+  // 1. Calculate detailed attendance metrics from daily punches
+  let presentDays = 0;
+  let halfDays = 0;
+  let absentDays = 0;
+  let incompleteDays = 0;
+  let lateDays = 0;
+  let totalWorkingMinutes = 0;
+  let totalOvertimeMinutes = 0;
+  let totalLoginMs = 0;
+  let loginCount = 0;
+  let totalLogoutMs = 0;
+  let logoutCount = 0;
+  
+  dailyPunches.forEach(p => {
+    if (p.status === 'Present') presentDays++;
+    else if (p.status === 'Half Day') halfDays++;
+    else if (p.status === 'Absent') absentDays++;
+    else if (p.status === 'Incomplete') incompleteDays++;
+    
+    if (p.lateMinutes > 0) lateDays++;
+    totalWorkingMinutes += (p.workingMinutes || 0);
+    totalOvertimeMinutes += (p.overtimeMinutes || 0);
+    
+    if (p.punchIn) {
+      const pin = new Date(p.punchIn);
+      totalLoginMs += pin.getHours() * 3600000 + pin.getMinutes() * 60000 + pin.getSeconds() * 1000;
+      loginCount++;
+    }
+    if (p.punchOut) {
+      const pout = new Date(p.punchOut);
+      totalLogoutMs += pout.getHours() * 3600000 + pout.getMinutes() * 60000 + pout.getSeconds() * 1000;
+      logoutCount++;
+    }
+  });
+
+  const formatMsToTime = (ms) => {
+    if (ms === 0) return 'N/A';
+    const hours = Math.floor(ms / 3600000);
+    const minutes = Math.floor((ms % 3600000) / 60000);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    return `${String(formattedHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  };
+
+  const avgLoginTime = loginCount > 0 ? formatMsToTime(totalLoginMs / loginCount) : 'N/A';
+  const avgLogoutTime = logoutCount > 0 ? formatMsToTime(totalLogoutMs / logoutCount) : 'N/A';
+  
+  const avgWorkingHours = dailyPunches.filter(p => p.punchOut).length > 0
+    ? (totalWorkingMinutes / dailyPunches.filter(p => p.punchOut).length / 60).toFixed(2)
+    : '0.00';
+    
+  const overtimeHours = (totalOvertimeMinutes / 60).toFixed(2);
+  
+  let attendancePct = 0;
+  if (attendanceRecords.length > 0) {
+    const totalPresent = attendanceRecords.reduce((sum, r) => sum + (r.daysPresent || 0), 0);
+    const totalWorking = attendanceRecords.reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
+    attendancePct = totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100) : 0;
   }
+  
+  let consistency = 'Excellent';
+  if (lateDays > 5) consistency = 'Poor';
+  else if (lateDays > 2) consistency = 'Moderate';
+  else consistency = 'Excellent';
+
+  historyContext += `\n3. ATTENDANCE & PUNCH PERFORMANCE METRICS (Selected Review Cycle):
+- Attendance Rate: ${attendancePct}%
+- Total Present Days: ${presentDays} | Half Days: ${halfDays} | Absent Days: ${absentDays} | Incomplete Days: ${incompleteDays}
+- Late Arrivals Days: ${lateDays} (Consistency Rating: ${consistency})
+- Average Shift Login Time: ${avgLoginTime} | Average Shift Logout Time: ${avgLogoutTime}
+- Average Working Hours Per Punched Day: ${avgWorkingHours} Hrs | Overtime Accumulated: ${overtimeHours} Hrs
+`;
 
   historyContext += '\n4. VERIFIED PROFESSIONAL CERTIFICATIONS (Earned in Cycle):\n';
   if (certifications.length === 0) {
@@ -292,42 +383,49 @@ Department: ${employee.departmentId?.departmentName || 'N/A'}
     }
   }
 
-  const systemPrompt = `You are ChatGPT 5.6 Terra, an enterprise HR Performance Intelligence AI.
+  const systemPrompt = `You are PerfoNext AI Performance Intelligence, an enterprise HR Performance Auditor.
 
-Your primary objective is to deliver an HONEST, BRUTAL, EVIDENCE-BASED PERFORMANCE AUDIT for an employee based strictly on their verified Daily Work Logs, Manager Comments, Attendance, Certifications, Awards, and Manager Competency Ratings.
+Your primary objective is to deliver an HONEST, BRUTAL, EVIDENCE-BASED PERFORMANCE AUDIT for an employee based strictly on their verified Daily Work Logs, custom department questions/answers, Manager Comments, Attendance, Certifications, Awards, and Manager Competency Ratings.
 
 Evaluation Period:
 ${formatDateDDMMYYYY(startBound)} to ${formatDateDDMMYYYY(endBound)}
 
 CORE AUDIT DIRECTIVES & SCORING RULES:
 
-1. DAILY WORK LOGGING COMPLIANCE:
-- Analyze all work journal entries logged by the employee during this evaluation cycle.
-- Synthesize actual deliverable titles, work summaries, and project accomplishments.
-- Reference the review cycle period (e.g. 2026-H2) without using fixed "quarter" terminology unless cycleType is quarterly.
+1. DAILY WORK LOGGING COMPLIANCE & PENALTY SCALE (MANDATORY):
+- Daily work logging is a MANDATORY daily operational requirement. 
+- You MUST evaluate loggingConsistency and penalize the overall aiScore strictly based on the number of ACTUAL daily work logs (excluding certifications/awards registered in the work journal):
+  * 0–3 actual logs: loggingConsistency = "Poor", Overall aiScore MUST be capped between 1.00 and 2.90. (E.g., if the employee has only 2 actual daily work logs in a whole year, they must receive a score in this range).
+  * 4–8 actual logs: loggingConsistency = "Poor", Overall aiScore MUST be capped between 3.00 and 3.40.
+  * 9–20 actual logs: loggingConsistency = "Moderate", Overall aiScore MUST be capped between 3.50 and 3.80.
+  * 21–45 actual logs: loggingConsistency = "Good", Overall aiScore can be up to 4.20.
+  * 46+ actual logs: loggingConsistency = "Excellent", Overall aiScore can be up to 5.00.
+- DO NOT blindly copy high manager competency ratings if logging compliance is poor. Call out this severe operational deficiency in the summary, strengths, improvements, and rationale.
 
-2. EXPLICITLY ANALYZE CERTIFICATIONS & AWARDS:
-- You MUST explicitly reference verified professional certifications (e.g. "Sales Strategy" by AWS, "Marketing" by Udemy) and awards in summary, strengths, and rationale.
+2. MANDATORY ATTENDANCE ANALYSIS (MANDATORY):
+- You MUST explicitly read and analyze the employee's Attendance & Punch Performance Metrics (Attendance Rate, Present Days, Late Days, Half Days, Absent Days, Average Login/Logout Times, Average Working Hours, and Overtime Hours).
+- Comment on their arrival punctuality (Late Days), working hours consistency (Average Working Hours), and overtime contribution.
+- You MUST reference their specific attendance percentage (e.g. "attendance rate of X%") and key punch stats (e.g. "Y late arrivals", "Z overtime hours") in BOTH the synthesized "summary" and "aiScoreRationale" fields. Do not just say "attendance was good".
 
-3. DEPARTMENT-AGNOSTIC ADAPTATION:
-- Adapt your terminology dynamically based on Department and Designation (Engineering, Sales, Marketing, HR, Finance, Support, Administration).
+3. EXPLICITLY ANALYZE CERTIFICATIONS & AWARDS:
+- You MUST explicitly reference verified professional certifications and awards in summary, strengths, and rationale.
 
-4. ZERO GENERIC HR FLUFF:
+4. CUSTOM DEPARTMENT QUESTIONS:
+- Read, analyze, and cite the custom department-specific fields (e.g. "Deal Value (RS)", "Client / Company Name", "Lead / Deal Stage") provided in the work logs to make the summary highly specific and detailed.
+
+5. ZERO GENERIC HR FLUFF:
 - Every strength and development area MUST cite specific evidence (work logs, certificates, awards, or attendance). NEVER use generic fluff.
 
 Output JSON in this exact structure (raw JSON, no markdown formatting):
 {
-  "summary": "<2-3 sentence executive summary written as an HR Business Partner describing actual work deliverables, work summaries, credentials, awards, attendance, and manager ratings>",
-  "aiScore": 3.85,
+  "summary": "<2-3 sentence executive summary written as an HR Business Partner describing actual work deliverables, custom department question answers, credentials, awards, attendance percentage, and manager ratings>",
+  "aiScore": 2.50,
   "confidence": "High / Medium / Low",
-  "aiScoreRationale": "<1-2 sentence AI audit rationale explaining how the AI score was derived from work log evidence, manager competency ratings, attendance, certs, and awards>",
+  "aiScoreRationale": "<1-2 sentence AI audit rationale explaining how the AI score was derived from actual work log count, custom fields, manager competency ratings, attendance percentage, certs, and awards>",
   "strengths": ["<Evidence-grounded strength 1>", "<Evidence-grounded strength 2>"],
   "improvements": ["<Evidence-grounded improvement area 1>", "<Evidence-grounded improvement area 2>"],
   "sentiment": "Positive / Mixed / Critical",
-  "turnoverRisk": "Low / Medium / High",
-  "productivityTrend": "Consistent / Fluctuating / Improving / Declining",
   "loggingConsistency": "Excellent / Good / Moderate / Poor",
-  "businessImpact": "High / Medium / Low",
   "actionItems": ["<Action item 1>", "<Action item 2>"]
 }`;
 
@@ -352,7 +450,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
   if (!response.ok) {
     const errText = await response.text();
     console.warn('ChatGPT 5.6 Terra API responded with error, utilizing local analytics engine:', errText);
-    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards, workJournalItems);
+    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards, workJournalItems, customFieldMap);
 
     await AIReport.findOneAndUpdate(
       { employeeId, reviewCycleId: cycleId },
@@ -366,10 +464,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
         strengths: fallbackParsed.strengths || [],
         improvements: fallbackParsed.improvements || [],
         sentiment: fallbackParsed.sentiment || 'Neutral',
-        turnoverRisk: fallbackParsed.turnoverRisk || 'Low',
-        productivityTrend: fallbackParsed.productivityTrend || 'Fluctuating',
         loggingConsistency: fallbackParsed.loggingConsistency || 'Poor',
-        businessImpact: fallbackParsed.businessImpact || 'Medium',
         actionItems: fallbackParsed.actionItems || [],
         startDate: startBound,
         endDate: endBound,
@@ -404,10 +499,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       strengths: parsed.strengths || [],
       improvements: parsed.improvements || [],
       sentiment: parsed.sentiment || 'Neutral',
-      turnoverRisk: parsed.turnoverRisk || 'Low',
-      productivityTrend: parsed.productivityTrend || 'Fluctuating',
       loggingConsistency: parsed.loggingConsistency || 'Poor',
-      businessImpact: parsed.businessImpact || 'Medium',
       actionItems: parsed.actionItems || [],
       startDate: startBound,
       endDate: endBound,
@@ -435,8 +527,9 @@ const formatDateDDMMYYYY = (dateInput) => {
 };
 
 // Algorithmic local fallback synthesizing all employee evidence & manager feedback
-const generateLocalFallback = (scores, managerReviews, certifications = [], attendanceRecords = [], awards = [], workJournalItems = []) => {
-  const logCount = (workJournalItems || []).length;
+const generateLocalFallback = (scores, managerReviews, certifications = [], attendanceRecords = [], awards = [], workJournalItems = [], customFieldMap = {}) => {
+  const actualLogs = (workJournalItems || []).filter(w => !['certification', 'recognition', 'award'].includes(w.category?.toLowerCase()));
+  const actualLogCount = actualLogs.length;
   
   // 1. Work Journal Logging Compliance Audit (50% Weight)
   // Daily work logging is a mandatory daily operational requirement (not occasional!).
@@ -444,19 +537,19 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
   let loggingConsistency = 'Excellent';
   let confidence = 'High';
 
-  if (logCount <= 3) {
+  if (actualLogCount <= 3) {
     workLogQualityScore = 1.0; // 0-3 logs in cycle: Critical logging non-compliance
     loggingConsistency = 'Poor';
     confidence = 'Low';
-  } else if (logCount <= 8) {
+  } else if (actualLogCount <= 8) {
     workLogQualityScore = 2.0; // 4-8 logs in cycle: Severe under-logging penalty (<5% daily compliance)
     loggingConsistency = 'Poor';
     confidence = 'Medium';
-  } else if (logCount <= 20) {
+  } else if (actualLogCount <= 20) {
     workLogQualityScore = 3.0; // 9-20 logs in cycle: Irregular logging
     loggingConsistency = 'Moderate';
     confidence = 'High';
-  } else if (logCount <= 45) {
+  } else if (actualLogCount <= 45) {
     workLogQualityScore = 4.0; // 21-45 logs in cycle: Good logging
     loggingConsistency = 'Good';
     confidence = 'High';
@@ -501,12 +594,25 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
   // Synthesize actual work summaries from logged achievements
   const workSummariesList = workJournalItems.map(w => {
     const summaryText = w.resultSummary || w.description || '';
-    return `"${w.title}"${summaryText ? `: ${summaryText}` : ''}`;
+    let customFieldsStr = '';
+    if (w.customFieldsData && typeof w.customFieldsData === 'object' && Object.keys(w.customFieldsData).length > 0) {
+      const fields = [];
+      for (const [key, val] of Object.entries(w.customFieldsData)) {
+        if (val !== undefined && val !== null && val !== '') {
+          const label = customFieldMap[key] || key;
+          fields.push(`${label}: ${val}`);
+        }
+      }
+      if (fields.length > 0) {
+        customFieldsStr = ` (${fields.join(', ')})`;
+      }
+    }
+    return `"${w.title}"${summaryText ? `: ${summaryText}` : ''}${customFieldsStr}`;
   });
   const topWorkSummaries = workSummariesList.slice(0, 3).join('; ');
 
   // Build Honest Rationale
-  let aiScoreRationale = `Independent AI Audit Score is ${aiScore.toFixed(2)}/5.0. Derived from 50% Work Journal Proof (${logCount} entries logged in cycle), 20% Manager Competency Evaluation (${mgrCompAvg.toFixed(2)}/5.0), 10% Attendance (${avgAttendance.toFixed(1)}%), 10% Certifications (${certifications.length} active), and 10% Awards (${awards.length} active).`;
+  let aiScoreRationale = `Independent AI Audit Score is ${aiScore.toFixed(2)}/5.0. Derived from 50% Work Journal Proof (${actualLogCount} actual entries logged in cycle), 20% Manager Competency Evaluation (${mgrCompAvg.toFixed(2)}/5.0), 10% Attendance (${avgAttendance.toFixed(1)}%), 10% Certifications (${certifications.length} active), and 10% Awards (${awards.length} active).`;
   if (mgrComments) {
     aiScoreRationale += ` Manager feedback note: "${mgrComments}".`;
   }
@@ -526,10 +632,10 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
 
   // Build Honest Improvement Areas
   const improvements = [];
-  if (logCount <= 10) {
-    improvements.push(`Increase daily work log submission frequency (currently ${logCount} entries logged in cycle). Regular daily logging ensures full visibility into daily achievements and output.`);
-  } else if (logCount < 30) {
-    improvements.push(`Maintain consistent daily work logging throughout the review cycle (currently ${logCount} entries).`);
+  if (actualLogCount <= 10) {
+    improvements.push(`Increase daily work log submission frequency (currently ${actualLogCount} entries logged in cycle). Regular daily logging ensures full visibility into daily achievements and output.`);
+  } else if (actualLogCount < 30) {
+    improvements.push(`Maintain consistent daily work logging throughout the review cycle (currently ${actualLogCount} entries).`);
   }
   if (avgAttendance < 90) {
     improvements.push(`Target attendance improvement above 90% (currently ${avgAttendance.toFixed(1)}%).`);
@@ -559,11 +665,8 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
     aiScoreRationale,
     strengths,
     improvements,
-    sentiment: logCount <= 5 ? 'Mixed' : (aiScore >= 4.0 ? 'Positive' : 'Neutral'),
-    turnoverRisk: 'Low',
-    productivityTrend: logCount >= 20 ? 'Improving' : 'Fluctuating',
+    sentiment: actualLogCount <= 5 ? 'Mixed' : (aiScore >= 4.0 ? 'Positive' : 'Neutral'),
     loggingConsistency,
-    businessImpact: logCount <= 5 ? 'Low' : 'High',
     actionItems: [
       'Establish a mandatory daily work log submission routine (at least 4-5 logs per week).',
       certifications.length > 0 ? 'Leverage active certifications for high-impact project architecture.' : 'Pursue role-based technical certifications.'

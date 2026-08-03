@@ -29,10 +29,6 @@ const aiReportSchema = new mongoose.Schema({
     type: String,
     default: 'Neutral'
   },
-  turnoverRisk: {
-    type: String,
-    default: 'Low'
-  },
   actionItems: {
     type: [String],
     default: []
@@ -49,17 +45,9 @@ const aiReportSchema = new mongoose.Schema({
     type: String,
     default: 'High'
   },
-  productivityTrend: {
-    type: String,
-    default: 'Consistent'
-  },
   loggingConsistency: {
     type: String,
     default: 'Moderate'
-  },
-  businessImpact: {
-    type: String,
-    default: 'Medium'
   },
   prompt: {
     type: String

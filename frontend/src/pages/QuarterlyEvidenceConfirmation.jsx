@@ -50,12 +50,15 @@ const QuarterlyEvidenceConfirmation = () => {
   const { user } = useAuthStore();
 
   const [cycle, setCycle] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [approvedLogs, setApprovedLogs] = useState([]);
   const [certifications, setCertifications] = useState([]);
   const [awards, setAwards] = useState([]);
   const [attendancePct, setAttendancePct] = useState(null);
   const [attendanceLabel, setAttendanceLabel] = useState('N/A (No Logs)');
   const [dateWindowLabel, setDateWindowLabel] = useState('');
+
+  const typeLabel = cycle?.cycleType === 'yearly' ? 'Yearly' : (cycle?.cycleType === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
 
   // Pagination & Filtering for 200-300+ logs
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,6 +79,24 @@ const QuarterlyEvidenceConfirmation = () => {
         const cycleRes = await api.get(`/api/review-cycles/${cycleId}`);
         const cycleData = cycleRes.data;
         setCycle(cycleData);
+
+        // Fetch department template categories dynamically
+        const deptId = user?.departmentId?._id || user?.departmentId;
+        if (deptId) {
+          try {
+            const templateRes = await api.get(`/api/work-journal-templates/department/${deptId}`);
+            if (templateRes.data && templateRes.data.categories && templateRes.data.categories.length > 0) {
+              setCategories(templateRes.data.categories.map(c => c.name));
+            } else {
+              setCategories(CATEGORIES);
+            }
+          } catch (e) {
+            console.error('Failed to fetch department template categories:', e);
+            setCategories(CATEGORIES);
+          }
+        } else {
+          setCategories(CATEGORIES);
+        }
 
         // Calculate evaluation date window [rStart, rEnd]
         let rStart = cycleData.startDate;
@@ -137,6 +158,9 @@ const QuarterlyEvidenceConfirmation = () => {
 
         setDateWindowLabel(`${formatDateDDMMYYYY(rStart)} – ${formatDateDDMMYYYY(rEnd)}`);
 
+        const startObj = new Date(rStart);
+        const endObj = new Date(rEnd);
+
         let queryParams = `?status=approved`;
         if (rStart && rEnd) {
           queryParams += `&startDate=${encodeURIComponent(rStart)}&endDate=${encodeURIComponent(rEnd)}`;
@@ -182,15 +206,16 @@ const QuarterlyEvidenceConfirmation = () => {
 
         // 5. Fetch Attendance record for the exact months in this review cycle
         try {
-          const attRes = await api.get('/api/integrations/attendance');
+          const attRes = await api.get(`/api/integrations/attendance?employeeId=${currentUserId}`);
           const allAtt = attRes.data || [];
           const cycleAttRecords = allAtt.filter(att => monthKeys.includes(att.month));
 
           if (cycleAttRecords.length > 0) {
-            const avgPct = cycleAttRecords.reduce((sum, r) => sum + (r.attendancePercentage || 0), 0) / cycleAttRecords.length;
-            const finalPct = Math.round(avgPct);
+            const totalPresent = cycleAttRecords.reduce((sum, r) => sum + (r.daysPresent || 0), 0);
+            const totalWorking = cycleAttRecords.reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
+            const finalPct = totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100) : 0;
             setAttendancePct(finalPct);
-            setAttendanceLabel(`${finalPct}%`);
+            setAttendanceLabel(`${finalPct}% (${totalPresent} / ${totalWorking} days)`);
           } else {
             setAttendancePct(null);
             setAttendanceLabel('N/A (No Logs)');
@@ -208,7 +233,7 @@ const QuarterlyEvidenceConfirmation = () => {
         if (existing) {
           setAssessmentStatus(existing.status);
           if (existing.status === 'submitted') {
-            setGeneralError('Your quarterly evidence confirmation has already been submitted to your reporting manager.');
+            setGeneralError(`Your ${typeLabel.toLowerCase()} evidence confirmation has already been submitted to your reporting manager.`);
           }
         }
       } catch (err) {
@@ -251,11 +276,11 @@ const QuarterlyEvidenceConfirmation = () => {
       });
 
       setAssessmentStatus('submitted');
-      toast.success('Quarterly Evidence confirmed and submitted successfully!');
+      toast.success(`${typeLabel} Evidence confirmed and submitted successfully!`);
       navigate('/', { replace: true });
     } catch (err) {
       console.error(err);
-      setGeneralError(err.response?.data?.message || 'Failed to confirm quarterly evidence.');
+      setGeneralError(err.response?.data?.message || `Failed to confirm ${typeLabel.toLowerCase()} evidence.`);
     } finally {
       setSubmitting(false);
     }
@@ -325,7 +350,7 @@ const QuarterlyEvidenceConfirmation = () => {
               )}
             </div>
             <h2 className="text-xl font-black text-white tracking-tight">
-              Quarterly Evidence Confirmation
+              {typeLabel} Evidence Confirmation
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed font-medium">
               Review your automatically collected evidence for this evaluation period ({dateWindowLabel}). Zero manual typing required.
@@ -363,7 +388,7 @@ const QuarterlyEvidenceConfirmation = () => {
             <span className={`text-base font-black ${attendancePct !== null ? 'text-amber-400' : 'text-slate-400'}`}>
               {attendancePct !== null ? `✔ ${attendanceLabel}` : '⚠️ N/A (No Logs)'}
             </span>
-            <span className="text-[9px] text-slate-400 block">Quarterly attendance</span>
+            <span className="text-[9px] text-slate-400 block">{typeLabel} attendance</span>
           </div>
         </div>
       </div>
@@ -420,7 +445,7 @@ const QuarterlyEvidenceConfirmation = () => {
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
             >
               <option value="all">All Categories</option>
-              {CATEGORIES.map(cat => (
+              {categories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -501,7 +526,7 @@ const QuarterlyEvidenceConfirmation = () => {
       {assessmentStatus !== 'submitted' && (
         <div className="flex justify-between items-center bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
           <div>
-            <span className="font-extrabold text-slate-900 text-xs block">Ready to confirm your quarterly evidence?</span>
+            <span className="font-extrabold text-slate-900 text-xs block">Ready to confirm your {typeLabel.toLowerCase()} evidence?</span>
             <span className="text-slate-500 text-[11px]">
               {approvedLogs.length === 0
                 ? '⚠️ Submission disabled: Log your work in Daily Work Log first.'
