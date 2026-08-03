@@ -1,32 +1,128 @@
 const AttendancePunch = require('../models/AttendancePunch');
+const AttendanceSettings = require('../models/AttendanceSettings');
+const AttendanceSettingsHistory = require('../models/AttendanceSettingsHistory');
+const Holiday = require('../models/Holiday');
 const User = require('../models/User');
 const Department = require('../models/Department');
 const { logAction } = require('../utils/logger');
 const mongoose = require('mongoose');
 
-// POST /attendance/punch-in
+// ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
+
+const parseTimeStr = (str) => {
+  if (!str) return { hours: 9, minutes: 0 };
+  const match = str.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return { hours: 9, minutes: 0 };
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const ampm = match[3];
+  if (ampm === 'PM' && hours < 12) hours += 12;
+  if (ampm === 'AM' && hours === 12) hours = 0;
+  return { hours, minutes };
+};
+
+const getDateWithTime = (baseDate, timeStr) => {
+  const d = new Date(baseDate);
+  const { hours, minutes } = parseTimeStr(timeStr);
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+};
+
+// Singleton Settings Fetcher
+const getActiveSettings = async () => {
+  let settings = await AttendanceSettings.findOne().sort('-version');
+  if (!settings) {
+    settings = new AttendanceSettings({ version: 1 });
+    await settings.save();
+  }
+  return settings;
+};
+
+// Auto Punch-Out helper
+const autoCloseIncompletePunches = async (settings) => {
+  if (!settings.attendanceRules?.autoPunchOut?.enable) return;
+
+  const autoTimeStr = settings.attendanceRules.autoPunchOut.time || '11:59 PM';
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayDate = new Date(todayStr);
+
+  // Find all punches from previous days that don't have punchOut and aren't Auto Closed yet
+  const incompletePunches = await AttendancePunch.find({
+    date: { $lt: todayDate },
+    punchIn: { $exists: true },
+    punchOut: { $exists: null },
+    status: { $ne: 'Auto Closed' }
+  });
+
+  if (incompletePunches.length === 0) return;
+
+  const rules = settings.attendanceRules;
+  for (const punch of incompletePunches) {
+    const punchDateStr = punch.date.toISOString().split('T')[0];
+    const outTime = getDateWithTime(new Date(punchDateStr), autoTimeStr);
+    
+    punch.punchOut = outTime;
+    
+    const totalDurationMinutes = Math.round((outTime.getTime() - punch.punchIn.getTime()) / 60000);
+    punch.totalDurationMinutes = totalDurationMinutes;
+    punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+    
+    const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
+    punch.workingMinutes = workingMinutes;
+    
+    const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
+    punch.earlyExitMinutes = outTime < shiftEnd ? Math.round((shiftEnd.getTime() - outTime.getTime()) / 60000) : 0;
+    
+    let overtimeMinutes = 0;
+    if (rules.enableOvertime) {
+      const extraMins = Math.round((outTime.getTime() - shiftEnd.getTime()) / 60000);
+      if (extraMins >= (rules.overtimeMinMinutes || 30)) {
+        overtimeMinutes = Math.floor(extraMins / (rules.overtimeRoundMinutes || 15)) * (rules.overtimeRoundMinutes || 15);
+      }
+    }
+    punch.overtimeMinutes = overtimeMinutes;
+    punch.status = 'Auto Closed';
+
+    await punch.save();
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUNCH IN
+// ─────────────────────────────────────────────────────────────────────────────
 const punchIn = async (req, res) => {
   try {
     if (req.user.role === 'executive' || req.user.role === 'admin') {
       return res.status(403).json({ message: 'CEO and Admins are not allowed to punch attendance.' });
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const settings = await getActiveSettings();
+    const rules = settings.attendanceRules;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
+    // 1. Holiday Check
+    const holiday = await Holiday.findOne({ date: todayStr });
+    if (holiday) {
+      return res.status(400).json({ message: `Today is ${holiday.name} (${holiday.type} Holiday). Punching is disabled.` });
+    }
+
+    // 2. Weekend Check
+    if (rules.weekends && rules.weekends.includes(todayDate.getDay())) {
+      return res.status(400).json({ message: 'Today is configured as a weekend. Attendance punching is not available.' });
+    }
+
+    // 3. Duplicate Punch In check
     let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
-    if (punch && punch.punchIn) {
+    if (punch && punch.punchIn && rules.multiplePunchPrevention?.onePunchInPerDay) {
       return res.status(400).json({ message: 'You have already punched in for today.' });
     }
 
-    const now = new Date();
-    const shiftStart = new Date(todayDate);
-    shiftStart.setHours(9, 0, 0, 0);
-
-    let lateMinutes = 0;
-    if (now > shiftStart) {
-      lateMinutes = Math.round((now.getTime() - shiftStart.getTime()) / (1000 * 60));
-    }
+    // 4. Late calculations
+    const shiftStart = getDateWithTime(todayDate, rules.officeStartTime);
+    const graceEnd = new Date(shiftStart.getTime() + (rules.graceMinutes || 0) * 60000);
+    const lateMinutes = now > graceEnd ? Math.round((now.getTime() - shiftStart.getTime()) / 60000) : 0;
 
     if (!punch) {
       punch = new AttendancePunch({
@@ -34,7 +130,7 @@ const punchIn = async (req, res) => {
         date: todayDate,
         month: todayStr.substring(0, 7),
         punchIn: now,
-        status: 'Incomplete',
+        status: lateMinutes > 0 ? 'Late' : 'Incomplete',
         lateMinutes,
         ipAddress: req.ip || '',
         browser: req.headers['user-agent'] || '',
@@ -43,21 +139,12 @@ const punchIn = async (req, res) => {
       });
     } else {
       punch.punchIn = now;
-      punch.status = 'Incomplete';
+      punch.status = lateMinutes > 0 ? 'Late' : 'Incomplete';
       punch.lateMinutes = lateMinutes;
     }
 
     await punch.save();
-
-    await logAction({
-      req,
-      userId: req.user.id,
-      action: 'EMPLOYEE_PUNCH_IN',
-      module: 'Attendance',
-      status: 'SUCCESS',
-      entityType: 'AttendancePunch',
-      entityId: punch._id
-    });
+    await logAction({ req, userId: req.user.id, action: 'EMPLOYEE_PUNCH_IN', module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
     res.json({ message: 'Punched in successfully.', punch });
   } catch (error) {
@@ -66,68 +153,67 @@ const punchIn = async (req, res) => {
   }
 };
 
-// POST /attendance/punch-out
+// ─────────────────────────────────────────────────────────────────────────────
+// PUNCH OUT
+// ─────────────────────────────────────────────────────────────────────────────
 const punchOut = async (req, res) => {
   try {
     if (req.user.role === 'executive' || req.user.role === 'admin') {
       return res.status(403).json({ message: 'CEO and Admins are not allowed to punch attendance.' });
     }
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const settings = await getActiveSettings();
+    const rules = settings.attendanceRules;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
     const punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
     if (!punch || !punch.punchIn) {
       return res.status(400).json({ message: 'You must punch in first before punching out.' });
     }
-    if (punch.punchOut) {
+    if (punch.punchOut && rules.multiplePunchPrevention?.onePunchOutPerDay) {
       return res.status(400).json({ message: 'You have already punched out for today.' });
     }
 
-    const now = new Date();
+    const shiftEnd = getDateWithTime(todayDate, rules.officeEndTime);
     punch.punchOut = now;
 
-    const totalDurationMinutes = Math.round((now.getTime() - punch.punchIn.getTime()) / (1000 * 60));
+    const totalDurationMinutes = Math.round((now.getTime() - punch.punchIn.getTime()) / 60000);
     punch.totalDurationMinutes = totalDurationMinutes;
-    punch.lunchDeductionMinutes = 60;
-    
-    const workingMinutes = Math.max(0, totalDurationMinutes - 60);
+    punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+
+    const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
     punch.workingMinutes = workingMinutes;
 
-    const shiftEnd = new Date(todayDate);
-    shiftEnd.setHours(18, 0, 0, 0);
+    // Early exit check
+    punch.earlyExitMinutes = now < shiftEnd ? Math.round((shiftEnd.getTime() - now.getTime()) / 60000) : 0;
 
-    let earlyExitMinutes = 0;
-    if (now < shiftEnd) {
-      earlyExitMinutes = Math.round((shiftEnd.getTime() - now.getTime()) / (1000 * 60));
-    }
-    punch.earlyExitMinutes = earlyExitMinutes;
-
+    // Overtime check
     let overtimeMinutes = 0;
-    if (workingMinutes > 480) {
-      overtimeMinutes = workingMinutes - 480;
+    if (rules.enableOvertime) {
+      const extraMins = Math.round((now.getTime() - shiftEnd.getTime()) / 60000);
+      if (extraMins >= (rules.overtimeMinMinutes || 30)) {
+        overtimeMinutes = Math.floor(extraMins / (rules.overtimeRoundMinutes || 15)) * (rules.overtimeRoundMinutes || 15);
+      }
     }
     punch.overtimeMinutes = overtimeMinutes;
 
-    if (workingMinutes >= 480) {
-      punch.status = 'Present';
-    } else if (workingMinutes >= 240) {
+    // Status assignment
+    const presentMins = (rules.presentHours || 8) * 60;
+    const halfDayMins = (rules.halfDayHours || 4) * 60;
+
+    if (workingMinutes >= presentMins) {
+      // If punchIn was late, maintain Late status or set Present
+      punch.status = punch.lateMinutes > 0 ? 'Late' : 'Present';
+    } else if (workingMinutes >= halfDayMins) {
       punch.status = 'Half Day';
     } else {
       punch.status = 'Absent';
     }
 
     await punch.save();
-
-    await logAction({
-      req,
-      userId: req.user.id,
-      action: 'EMPLOYEE_PUNCH_OUT',
-      module: 'Attendance',
-      status: 'SUCCESS',
-      entityType: 'AttendancePunch',
-      entityId: punch._id
-    });
+    await logAction({ req, userId: req.user.id, action: 'EMPLOYEE_PUNCH_OUT', module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
     res.json({ message: 'Punched out successfully.', punch });
   } catch (error) {
@@ -136,23 +222,44 @@ const punchOut = async (req, res) => {
   }
 };
 
-// GET /attendance/today
+// ─────────────────────────────────────────────────────────────────────────────
+// TODAY'S ATTENDANCE
+// ─────────────────────────────────────────────────────────────────────────────
 const getTodayAttendance = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const settings = await getActiveSettings();
+    await autoCloseIncompletePunches(settings);
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
+    const holiday = await Holiday.findOne({ date: todayStr });
+    const isWeekend = settings.attendanceRules.weekends.includes(todayDate.getDay());
+
     const punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
-    res.json(punch || { status: 'Not Punched Yet' });
+    
+    res.json({
+      punch: punch || { status: 'Not Punched Yet' },
+      isHoliday: !!holiday,
+      holidayName: holiday ? holiday.name : null,
+      isWeekend,
+      settings: settings.attendanceRules
+    });
   } catch (error) {
     console.error('getTodayAttendance error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// GET /attendance/history
+// ─────────────────────────────────────────────────────────────────────────────
+// HISTORY
+// ─────────────────────────────────────────────────────────────────────────────
 const getHistory = async (req, res) => {
   try {
+    const settings = await getActiveSettings();
+    await autoCloseIncompletePunches(settings);
+
     let targetEmployeeId = req.user.id;
     if (req.query.employeeId && ['hr', 'admin', 'manager', 'executive'].includes(req.user.role)) {
       targetEmployeeId = req.query.employeeId;
@@ -167,12 +274,13 @@ const getHistory = async (req, res) => {
   }
 };
 
-// GET /attendance/calendar
+// ─────────────────────────────────────────────────────────────────────────────
+// CALENDAR
+// ─────────────────────────────────────────────────────────────────────────────
 const getCalendar = async (req, res) => {
   try {
-    const { month } = req.query; // YYYY-MM
+    const { month } = req.query;
     if (!month) return res.status(400).json({ message: 'month parameter is required.' });
-
     const punches = await AttendancePunch.find({ employeeId: req.user.id, month }).sort('date');
     res.json(punches);
   } catch (error) {
@@ -181,7 +289,9 @@ const getCalendar = async (req, res) => {
   }
 };
 
-// POST /attendance/regularization
+// ─────────────────────────────────────────────────────────────────────────────
+// REGULARIZATION — SUBMIT
+// ─────────────────────────────────────────────────────────────────────────────
 const submitRegularization = async (req, res) => {
   try {
     const { date, requestedPunchIn, requestedPunchOut, reason } = req.body;
@@ -189,16 +299,23 @@ const submitRegularization = async (req, res) => {
       return res.status(400).json({ message: 'date, requestedPunchIn, requestedPunchOut, and reason are required.' });
     }
 
-    const targetDate = new Date(date.split('T')[0]);
+    const settings = await getActiveSettings();
+    const rules = settings.attendanceRules;
+    const targetDateStr = date.split('T')[0];
+    const targetDate = new Date(targetDateStr);
 
     let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: targetDate });
     if (!punch) {
       punch = new AttendancePunch({
         employeeId: req.user.id,
         date: targetDate,
-        month: date.split('T')[0].substring(0, 7),
+        month: targetDateStr.substring(0, 7),
         status: 'Absent'
       });
+    }
+
+    if (punch.regularizationStatus === 'pending' && rules.multiplePunchPrevention?.preventDuplicateRequests) {
+      return res.status(400).json({ message: 'A regularization request for this date is already pending.' });
     }
 
     punch.requestedPunchIn = new Date(requestedPunchIn);
@@ -207,16 +324,7 @@ const submitRegularization = async (req, res) => {
     punch.regularizationReason = reason;
 
     await punch.save();
-
-    await logAction({
-      req,
-      userId: req.user.id,
-      action: 'REGULARIZATION_SUBMITTED',
-      module: 'Attendance',
-      status: 'SUCCESS',
-      entityType: 'AttendancePunch',
-      entityId: punch._id
-    });
+    await logAction({ req, userId: req.user.id, action: 'REGULARIZATION_SUBMITTED', module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
     res.json({ message: 'Regularization request submitted successfully.', punch });
   } catch (error) {
@@ -225,12 +333,14 @@ const submitRegularization = async (req, res) => {
   }
 };
 
-// GET /attendance/pending-regularization
+// ─────────────────────────────────────────────────────────────────────────────
+// REGULARIZATION — PENDING LIST
+// ─────────────────────────────────────────────────────────────────────────────
 const getPendingRegularizations = async (req, res) => {
   try {
-    let filter = { 
+    let filter = {
       regularizationStatus: 'pending',
-      employeeId: { $ne: req.user.id } // Never allow viewing one's own regularization request for review
+      employeeId: { $ne: req.user.id }
     };
 
     if (req.user.role === 'manager') {
@@ -238,15 +348,11 @@ const getPendingRegularizations = async (req, res) => {
       const reportIds = reports.map(r => r._id);
       filter.employeeId = { $in: reportIds, $ne: req.user.id };
     } else if (req.user.role === 'hr') {
-      // HR only reviews standard employees (cannot review managers or other HR/themselves)
       const users = await User.find({ role: 'employee' }).select('_id');
-      const employeeIds = users.map(u => u._id);
-      filter.employeeId = { $in: employeeIds, $ne: req.user.id };
+      filter.employeeId = { $in: users.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'executive') {
-      // CEO (executive) reviews Managers and HR Managers (and optionally employees if needed)
       const users = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
-      const userIds = users.map(u => u._id);
-      filter.employeeId = { $in: userIds, $ne: req.user.id };
+      filter.employeeId = { $in: users.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'employee') {
       return res.status(403).json({ message: 'Access denied.' });
     }
@@ -262,10 +368,12 @@ const getPendingRegularizations = async (req, res) => {
   }
 };
 
-// POST /attendance/review-regularization
+// ─────────────────────────────────────────────────────────────────────────────
+// REGULARIZATION — REVIEW
+// ─────────────────────────────────────────────────────────────────────────────
 const reviewRegularization = async (req, res) => {
   try {
-    const { id, status } = req.body; // status: 'approved' or 'rejected'
+    const { id, status } = req.body;
     if (!id || !['approved', 'rejected'].includes(status)) {
       return res.status(400).json({ message: 'id and status (approved/rejected) are required.' });
     }
@@ -273,73 +381,55 @@ const reviewRegularization = async (req, res) => {
     const punch = await AttendancePunch.findById(id);
     if (!punch) return res.status(404).json({ message: 'Punch record not found.' });
 
-    // Prevent self-approval/rejection under all circumstances
     if (punch.employeeId.toString() === req.user.id.toString()) {
       return res.status(403).json({ message: 'You cannot review your own regularization request.' });
     }
 
     const requester = await User.findById(punch.employeeId);
-    if (!requester) {
-      return res.status(404).json({ message: 'Requester user record not found.' });
-    }
+    if (!requester) return res.status(404).json({ message: 'Requester not found.' });
 
-    // Role-based routing: Managers/HR requests can ONLY be reviewed by the CEO (executive)
-    if (['manager', 'hr'].includes(requester.role)) {
-      if (req.user.role !== 'executive') {
-        return res.status(403).json({ message: 'Regularization requests for managers and HR can only be approved/rejected by the CEO.' });
-      }
-    } else if (requester.role === 'employee') {
-      // Standard employees can be reviewed by HR, Manager, or CEO
-      if (req.user.role !== 'hr' && req.user.role !== 'manager' && req.user.role !== 'executive' && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Unauthorized to review employee regularization.' });
-      }
-      // If manager, verify they are the direct reporting manager of this employee
-      if (req.user.role === 'manager' && requester.managerId?.toString() !== req.user.id.toString()) {
-        return res.status(403).json({ message: 'You can only review regularization requests of your direct reportees.' });
-      }
+    if (['manager', 'hr'].includes(requester.role) && req.user.role !== 'executive') {
+      return res.status(403).json({ message: 'Only the CEO can approve regularization for managers and HR.' });
+    }
+    if (requester.role === 'employee' && !['hr', 'manager', 'executive', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'Unauthorized.' });
+    }
+    if (req.user.role === 'manager' && requester.managerId?.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ message: 'You can only review regularization requests of your direct reportees.' });
     }
 
     if (status === 'approved') {
+      const settings = await getActiveSettings();
+      const rules = settings.attendanceRules;
+
       punch.punchIn = punch.requestedPunchIn;
       punch.punchOut = punch.requestedPunchOut;
-      
-      const totalDurationMinutes = Math.round((punch.punchOut.getTime() - punch.punchIn.getTime()) / (1000 * 60));
-      punch.totalDurationMinutes = totalDurationMinutes;
-      punch.lunchDeductionMinutes = 60;
-      
-      const workingMinutes = Math.max(0, totalDurationMinutes - 60);
-      punch.workingMinutes = workingMinutes;
 
-      const shiftStart = new Date(punch.date);
-      shiftStart.setHours(9, 0, 0, 0);
-      let lateMinutes = 0;
-      if (punch.punchIn > shiftStart) {
-        lateMinutes = Math.round((punch.punchIn.getTime() - shiftStart.getTime()) / (1000 * 60));
-      }
-      punch.lateMinutes = lateMinutes;
+      const shiftStart = getDateWithTime(punch.date, rules.officeStartTime);
+      const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
+      const graceEnd = new Date(shiftStart.getTime() + (rules.graceMinutes || 0) * 60000);
 
-      const shiftEnd = new Date(punch.date);
-      shiftEnd.setHours(18, 0, 0, 0);
-      let earlyExitMinutes = 0;
-      if (punch.punchOut < shiftEnd) {
-        earlyExitMinutes = Math.round((shiftEnd.getTime() - punch.punchOut.getTime()) / (1000 * 60));
-      }
-      punch.earlyExitMinutes = earlyExitMinutes;
+      punch.lateMinutes = punch.punchIn > graceEnd ? Math.round((punch.punchIn.getTime() - shiftStart.getTime()) / 60000) : 0;
 
-      let overtimeMinutes = 0;
-      if (workingMinutes > 480) {
-        overtimeMinutes = workingMinutes - 480;
-      }
-      punch.overtimeMinutes = overtimeMinutes;
+      const total = Math.round((punch.punchOut.getTime() - punch.punchIn.getTime()) / 60000);
+      punch.totalDurationMinutes = total;
+      punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
 
-      if (workingMinutes >= 480) {
-        punch.status = 'Present';
-      } else if (workingMinutes >= 240) {
+      const working = Math.max(0, total - punch.lunchDeductionMinutes);
+      punch.workingMinutes = working;
+      punch.earlyExitMinutes = punch.punchOut < shiftEnd ? Math.round((shiftEnd.getTime() - punch.punchOut.getTime()) / 60000) : 0;
+
+      const presentMins = (rules.presentHours || 8) * 60;
+      const halfDayMins = (rules.halfDayHours || 4) * 60;
+
+      if (working >= presentMins) {
+        punch.status = 'Regularized';
+      } else if (working >= halfDayMins) {
         punch.status = 'Half Day';
       } else {
         punch.status = 'Absent';
       }
-      
+
       punch.regularizationStatus = 'approved';
     } else {
       punch.regularizationStatus = 'rejected';
@@ -347,27 +437,19 @@ const reviewRegularization = async (req, res) => {
 
     punch.requestedPunchIn = null;
     punch.requestedPunchOut = null;
-
     await punch.save();
+    await logAction({ req, userId: req.user.id, action: `REGULARIZATION_${status.toUpperCase()}`, module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
-    await logAction({
-      req,
-      userId: req.user.id,
-      action: `REGULARIZATION_${status.toUpperCase()}`,
-      module: 'Attendance',
-      status: 'SUCCESS',
-      entityType: 'AttendancePunch',
-      entityId: punch._id
-    });
-
-    res.json({ message: `Regularization request ${status} successfully.`, punch });
+    res.json({ message: `Regularization ${status} successfully.`, punch });
   } catch (error) {
     console.error('reviewRegularization error:', error);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
-// GET /ceo/attendance-summary
+// ─────────────────────────────────────────────────────────────────────────────
+// CEO ATTENDANCE SUMMARY
+// ─────────────────────────────────────────────────────────────────────────────
 const getCeoSummary = async (req, res) => {
   try {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -375,115 +457,53 @@ const getCeoSummary = async (req, res) => {
 
     const eligibleRoles = ['employee', 'manager', 'hr'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
+    const punches = await AttendancePunch.find({ date: todayDate })
+      .populate('employeeId', 'firstName lastName role departmentId');
 
-    const punches = await AttendancePunch.find({ date: todayDate }).populate('employeeId', 'firstName lastName role departmentId');
-
-    let present = 0;
-    let late = 0;
-    let halfDay = 0;
-    let absent = 0;
-    const lateEmployees = [];
-    const absentEmployees = [];
-
-    // Map punched employees
+    let present = 0, halfDay = 0, absent = 0, late = 0, autoClosed = 0, leave = 0;
     const punchedUserIds = punches.map(p => {
-      const idStr = p.employeeId?._id?.toString() || p.employeeId?.toString();
-      if (p.status === 'Present') present++;
-      if (p.status === 'Half Day') halfDay++;
-      if (p.status === 'Absent') absent++;
-      if (p.lateMinutes > 0) {
-        late++;
-        lateEmployees.push({
-          name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
-          lateMinutes: p.lateMinutes
-        });
-      }
-      return idStr;
+      if (p.status === 'Present' || p.status === 'Regularized') present++;
+      else if (p.status === 'Late') { present++; late++; }
+      else if (p.status === 'Half Day') halfDay++;
+      else if (p.status === 'Absent') absent++;
+      else if (p.status === 'Auto Closed') autoClosed++;
+      else if (p.status === 'Leave') leave++;
+      return (p.employeeId?._id || p.employeeId)?.toString();
     });
 
-    // Find users who haven't punched yet
     const unpunchedUsers = await User.find({
       role: { $in: eligibleRoles },
       _id: { $nin: punchedUserIds.filter(Boolean).map(id => new mongoose.Types.ObjectId(id)) }
     }).populate('departmentId', 'departmentName');
 
-    const notPunchedYet = unpunchedUsers.length;
+    const attendancePercentage = totalUsers > 0
+      ? Math.round(((present + halfDay * 0.5) / totalUsers) * 100) : 0;
 
-    // Attendance percentage based on active punches vs total eligible
-    const totalActivePunches = present + halfDay + absent;
-    const attendancePercentage = totalUsers > 0 ? Math.round(((present + halfDay * 0.5) / totalUsers) * 100) : 0;
-    const latePercentage = totalActivePunches > 0 ? Math.round((late / totalActivePunches) * 100) : 0;
-
-    // Calculate dynamic average login / logout
-    let totalLoginMs = 0;
-    let loginCount = 0;
-    let totalLogoutMs = 0;
-    let logoutCount = 0;
-
+    let totalLoginMs = 0, loginCount = 0, totalLogoutMs = 0, logoutCount = 0;
     punches.forEach(p => {
-      if (p.punchIn) {
-        const pin = new Date(p.punchIn);
-        totalLoginMs += pin.getHours() * 3600000 + pin.getMinutes() * 60000 + pin.getSeconds() * 1000;
-        loginCount++;
-      }
-      if (p.punchOut) {
-        const pout = new Date(p.punchOut);
-        totalLogoutMs += pout.getHours() * 3600000 + pout.getMinutes() * 60000 + pout.getSeconds() * 1000;
-        logoutCount++;
-      }
+      if (p.punchIn) { const t = new Date(p.punchIn); totalLoginMs += t.getHours() * 3600000 + t.getMinutes() * 60000; loginCount++; }
+      if (p.punchOut) { const t = new Date(p.punchOut); totalLogoutMs += t.getHours() * 3600000 + t.getMinutes() * 60000; logoutCount++; }
     });
+    const fmt = ms => { if (!ms) return '--:--'; const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000), ap = h >= 12 ? 'PM' : 'AM'; return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`; };
 
-    const formatMsToTime = (ms) => {
-      if (ms === 0) return '--:--';
-      const hours = Math.floor(ms / 3600000);
-      const minutes = Math.floor((ms % 3600000) / 60000);
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      const formattedHours = hours % 12 || 12;
-      return `${String(formattedHours).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${ampm}`;
-    };
-
-    const avgLoginTime = loginCount > 0 ? formatMsToTime(totalLoginMs / loginCount) : '--:--';
-    const avgLogoutTime = logoutCount > 0 ? formatMsToTime(totalLogoutMs / logoutCount) : '--:--';
-
-    // Department Breakdown
     const depts = await Department.find();
     const deptBreakdown = [];
-
     for (const d of depts) {
       const dUsers = await User.find({ departmentId: d._id, role: { $in: eligibleRoles } });
       if (dUsers.length > 0) {
-        const dUserIds = dUsers.map(u => u._id.toString());
-        const dPunches = await AttendancePunch.find({
-          date: todayDate,
-          employeeId: { $in: dUsers.map(u => u._id) }
-        });
-        
+        const dPunches = await AttendancePunch.find({ date: todayDate, employeeId: { $in: dUsers.map(u => u._id) } });
         let dPresent = 0;
-        dPunches.forEach(p => {
-          if (p.status === 'Present') dPresent += 1;
-          else if (p.status === 'Half Day') dPresent += 0.5;
-        });
-        
-        const dPct = Math.round((dPresent / dUsers.length) * 100);
-        deptBreakdown.push({
-          departmentName: d.departmentName,
-          percentage: dPct,
-          active: dUsers.length
-        });
+        dPunches.forEach(p => { if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') dPresent++; else if (p.status === 'Half Day') dPresent += 0.5; });
+        deptBreakdown.push({ departmentName: d.departmentName, percentage: Math.round((dPresent / dUsers.length) * 100), active: dUsers.length });
       }
     }
 
     res.json({
-      present,
-      late,
-      halfDay,
-      absent,
-      notPunchedYet,
+      present, halfDay, absent, late, autoClosed, leave,
+      notPunchedYet: unpunchedUsers.length,
       attendancePercentage,
-      latePercentage,
-      avgLoginTime,
-      avgLogoutTime,
-      lateEmployees,
+      avgLoginTime: loginCount > 0 ? fmt(totalLoginMs / loginCount) : '--:--',
+      avgLogoutTime: logoutCount > 0 ? fmt(totalLogoutMs / logoutCount) : '--:--',
       absentEmployees: unpunchedUsers.map(u => `${u.firstName} ${u.lastName}`),
       deptBreakdown
     });
@@ -493,43 +513,32 @@ const getCeoSummary = async (req, res) => {
   }
 };
 
-// GET /hr/attendance-summary
+// ─────────────────────────────────────────────────────────────────────────────
+// HR ATTENDANCE SUMMARY
+// ─────────────────────────────────────────────────────────────────────────────
 const getHrSummary = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayDate = new Date(todayStr);
-
+    const todayDate = new Date(new Date().toISOString().split('T')[0]);
     const eligibleRoles = ['employee', 'manager', 'hr'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
+    const punches = await AttendancePunch.find({ date: todayDate })
+      .populate('employeeId', 'firstName lastName employeeCode email');
 
-    const punches = await AttendancePunch.find({ date: todayDate }).populate('employeeId', 'firstName lastName employeeCode email');
-
-    let present = 0;
-    let late = 0;
-    let halfDay = 0;
-    let absent = 0;
+    let present = 0, halfDay = 0, absent = 0, late = 0, earlyExit = 0, autoClosed = 0;
     const working = [];
-    const lateEmployees = [];
-
     const punchedUserIds = punches.map(p => {
-      if (p.status === 'Present') present++;
-      if (p.status === 'Half Day') halfDay++;
-      if (p.status === 'Absent') absent++;
+      if (p.status === 'Present' || p.status === 'Regularized') present++;
+      else if (p.status === 'Late') { present++; late++; }
+      else if (p.status === 'Half Day') halfDay++;
+      else if (p.status === 'Absent') absent++;
+      else if (p.status === 'Auto Closed') autoClosed++;
+
+      if (p.earlyExitMinutes > 0) earlyExit++;
+
       if (p.punchIn && !p.punchOut) {
-        working.push({
-          name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
-          code: p.employeeId?.employeeCode || 'N/A',
-          punchIn: p.punchIn
-        });
+        working.push({ name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`, code: p.employeeId?.employeeCode || 'N/A', punchIn: p.punchIn });
       }
-      if (p.lateMinutes > 0) {
-        late++;
-        lateEmployees.push({
-          name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
-          lateMinutes: p.lateMinutes
-        });
-      }
-      return p.employeeId?._id?.toString() || p.employeeId?.toString();
+      return (p.employeeId?._id || p.employeeId)?.toString();
     });
 
     const unpunchedUsers = await User.find({
@@ -538,21 +547,162 @@ const getHrSummary = async (req, res) => {
     });
 
     const pendingRegularizationCount = await AttendancePunch.countDocuments({ regularizationStatus: 'pending' });
+    const attendancePct = totalUsers > 0 ? Math.round(((present + halfDay * 0.5) / totalUsers) * 100) : 0;
 
     res.json({
-      present,
-      late,
-      halfDay,
-      absent,
+      present, halfDay, absent, late, earlyExit, autoClosed,
+      attendancePct,
       workingCount: working.length,
       notPunchedCount: unpunchedUsers.length,
       pendingRegularizationCount,
       workingList: working,
-      lateEmployees,
       absentEmployees: unpunchedUsers.map(u => `${u.firstName} ${u.lastName}`)
     });
   } catch (error) {
     console.error('getHrSummary error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTENDANCE BY DATE
+// ─────────────────────────────────────────────────────────────────────────────
+async function getAttendanceByDate(req, res) {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ message: 'date query param required (YYYY-MM-DD).' });
+
+    const targetDate = new Date(date);
+    if (isNaN(targetDate.getTime())) return res.status(400).json({ message: 'Invalid date format.' });
+
+    const settings = await getActiveSettings();
+    const rules = settings.attendanceRules;
+
+    const eligibleRoles = ['employee', 'manager', 'hr'];
+    const isWeekend = rules.weekends?.includes(targetDate.getDay());
+    const holiday = await Holiday.findOne({ date });
+
+    const punches = await AttendancePunch.find({ date: targetDate })
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode departmentId designationId', populate: { path: 'departmentId', select: 'departmentName' } })
+      .sort('punchIn')
+      .lean();
+
+    const allUsers = await User.find({ role: { $in: eligibleRoles } })
+      .populate('departmentId', 'departmentName')
+      .lean();
+
+    const punchedIds = new Set(punches.map(p => (p.employeeId?._id || p.employeeId)?.toString()));
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = date === todayStr;
+
+    const fmt = (d) => {
+      if (!d) return null;
+      const dt = new Date(d), h = dt.getHours(), m = dt.getMinutes(), ap = h >= 12 ? 'PM' : 'AM';
+      return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`;
+    };
+
+    const records = punches.map(p => {
+      let workingMinutes = p.workingMinutes || 0;
+      if (p.punchIn && !p.punchOut && isToday) {
+        workingMinutes = Math.max(0, Math.round((new Date().getTime() - new Date(p.punchIn).getTime()) / 60000));
+      }
+      return {
+        employeeId: p.employeeId?._id,
+        name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
+        code: p.employeeId?.employeeCode || 'N/A',
+        department: p.employeeId?.departmentId?.departmentName || 'N/A',
+        punchIn: fmt(p.punchIn),
+        punchOut: fmt(p.punchOut),
+        workingMinutes,
+        lateMinutes: p.lateMinutes || 0,
+        overtimeMinutes: p.overtimeMinutes || 0,
+        status: p.status || 'Unknown',
+        regularizationStatus: p.regularizationStatus || null,
+      };
+    });
+
+    allUsers.forEach(u => {
+      if (!punchedIds.has(u._id.toString())) {
+        records.push({
+          employeeId: u._id,
+          name: `${u.firstName} ${u.lastName}`,
+          code: u.employeeCode || 'N/A',
+          department: u.departmentId?.departmentName || 'N/A',
+          punchIn: null, punchOut: null, workingMinutes: 0,
+          lateMinutes: 0, overtimeMinutes: 0,
+          status: holiday ? 'Holiday' : isWeekend ? 'Weekly Off' : (isToday ? 'Not Punched Yet' : 'Absent'),
+          regularizationStatus: null,
+        });
+      }
+    });
+
+    res.json({ date, totalEmployees: allUsers.length, records, isWeekend, isHoliday: !!holiday, holidayName: holiday?.name });
+  } catch (error) {
+    console.error('getAttendanceByDate error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTENDANCE SETTINGS CRUD
+// ─────────────────────────────────────────────────────────────────────────────
+const getSettings = async (req, res) => {
+  try {
+    const settings = await getActiveSettings();
+    res.json({ settings });
+  } catch (e) {
+    console.error('getSettings error:', e);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+const updateSettings = async (req, res) => {
+  try {
+    const { attendanceRules, changeNote } = req.body;
+    if (!attendanceRules) {
+      return res.status(400).json({ message: 'attendanceRules is required.' });
+    }
+
+    const current = await getActiveSettings();
+    const oldSnapshot = JSON.parse(JSON.stringify(current.attendanceRules));
+
+    // Increment version
+    const newVersion = (current.version || 1) + 1;
+
+    // Update active settings doc
+    current.attendanceRules = { ...oldSnapshot, ...attendanceRules };
+    current.version = newVersion;
+    current.updatedBy = req.user.id;
+    await current.save();
+
+    // Write audit log history
+    const history = new AttendanceSettingsHistory({
+      changedBy: req.user.id,
+      oldValues: oldSnapshot,
+      newValues: current.attendanceRules,
+      changeNote: changeNote || 'Settings updated',
+      version: newVersion
+    });
+    await history.save();
+
+    await logAction({ req, userId: req.user.id, action: 'UPDATE_ATTENDANCE_SETTINGS', module: 'Settings', status: 'SUCCESS', entityType: 'AttendanceSettings', entityId: current._id });
+
+    res.json({ message: 'Attendance settings updated successfully.', settings: current });
+  } catch (e) {
+    console.error('updateSettings error:', e);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+const getSettingsHistory = async (req, res) => {
+  try {
+    const history = await AttendanceSettingsHistory.find()
+      .populate('changedBy', 'firstName lastName employeeCode')
+      .sort('-createdAt')
+      .limit(20);
+    res.json(history);
+  } catch (e) {
+    console.error('getSettingsHistory error:', e);
     res.status(500).json({ message: 'Internal server error.' });
   }
 };
@@ -568,99 +718,8 @@ module.exports = {
   reviewRegularization,
   getCeoSummary,
   getHrSummary,
-  getAttendanceByDate
+  getAttendanceByDate,
+  getSettings,
+  updateSettings,
+  getSettingsHistory
 };
-
-// GET /attendance/by-date?date=YYYY-MM-DD  (HR / CEO / Admin only)
-async function getAttendanceByDate(req, res) {
-  try {
-    const { date } = req.query;
-    if (!date) return res.status(400).json({ message: 'date query param required (YYYY-MM-DD).' });
-
-    const targetDate = new Date(date);
-    if (isNaN(targetDate.getTime())) return res.status(400).json({ message: 'Invalid date format.' });
-
-    const eligibleRoles = ['employee', 'manager', 'hr'];
-
-    // Fetch all punches for that date
-    const punches = await AttendancePunch.find({ date: targetDate })
-      .populate({
-        path: 'employeeId',
-        select: 'firstName lastName employeeCode departmentId designationId',
-        populate: {
-          path: 'departmentId',
-          select: 'departmentName'
-        }
-      })
-      .sort('punchIn')
-      .lean();
-
-    // Fetch all eligible employees to identify those with no record
-    const allUsers = await User.find({ role: { $in: eligibleRoles } })
-      .populate('departmentId', 'departmentName')
-      .populate('designationId', 'designationName')
-      .lean();
-
-    const punchedIds = new Set(punches.map(p => (p.employeeId?._id || p.employeeId)?.toString()));
-
-    const targetDateStr = date;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const isTargetToday = targetDateStr === todayStr;
-    const isWeekend = targetDate.getDay() === 0 || targetDate.getDay() === 6;
-
-    const formatTime = (d) => {
-      if (!d) return null;
-      const dt = new Date(d);
-      const h = dt.getHours();
-      const m = dt.getMinutes();
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      return `${String(h % 12 || 12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
-    };
-
-    const records = punches.map(p => {
-      let workingMinutes = p.workingMinutes || 0;
-      // If employee punched in but not punched out, and the date is today, calculate current elapsed working minutes
-      if (p.punchIn && !p.punchOut && isTargetToday) {
-        workingMinutes = Math.max(0, Math.round((new Date().getTime() - new Date(p.punchIn).getTime()) / 60000));
-      }
-
-      return {
-        employeeId: p.employeeId?._id,
-        name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
-        code: p.employeeId?.employeeCode || 'N/A',
-        department: p.employeeId?.departmentId?.departmentName || 'N/A',
-        punchIn: formatTime(p.punchIn),
-        punchOut: formatTime(p.punchOut),
-        workingMinutes,
-        lateMinutes: p.lateMinutes || 0,
-        overtimeMinutes: p.overtimeMinutes || 0,
-        status: p.status || 'Unknown',
-        regularizationStatus: p.regularizationStatus || null,
-      };
-    });
-
-    // Add absent entries for employees with no punch record
-    allUsers.forEach(u => {
-      if (!punchedIds.has(u._id.toString())) {
-        records.push({
-          employeeId: u._id,
-          name: `${u.firstName} ${u.lastName}`,
-          code: u.employeeCode || 'N/A',
-          department: u.departmentId?.departmentName || 'N/A',
-          punchIn: null,
-          punchOut: null,
-          workingMinutes: 0,
-          lateMinutes: 0,
-          overtimeMinutes: 0,
-          status: isWeekend ? 'Weekly Off' : 'Absent',
-          regularizationStatus: null,
-        });
-      }
-    });
-
-    res.json({ date, totalEmployees: allUsers.length, records });
-  } catch (error) {
-    console.error('getAttendanceByDate error:', error);
-    res.status(500).json({ message: 'Internal server error.' });
-  }
-}

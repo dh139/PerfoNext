@@ -49,7 +49,7 @@ const attendancePunchSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Present', 'Half Day', 'Absent', 'Incomplete', 'Not Punched Yet'],
+    enum: ['Present', 'Late', 'Half Day', 'Absent', 'Weekly Off', 'Holiday', 'Leave', 'Auto Closed', 'Regularized', 'Pending Punch Out', 'Incomplete', 'Not Punched Yet'],
     default: 'Not Punched Yet',
     required: true
   },

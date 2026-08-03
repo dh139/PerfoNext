@@ -4,6 +4,8 @@ const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 const Certification = require('../models/Certification');
 const AttendancePunch = require('../models/AttendancePunch');
+const AttendanceSettings = require('../models/AttendanceSettings');
+const Holiday = require('../models/Holiday');
 const Recognition = require('../models/Recognition');
 const AIReport = require('../models/AIReport');
 const ReviewCycle = require('../models/ReviewCycle');
@@ -143,7 +145,7 @@ const getAiInsights = async (employeeId, cycleId) => {
     } catch (e) {
       console.error('Failed to fetch employee in getAiInsights catch:', e);
     }
-    return generateLocalFallback(employeeObj, [], [], [], [], [], [], {}, null, null);
+    return await generateLocalFallback(employeeObj, [], [], [], [], [], [], {}, null, null);
   }
 };
 
@@ -338,15 +340,38 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
   if (dailyPunches.length > 0) {
     let totalPresent = 0;
     dailyPunches.forEach(p => {
-      if (p.status === 'Present') totalPresent += 1;
+      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
       else if (p.status === 'Half Day') totalPresent += 0.5;
     });
+
+    // Load configurable weekends and holidays
+    let configWeekends = [0, 6];
+    try {
+      const attSettings = await AttendanceSettings.findOne().sort('-version');
+      if (attSettings?.attendanceRules?.weekends?.length > 0) {
+        configWeekends = attSettings.attendanceRules.weekends;
+      }
+    } catch (_) { /* use defaults */ }
+
+    const holidayDates = new Set();
+    try {
+      const startStr = startBound ? (startBound instanceof Date ? startBound : new Date(startBound)).toISOString().split('T')[0] : '';
+      const endStr = endBound ? (endBound instanceof Date ? endBound : new Date(endBound)).toISOString().split('T')[0] : '';
+      if (startStr && endStr) {
+        const activeHolidays = await Holiday.find({
+          date: { $gte: startStr, $lte: endStr }
+        }).lean();
+        activeHolidays.forEach(h => {
+          if (h.date) holidayDates.add(h.date);
+        });
+      }
+    } catch (_) {}
 
     let totalDays = 0;
     const dTemp = new Date(startBound);
     for (let d = dTemp; d <= endBound; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay();
-      if (day !== 0 && day !== 6) {
+      const dateStr = d.toISOString().split('T')[0];
+      if (!configWeekends.includes(d.getDay()) && !holidayDates.has(dateStr)) {
         totalDays++;
       }
     }
@@ -496,7 +521,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
 
   if (!response.ok) {
     console.warn('ChatGPT API responded with error, utilizing local analytics engine:', errText);
-    const fallbackParsed = generateLocalFallback(employee, scores, managerReviews, certifications, dailyPunches, awards, workJournalItems, customFieldMap, startBound, endBound);
+    const fallbackParsed = await generateLocalFallback(employee, scores, managerReviews, certifications, dailyPunches, awards, workJournalItems, customFieldMap, startBound, endBound);
 
     await AIReport.findOneAndUpdate(
       { employeeId, reviewCycleId: cycleId },
@@ -571,7 +596,7 @@ const formatDateDDMMYYYY = (dateInput) => {
 };
 
 // Algorithmic local fallback synthesizing all employee evidence & manager feedback
-const generateLocalFallback = (employee, scores, managerReviews, certifications = [], dailyPunches = [], awards = [], workJournalItems = [], customFieldMap = {}, startBound, endBound) => {
+const generateLocalFallback = async (employee, scores, managerReviews, certifications = [], dailyPunches = [], awards = [], workJournalItems = [], customFieldMap = {}, startBound, endBound) => {
   const actualLogs = (workJournalItems || []).filter(w => !['certification', 'recognition', 'award'].includes(w.category?.toLowerCase()));
   const actualLogCount = actualLogs.length;
   
@@ -616,17 +641,40 @@ const generateLocalFallback = (employee, scores, managerReviews, certifications 
   if (dailyPunches.length > 0) {
     let totalPresent = 0;
     dailyPunches.forEach(p => {
-      if (p.status === 'Present') totalPresent += 1;
+      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
       else if (p.status === 'Half Day') totalPresent += 0.5;
     });
 
     let totalDays = 0;
-    const dTemp = startBound ? new Date(startBound) : null;
-    const dEnd = endBound ? new Date(endBound) : null;
-    if (dTemp && !isNaN(dTemp.getTime()) && dEnd && !isNaN(dEnd.getTime())) {
-      for (let d = dTemp; d <= dEnd; d.setDate(d.getDate() + 1)) {
-        const day = d.getDay();
-        if (day !== 0 && day !== 6) {
+    const dTemp2 = startBound ? new Date(startBound) : null;
+    const dEnd2 = endBound ? new Date(endBound) : null;
+    // Load configurable weekends for score calculation
+    let configWeekends2 = [0, 6];
+    try {
+      const attSettings2 = await AttendanceSettings.findOne().sort('-version');
+      if (attSettings2?.attendanceRules?.weekends?.length > 0) {
+        configWeekends2 = attSettings2.attendanceRules.weekends;
+      }
+    } catch (_) { /* use defaults */ }
+
+    const holidayDates2 = new Set();
+    try {
+      const startStr2 = dTemp2 ? dTemp2.toISOString().split('T')[0] : '';
+      const endStr2 = dEnd2 ? dEnd2.toISOString().split('T')[0] : '';
+      if (startStr2 && endStr2) {
+        const activeHolidays2 = await Holiday.find({
+          date: { $gte: startStr2, $lte: endStr2 }
+        }).lean();
+        activeHolidays2.forEach(h => {
+          if (h.date) holidayDates2.add(h.date);
+        });
+      }
+    } catch (_) {}
+
+    if (dTemp2 && !isNaN(dTemp2.getTime()) && dEnd2 && !isNaN(dEnd2.getTime())) {
+      for (let d = dTemp2; d <= dEnd2; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        if (!configWeekends2.includes(d.getDay()) && !holidayDates2.has(dateStr)) {
           totalDays++;
         }
       }

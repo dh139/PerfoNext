@@ -1,25 +1,26 @@
 const AttendancePunch = require('../models/AttendancePunch');
+// const AttendanceSettings = require('../models/AttendanceSettings'); // removed
 const IntegrationLog = require('../models/IntegrationLog');
 const User = require('../models/User');
 
-// Helper to calculate total weekdays (excluding Saturday and Sunday) in a given month.
-// For the current month, we limit the counting up to today's date.
-function getWeekdayCount(monthStr) {
+// Helper to calculate total working days in a given month,
+// excluding configured weekends. Falls back to Sat+Sun if settings unavailable.
+function getWeekdayCount(monthStr, configWeekends, holidayDates) {
   const [year, month] = monthStr.split('-').map(Number);
   const now = new Date();
   const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
-  
+
   const startDate = new Date(year, month - 1, 1);
   const endDate = isCurrentMonth ? now : new Date(year, month, 0);
-  
+  const weekends = configWeekends || [0, 6];
+  const holidays = holidayDates || new Set();
+
   let count = 0;
   for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) { // Exclude Sunday (0) and Saturday (6)
-      count++;
-    }
+    const dateStr = d.toISOString().split('T')[0];
+    if (!weekends.includes(d.getDay()) && !holidays.has(dateStr)) count++;
   }
-  return Math.max(1, count); // Avoid division by zero
+  return Math.max(1, count);
 }
 
 // ==================== ATTENDANCE INTEGRATION ====================
@@ -64,6 +65,27 @@ const getAttendance = async (req, res) => {
 
     const records = [];
 
+    // Load configurable weekends and holidays
+    let configWeekends = [0, 6];
+    try {
+      const AttendanceSettings = require('../models/AttendanceSettings');
+      const attSettings = await AttendanceSettings.findOne().sort('-version');
+      if (attSettings?.attendanceRules?.weekends?.length > 0) {
+        configWeekends = attSettings.attendanceRules.weekends;
+      }
+    } catch (_) {}
+
+    const holidayDates = new Set();
+    try {
+      const Holiday = require('../models/Holiday');
+      const activeHolidays = await Holiday.find({
+        ...(uniqueMonths.length > 0 ? { month: { $in: uniqueMonths } } : {})
+      }).lean();
+      activeHolidays.forEach(h => {
+        if (h.date) holidayDates.add(h.date);
+      });
+    } catch (_) {}
+
     // For every user and month, compile dynamic monthly summaries
     users.forEach(user => {
       uniqueMonths.forEach(m => {
@@ -79,11 +101,11 @@ const getAttendance = async (req, res) => {
 
         let daysPresent = 0;
         userMonthPunches.forEach(p => {
-          if (p.status === 'Present') daysPresent += 1;
+          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') daysPresent += 1;
           else if (p.status === 'Half Day') daysPresent += 0.5;
         });
 
-        const totalWorkingDays = getWeekdayCount(m);
+        const totalWorkingDays = getWeekdayCount(m, configWeekends, holidayDates);
         const attendancePercentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
 
         records.push({

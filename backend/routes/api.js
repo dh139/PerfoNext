@@ -186,4 +186,16 @@ router.get('/ceo/attendance-summary', verifyToken, authorizeRoles('executive', '
 router.get('/hr/attendance-summary', verifyToken, authorizeRoles('hr', 'admin'), attendanceController.getHrSummary);
 router.get('/attendance/by-date', verifyToken, authorizeRoles('hr', 'admin', 'executive'), attendanceController.getAttendanceByDate);
 
+// Attendance Settings (CEO / Admin only for write)
+router.get('/attendance/settings', verifyToken, attendanceController.getSettings);
+router.put('/attendance/settings', verifyToken, authorizeRoles('executive', 'admin'), attendanceController.updateSettings);
+router.get('/attendance/settings/history', verifyToken, authorizeRoles('executive', 'admin'), attendanceController.getSettingsHistory);
+
+// Holiday Calendar
+const holidayController = require('../controllers/holidayController');
+router.get('/attendance/holidays', verifyToken, holidayController.getHolidays);
+router.post('/attendance/holidays', verifyToken, authorizeRoles('executive', 'admin'), holidayController.createHoliday);
+router.put('/attendance/holidays/:id', verifyToken, authorizeRoles('executive', 'admin'), holidayController.updateHoliday);
+router.delete('/attendance/holidays/:id', verifyToken, authorizeRoles('executive', 'admin'), holidayController.deleteHoliday);
+
 module.exports = router;

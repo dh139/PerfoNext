@@ -21,7 +21,10 @@ import {
   Cpu,
   X,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Settings,
+  CalendarDays,
+  Clock
 } from 'lucide-react';
 
 const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
@@ -29,11 +32,12 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Collapsible section states
   const [workspaceOpen, setWorkspaceOpen] = React.useState(true);
   const [performanceOpen, setPerformanceOpen] = React.useState(true);
   const [developmentOpen, setDevelopmentOpen] = React.useState(true);
   const [managementOpen, setManagementOpen] = React.useState(true);
+  const [settingsOpen, setSettingsOpen] = React.useState(true);
+
 
   // Auto-expand active route sections
   React.useEffect(() => {
@@ -49,6 +53,9 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
     }
     if (['/manager/reviews', '/reports/department', '/hr/kpi-templates', '/hr/kpis', '/hr/cycles', '/reports/completion', '/admin/users', '/admin/org', '/admin/audit'].includes(p)) {
       setManagementOpen(true);
+    }
+    if (p.startsWith('/settings/')) {
+      setSettingsOpen(true);
     }
   }, [location.pathname]);
 
@@ -363,6 +370,46 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
             </Link>
           </>
         )}
+
+        {/* ⚙️ Settings (CEO / Admin) */}
+        {(user?.role === 'executive' || user?.role === 'admin') && (
+          <div className="pt-2 border-t border-slate-800/80 my-2">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(!settingsOpen)}
+              className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Settings size={14} className="text-sky-400" />
+                <span>Settings</span>
+              </div>
+              {settingsOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
+            </button>
+
+            {settingsOpen && (
+              <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
+                <Link to="/settings/attendance-rules" className={linkClass('/settings/attendance-rules')} onClick={handleNavClick}>
+                  <Clock size={16} />
+                  <span>Attendance Rules</span>
+                </Link>
+                <Link to="/settings/holidays" className={linkClass('/settings/holidays')} onClick={handleNavClick}>
+                  <CalendarDays size={16} />
+                  <span>Holiday Calendar</span>
+                </Link>
+                {/* Shift Management — Coming Soon */}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 cursor-not-allowed select-none">
+                  <Calendar size={16} />
+                  <span className="flex items-center gap-1.5">
+                    Shift Management
+                    <span className="text-[9px] bg-amber-500/20 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-semibold uppercase">Soon</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+
       </div>
 
       {/* Logout Footer */}

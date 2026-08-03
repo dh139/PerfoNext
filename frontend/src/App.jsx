@@ -29,6 +29,8 @@ import Certifications from './pages/Certifications';
 import IntegrationsWorkspace from './pages/IntegrationsWorkspace';
 import WorkJournal from './pages/WorkJournal';
 import WorkJournalTemplates from './pages/WorkJournalTemplates';
+import AttendanceRules from './pages/AttendanceRules';
+import HolidayCalendar from './pages/HolidayCalendar';
 import useAuthStore from './store/authStore';
 
 function App() {
@@ -108,6 +110,12 @@ function App() {
             <Route path="/management/work-journal-forms" element={<WorkJournalTemplates />} />
             <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
+          </Route>
+
+          {/* Sub-group: Executive / Admin only — Attendance Settings */}
+          <Route element={<ProtectedRoute allowedRoles={['executive', 'admin']} />}>
+            <Route path="/settings/attendance-rules" element={<AttendanceRules />} />
+            <Route path="/settings/holidays" element={<HolidayCalendar />} />
           </Route>
         </Route>
       </Route>

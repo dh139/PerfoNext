@@ -635,17 +635,38 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         ...(monthKeys.length > 0 ? { month: { $in: monthKeys } } : {})
       });
 
+      // Load configurable weekends and holidays
+      let configWeekends = [0, 6];
+      try {
+        const AttendanceSettings = require('../models/AttendanceSettings');
+        const attSettings = await AttendanceSettings.findOne().sort('-version');
+        if (attSettings?.attendanceRules?.weekends?.length > 0) {
+          configWeekends = attSettings.attendanceRules.weekends;
+        }
+      } catch (_) {}
+
+      let holidayDates = new Set();
+      try {
+        const Holiday = require('../models/Holiday');
+        const activeHolidays = await Holiday.find({
+          ...(monthKeys.length > 0 ? { month: { $in: monthKeys } } : {})
+        }).lean();
+        activeHolidays.forEach(h => {
+          if (h.date) holidayDates.add(h.date);
+        });
+      } catch (_) {}
+
       function getWeekdayCount(monthStr) {
-        const [year, month] = monthStr.split('-').map(Number);
+        const [yr, mo] = monthStr.split('-').map(Number);
         const now = new Date();
-        const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = isCurrentMonth ? now : new Date(year, month, 0);
-        
+        const isCurrentMonth = (now.getFullYear() === yr && (now.getMonth() + 1) === mo);
+        const startDate = new Date(yr, mo - 1, 1);
+        const endDate = isCurrentMonth ? now : new Date(yr, mo, 0);
+
         let count = 0;
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-          const day = d.getDay();
-          if (day !== 0 && day !== 6) {
+          const dateStr = d.toISOString().split('T')[0];
+          if (!configWeekends.includes(d.getDay()) && !holidayDates.has(dateStr)) {
             count++;
           }
         }
@@ -657,7 +678,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
       if (hasAttendanceRecords) {
         let totalPresent = 0;
         attendancePunches.forEach(p => {
-          if (p.status === 'Present') totalPresent += 1;
+          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
           else if (p.status === 'Half Day') totalPresent += 0.5;
         });
         const totalWorking = monthKeys.reduce((sum, mk) => sum + getWeekdayCount(mk), 0);
