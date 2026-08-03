@@ -1,4 +1,3 @@
-const Attendance = require('../models/Attendance');
 const AttendancePunch = require('../models/AttendancePunch');
 const IntegrationLog = require('../models/IntegrationLog');
 const User = require('../models/User');
@@ -70,6 +69,14 @@ const getAttendance = async (req, res) => {
       uniqueMonths.forEach(m => {
         const userMonthPunches = punches.filter(p => p.employeeId.toString() === user._id.toString() && p.month === m);
         
+        // Skip past months where this user has no punch records. The current month is always included.
+        const now = new Date();
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (m !== currentMonthStr && userMonthPunches.length === 0) {
+          return;
+        }
+
         let daysPresent = 0;
         userMonthPunches.forEach(p => {
           if (p.status === 'Present') daysPresent += 1;
@@ -101,107 +108,11 @@ const getAttendance = async (req, res) => {
 };
 
 const syncAttendance = async (req, res) => {
-  try {
-    const { employeeId, month, totalWorkingDays, daysPresent } = req.body;
-
-    if (!employeeId || !month || !totalWorkingDays || daysPresent === undefined) {
-      return res.status(400).json({ message: 'employeeId, month, totalWorkingDays, and daysPresent are required.' });
-    }
-
-    const percentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
-
-    let record = await Attendance.findOne({ employeeId, month });
-    if (record) {
-      record.totalWorkingDays = totalWorkingDays;
-      record.daysPresent = daysPresent;
-      record.attendancePercentage = percentage;
-      await record.save();
-    } else {
-      record = await Attendance.create({
-        employeeId,
-        month,
-        totalWorkingDays,
-        daysPresent,
-        attendancePercentage: percentage
-      });
-    }
-
-    // Log integration event
-    await IntegrationLog.create({
-      system: 'attendance',
-      eventType: 'attendance_sync',
-      payload: { employeeId, month, totalWorkingDays, daysPresent, percentage },
-      status: 'success',
-      responseMessage: `Synced attendance for ${month}: ${percentage}%`
-    });
-
-    res.status(201).json(record);
-  } catch (error) {
-    console.error('syncAttendance error:', error);
-    await IntegrationLog.create({
-      system: 'attendance',
-      eventType: 'attendance_sync',
-      payload: req.body,
-      status: 'failed',
-      responseMessage: error.message
-    });
-    res.status(500).json({ message: error.message || 'Internal server error.' });
-  }
+  res.json({ message: 'Attendance sync is now handled dynamically in real-time.' });
 };
 
 const batchSyncAttendance = async (req, res) => {
-  try {
-    const { departmentId, month, totalWorkingDays, daysPresent } = req.body;
-
-    if (!month || !totalWorkingDays || daysPresent === undefined) {
-      return res.status(400).json({ message: 'Month, totalWorkingDays, and daysPresent are required.' });
-    }
-
-    const userFilter = { employmentStatus: 'active' };
-    if (departmentId && departmentId !== 'all') {
-      userFilter.departmentId = departmentId;
-    }
-
-    const targetUsers = await User.find(userFilter);
-    if (targetUsers.length === 0) {
-      return res.status(404).json({ message: 'No eligible active employees found for batch sync.' });
-    }
-
-    let syncedCount = 0;
-    const percentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
-
-    for (const emp of targetUsers) {
-      let record = await Attendance.findOne({ employeeId: emp._id, month });
-      if (record) {
-        record.totalWorkingDays = totalWorkingDays;
-        record.daysPresent = daysPresent;
-        record.attendancePercentage = percentage;
-        await record.save();
-      } else {
-        await Attendance.create({
-          employeeId: emp._id,
-          month,
-          totalWorkingDays,
-          daysPresent,
-          attendancePercentage: percentage
-        });
-      }
-      syncedCount++;
-    }
-
-    await IntegrationLog.create({
-      system: 'attendance',
-      eventType: 'batch_attendance_sync',
-      payload: { departmentId: departmentId || 'all', month, totalWorkingDays, daysPresent, syncedCount },
-      status: 'success',
-      responseMessage: `Batch synced attendance for ${syncedCount} employees for ${month}.`
-    });
-
-    res.status(200).json({ message: `Successfully batch synced attendance for ${syncedCount} employees!`, syncedCount });
-  } catch (error) {
-    console.error('batchSyncAttendance error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
-  }
+  res.json({ message: 'Batch attendance sync is now handled dynamically in real-time.' });
 };
 
 // ==================== TEAMS INTEGRATION ====================

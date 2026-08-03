@@ -1328,15 +1328,7 @@ const HRDashboard = ({ data, user }) => {
           <span>Organizational Leaderboards</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('audits')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'audits' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Activity size={16} />
-          <span>Audit Trail & Activity</span>
-        </button>
+
 
         <button
           onClick={() => setActiveTab('attendance')}
@@ -2166,50 +2158,7 @@ const HRDashboard = ({ data, user }) => {
         </div>
       )}
 
-      {/* TAB 4: AUDIT TRAIL & SYSTEM ACTIVITY */}
-      {activeTab === 'audits' && (
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-              <Activity size={18} className="text-slate-600" />
-              <span>System Activity & Audit Log Trail</span>
-            </h3>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Latest System Events</span>
-          </div>
 
-          {recentAudits.length === 0 ? (
-            <p className="text-slate-400 italic text-center py-10">No recent system audit activities recorded.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentAudits.map(log => (
-                <div key={log._id} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center shrink-0">
-                      {log.userId?.firstName?.[0] || 'S'}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        {log.userId?.firstName} {log.userId?.lastName} <span className="text-slate-400 font-normal">({log.userId?.role || 'system'})</span>
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        Action: <span className={`inline-block font-bold text-[9px] px-1.5 py-0.5 rounded text-white ${
-                          log.action === 'login' ? 'bg-slate-700' :
-                          log.action === 'score_change' ? 'bg-indigo-600' :
-                          log.action === 'review_update' ? 'bg-amber-600' : 'bg-sky-600'
-                        }`}>{log.action}</span> | Target Entity: <span className="font-semibold">{log.entityType}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="text-[10px] font-semibold text-slate-400 shrink-0">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
     </div>
   );
@@ -2882,6 +2831,7 @@ const ExecutiveDashboard = ({ data, user }) => {
   const [activeTab, setActiveTab] = useState('grading'); // 'grading', 'leaderboard', 'cycles', 'audits', 'attendance'
   const [ceoSummary, setCeoSummary] = useState(null);
   const [loadingCeoSummary, setLoadingCeoSummary] = useState(true);
+  const [pendingRegs, setPendingRegs] = useState([]);
 
   // Date-based attendance viewer
   const ceotodayIso = new Date().toISOString().split('T')[0];
@@ -2916,8 +2866,29 @@ const ExecutiveDashboard = ({ data, user }) => {
     }
   };
 
+  const fetchPendingRegs = async () => {
+    try {
+      const res = await api.get('/api/attendance/pending-regularization');
+      setPendingRegs(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleReviewReg = async (id, status) => {
+    try {
+      await api.post('/api/attendance/review-regularization', { id, status });
+      toast.success(`Regularization request ${status} successfully.`);
+      fetchPendingRegs();
+      fetchCeoSummary();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to review request.');
+    }
+  };
+
   useEffect(() => {
     fetchCeoSummary();
+    fetchPendingRegs();
     fetchCeoAttendanceByDate(ceotodayIso);
   }, []);
   
@@ -3146,15 +3117,7 @@ const ExecutiveDashboard = ({ data, user }) => {
           <span>Review Cycles Progress</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('audits')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'audits' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Activity size={16} />
-          <span>Audit Trail & Activity</span>
-        </button>
+
 
         <button
           onClick={() => setActiveTab('attendance')}
@@ -3173,6 +3136,47 @@ const ExecutiveDashboard = ({ data, user }) => {
       {/* TAB: ATTENDANCE ANALYTICS */}
       {activeTab === 'attendance' && (
         <div className="space-y-6 animate-fade-in text-xs font-semibold text-slate-700">
+
+          {/* Pending Regularizations Review Section */}
+          {pendingRegs.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <RefreshCw size={16} className="text-amber-500 animate-spin" />
+                <h4 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-wide">Pending Regularization Requests ({pendingRegs.length})</h4>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingRegs.map(reg => (
+                  <div key={reg._id} className="text-xs p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-800">
+                        {reg.employeeId?.firstName} {reg.employeeId?.lastName} ({reg.employeeId?.employeeCode || 'N/A'})
+                        <span className="ml-2 text-[9px] uppercase px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-650 font-extrabold font-mono">
+                          {reg.employeeId?.role === 'hr' ? 'HR' : reg.employeeId?.role === 'manager' ? 'Manager' : 'Staff'}
+                        </span>
+                      </p>
+                      <p className="text-[10px] text-slate-400">Date: {new Date(reg.date).toLocaleDateString()} | Req: {new Date(reg.requestedPunchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(reg.requestedPunchOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                      <p className="text-[10px] text-slate-500 italic mt-0.5">"{reg.regularizationReason}"</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'approved')}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl shadow transition-colors cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReviewReg(reg._id, 'rejected')}
+                        className="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold px-3.5 py-2 rounded-xl shadow transition-colors cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Date-based Attendance Viewer */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -3934,50 +3938,7 @@ const ExecutiveDashboard = ({ data, user }) => {
         </div>
       )}
 
-      {/* TAB 4: AUDIT TRAIL & SYSTEM ACTIVITY */}
-      {activeTab === 'audits' && (
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4 animate-fade-in">
-          <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-            <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-              <Activity size={18} className="text-slate-600" />
-              <span>System Activity & Audit Log Trail</span>
-            </h3>
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Latest System Events</span>
-          </div>
 
-          {recentAudits.length === 0 ? (
-            <p className="text-slate-400 italic text-center py-10">No recent system audit activities recorded.</p>
-          ) : (
-            <div className="space-y-3">
-              {recentAudits.map(log => (
-                <div key={log._id} className="flex justify-between items-center p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl text-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center shrink-0">
-                      {log.userId?.firstName?.[0] || 'S'}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        {log.userId?.firstName} {log.userId?.lastName} <span className="text-slate-400 font-normal">({log.userId?.role || 'system'})</span>
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        Action: <span className={`inline-block font-bold text-[9px] px-1.5 py-0.5 rounded text-white ${
-                          log.action === 'login' ? 'bg-slate-700' :
-                          log.action === 'score_change' ? 'bg-indigo-600' :
-                          log.action === 'review_update' ? 'bg-amber-600' : 'bg-sky-600'
-                        }`}>{log.action}</span> | Target Entity: <span className="font-semibold">{log.entityType}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="text-[10px] font-semibold text-slate-400 shrink-0">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
     </div>
   );

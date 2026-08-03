@@ -1,57 +1,8 @@
 const AttendancePunch = require('../models/AttendancePunch');
-const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const Department = require('../models/Department');
 const { logAction } = require('../utils/logger');
 const mongoose = require('mongoose');
-
-// Helper to calculate weekdays in a month
-const getWeekdaysInMonth = (year, monthZeroBased) => {
-  let count = 0;
-  const daysInMonth = new Date(year, monthZeroBased + 1, 0).getDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dayOfWeek = new Date(year, monthZeroBased, day).getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      count++;
-    }
-  }
-  return count || 22;
-};
-
-// Helper to rollup punches to monthly attendance summary
-const rollupMonthlyAttendance = async (employeeId, monthStr) => {
-  try {
-    const [year, monthNum] = monthStr.split('-').map(Number);
-    const totalWorkingDays = getWeekdaysInMonth(year, monthNum - 1);
-    
-    const punches = await AttendancePunch.find({ employeeId, month: monthStr });
-    
-    let daysPresent = 0;
-    punches.forEach(p => {
-      if (p.status === 'Present') {
-        daysPresent += 1;
-      } else if (p.status === 'Half Day') {
-        daysPresent += 0.5;
-      }
-    });
-    
-    const attendancePercentage = totalWorkingDays > 0 ? Math.round((daysPresent / totalWorkingDays) * 100) : 0;
-    
-    await Attendance.findOneAndUpdate(
-      { employeeId, month: monthStr },
-      {
-        employeeId,
-        month: monthStr,
-        totalWorkingDays,
-        daysPresent,
-        attendancePercentage
-      },
-      { upsert: true, new: true }
-    );
-  } catch (err) {
-    console.error('rollupMonthlyAttendance error:', err);
-  }
-};
 
 // POST /attendance/punch-in
 const punchIn = async (req, res) => {
@@ -168,9 +119,6 @@ const punchOut = async (req, res) => {
 
     await punch.save();
 
-    // Trigger Monthly rollup summary
-    await rollupMonthlyAttendance(req.user.id, punch.month);
-
     await logAction({
       req,
       userId: req.user.id,
@@ -280,12 +228,25 @@ const submitRegularization = async (req, res) => {
 // GET /attendance/pending-regularization
 const getPendingRegularizations = async (req, res) => {
   try {
-    let filter = { regularizationStatus: 'pending' };
+    let filter = { 
+      regularizationStatus: 'pending',
+      employeeId: { $ne: req.user.id } // Never allow viewing one's own regularization request for review
+    };
 
     if (req.user.role === 'manager') {
       const reports = await User.find({ managerId: req.user.id }).select('_id');
       const reportIds = reports.map(r => r._id);
-      filter.employeeId = { $in: reportIds };
+      filter.employeeId = { $in: reportIds, $ne: req.user.id };
+    } else if (req.user.role === 'hr') {
+      // HR only reviews standard employees (cannot review managers or other HR/themselves)
+      const users = await User.find({ role: 'employee' }).select('_id');
+      const employeeIds = users.map(u => u._id);
+      filter.employeeId = { $in: employeeIds, $ne: req.user.id };
+    } else if (req.user.role === 'executive') {
+      // CEO (executive) reviews Managers and HR Managers (and optionally employees if needed)
+      const users = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
+      const userIds = users.map(u => u._id);
+      filter.employeeId = { $in: userIds, $ne: req.user.id };
     } else if (req.user.role === 'employee') {
       return res.status(403).json({ message: 'Access denied.' });
     }
@@ -312,9 +273,30 @@ const reviewRegularization = async (req, res) => {
     const punch = await AttendancePunch.findById(id);
     if (!punch) return res.status(404).json({ message: 'Punch record not found.' });
 
-    // Validate approval role
-    if (req.user.role !== 'hr' && req.user.role !== 'admin' && req.user.role !== 'manager' && req.user.role !== 'executive') {
-      return res.status(403).json({ message: 'Unauthorized to review regularization.' });
+    // Prevent self-approval/rejection under all circumstances
+    if (punch.employeeId.toString() === req.user.id.toString()) {
+      return res.status(403).json({ message: 'You cannot review your own regularization request.' });
+    }
+
+    const requester = await User.findById(punch.employeeId);
+    if (!requester) {
+      return res.status(404).json({ message: 'Requester user record not found.' });
+    }
+
+    // Role-based routing: Managers/HR requests can ONLY be reviewed by the CEO (executive)
+    if (['manager', 'hr'].includes(requester.role)) {
+      if (req.user.role !== 'executive') {
+        return res.status(403).json({ message: 'Regularization requests for managers and HR can only be approved/rejected by the CEO.' });
+      }
+    } else if (requester.role === 'employee') {
+      // Standard employees can be reviewed by HR, Manager, or CEO
+      if (req.user.role !== 'hr' && req.user.role !== 'manager' && req.user.role !== 'executive' && req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Unauthorized to review employee regularization.' });
+      }
+      // If manager, verify they are the direct reporting manager of this employee
+      if (req.user.role === 'manager' && requester.managerId?.toString() !== req.user.id.toString()) {
+        return res.status(403).json({ message: 'You can only review regularization requests of your direct reportees.' });
+      }
     }
 
     if (status === 'approved') {
@@ -367,9 +349,6 @@ const reviewRegularization = async (req, res) => {
     punch.requestedPunchOut = null;
 
     await punch.save();
-
-    // Rollup Monthly attendance summary
-    await rollupMonthlyAttendance(punch.employeeId, punch.month);
 
     await logAction({
       req,

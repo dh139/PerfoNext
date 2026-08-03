@@ -607,25 +607,32 @@ const EmployeeReport = () => {
                   <div className="bg-slate-900 text-white rounded-2xl p-6 border border-slate-800 shadow-md relative overflow-hidden flex flex-col justify-between h-full min-h-[180px]">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-xl pointer-events-none"></div>
                     
-                    <div className="space-y-2">
+                    <div className="space-y-1">
                       <span className="text-[9px] uppercase font-extrabold text-emerald-400 tracking-wider">Performance Breakdown</span>
-                      
-                      <div className="space-y-2 text-xs">
-                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
-                          <div>
-                            <p className="font-extrabold text-white text-xs">Manager Rating (100% Score)</p>
-                            <p className="text-[9px] text-slate-400">Core Manager Competencies Evaluation</p>
-                          </div>
-                          <span className="font-black text-sky-400 text-sm">{coreScoreVal.toFixed(2)} / 5.0</span>
-                        </div>
+                      {(() => {
+                        let suppRatingVal = 'Meets Expectations';
+                        if (suppScoreVal >= 4.5) suppRatingVal = 'Outstanding';
+                        else if (suppScoreVal >= 4.0) suppRatingVal = 'Exceeds Expectations';
+                        else if (suppScoreVal >= 3.0) suppRatingVal = 'Meets Expectations';
+                        else if (suppScoreVal >= 2.0) suppRatingVal = 'Needs Improvement';
+                        else suppRatingVal = 'Unsatisfactory';
+                        
+                        return (
+                          <>
+                            <h3 className="text-base font-black text-white">{suppRatingVal}</h3>
+                            <p className="text-[9px] text-slate-400">
+                              Contextual evaluation based on Attendance, Certifications, and Awards.
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
 
-                        <div className="bg-slate-800/60 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
-                          <div>
-                            <p className="font-extrabold text-white text-xs">External Activities (Contextual)</p>
-                            <p className="text-[9px] text-slate-400">Attendance, Certifications, Awards</p>
-                          </div>
-                          <span className="font-black text-emerald-400 text-sm">{suppScoreVal.toFixed(2)} / 5.0</span>
-                        </div>
+                    <div className="bg-slate-800/40 border border-slate-800/80 rounded-xl px-4 py-2.5 flex justify-between items-center mt-4">
+                      <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">External Activities</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <h2 className="text-xl font-black text-emerald-400">{suppScoreVal.toFixed(2)}</h2>
+                        <span className="text-[9px] text-slate-500">/ 5.0</span>
                       </div>
                     </div>
                   </div>

@@ -599,7 +599,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         awardedAt: { $gte: cycleStart, $lte: cycleEnd }
       });
 
-      const Attendance = require('../models/Attendance');
+      const AttendancePunch = require('../models/AttendancePunch');
       let monthKeys = [];
       if (qMatch) {
         const year = parseInt(qMatch[1], 10);
@@ -630,16 +630,37 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         monthKeys = [`${year}-${String(month).padStart(2, '0')}`];
       }
 
-      const attendanceRecords = await Attendance.find({
+      const attendancePunches = await AttendancePunch.find({
         employeeId,
         ...(monthKeys.length > 0 ? { month: { $in: monthKeys } } : {})
       });
 
+      function getWeekdayCount(monthStr) {
+        const [year, month] = monthStr.split('-').map(Number);
+        const now = new Date();
+        const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = isCurrentMonth ? now : new Date(year, month, 0);
+        
+        let count = 0;
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          const day = d.getDay();
+          if (day !== 0 && day !== 6) {
+            count++;
+          }
+        }
+        return Math.max(1, count);
+      }
+
       let computedAttendancePct = 0;
-      const hasAttendanceRecords = attendanceRecords.length > 0;
+      const hasAttendanceRecords = attendancePunches.length > 0;
       if (hasAttendanceRecords) {
-        const totalPresent = attendanceRecords.reduce((sum, r) => sum + (r.daysPresent || (r.attendancePercentage ? (r.attendancePercentage * (r.totalWorkingDays || 22) / 100) : 0)), 0);
-        const totalWorking = attendanceRecords.reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
+        let totalPresent = 0;
+        attendancePunches.forEach(p => {
+          if (p.status === 'Present') totalPresent += 1;
+          else if (p.status === 'Half Day') totalPresent += 0.5;
+        });
+        const totalWorking = monthKeys.reduce((sum, mk) => sum + getWeekdayCount(mk), 0);
         computedAttendancePct = totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100 * 10) / 10 : 0;
       }
 
@@ -649,7 +670,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         awards,
         attendancePercentage: computedAttendancePct,
         hasAttendanceRecords,
-        attendanceRecordsCount: attendanceRecords.length
+        attendanceRecordsCount: attendancePunches.length
       };
 
       const { finalScore, rating, workLogScore, competencyScore, attendanceScore, certScore, awardScore } = calculateReviewScores(managerReview, extraMetrics);
@@ -670,6 +691,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         workQuality: Number(comp.teamwork) || competencyScore
       };
 
+      let isNewScore = false;
       if (reviewScore) {
         reviewScore.categoryScores = categoryScores;
         reviewScore.finalScore = finalScore;
@@ -685,23 +707,26 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
           rating,
           calculatedAt: new Date()
         });
+        isNewScore = true;
       }
 
-      await Notification.create({
-        userId: employeeId,
-        type: 'final_score_ready',
-        message: `Your performance review for ${cycle.reviewMonth} is complete. Your final score is ${finalScore} (${rating}).`
-      });
+      if (isNewScore) {
+        await Notification.create({
+          userId: employeeId,
+          type: 'final_score_ready',
+          message: `Your performance review for ${cycle.reviewMonth} is complete. Your final score is ${finalScore} (${rating}).`
+        });
 
-      const emp = await User.findById(employeeId);
-      if (emp && emp.email) {
-        sendFinalReportGeneratedEmail(
-          emp.email,
-          emp.firstName,
-          cycle.reviewMonth,
-          finalScore,
-          rating
-        ).catch(err => console.error('Final score email failed:', err));
+        const emp = await User.findById(employeeId);
+        if (emp && emp.email) {
+          sendFinalReportGeneratedEmail(
+            emp.email,
+            emp.firstName,
+            cycle.reviewMonth,
+            finalScore,
+            rating
+          ).catch(err => console.error('Final score email failed:', err));
+        }
       }
     }
   } catch (error) {

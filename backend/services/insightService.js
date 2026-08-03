@@ -3,7 +3,6 @@ const ReviewScore = require('../models/ReviewScore');
 const SelfAssessment = require('../models/SelfAssessment');
 const ManagerReview = require('../models/ManagerReview');
 const Certification = require('../models/Certification');
-const Attendance = require('../models/Attendance');
 const AttendancePunch = require('../models/AttendancePunch');
 const Recognition = require('../models/Recognition');
 const AIReport = require('../models/AIReport');
@@ -183,8 +182,6 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
   const certifications = await Certification.find({ employeeId, issueDate: { $gte: startBound, $lte: endBound } }).sort('-issueDate');
   const awards = await Recognition.find({ employeeId, awardedAt: { $gte: startBound, $lte: endBound } }).populate('awardedBy').sort('-awardedAt');
 
-  const months = getMonthsInRange(startBound, endBound);
-  const attendanceRecords = await Attendance.find({ employeeId, month: { $in: months } }).sort('month');
   const dailyPunches = await AttendancePunch.find({ employeeId, date: { $gte: startBound, $lte: endBound } }).sort('date');
 
   // Work Journal Verified Evidence strictly in cycle window
@@ -330,10 +327,23 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
   const overtimeHours = (totalOvertimeMinutes / 60).toFixed(2);
   
   let attendancePct = 0;
-  if (attendanceRecords.length > 0) {
-    const totalPresent = attendanceRecords.reduce((sum, r) => sum + (r.daysPresent || 0), 0);
-    const totalWorking = attendanceRecords.reduce((sum, r) => sum + (r.totalWorkingDays || 22), 0);
-    attendancePct = totalWorking > 0 ? Math.round((totalPresent / totalWorking) * 100) : 0;
+  if (dailyPunches.length > 0) {
+    let totalPresent = 0;
+    dailyPunches.forEach(p => {
+      if (p.status === 'Present') totalPresent += 1;
+      else if (p.status === 'Half Day') totalPresent += 0.5;
+    });
+
+    let totalDays = 0;
+    const dTemp = new Date(startBound);
+    for (let d = dTemp; d <= endBound; d.setDate(d.getDate() + 1)) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) {
+        totalDays++;
+      }
+    }
+    totalDays = Math.max(1, totalDays);
+    attendancePct = Math.round((totalPresent / totalDays) * 100);
   }
   
   let consistency = 'Excellent';
@@ -450,7 +460,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
   if (!response.ok) {
     const errText = await response.text();
     console.warn('ChatGPT 5.6 Terra API responded with error, utilizing local analytics engine:', errText);
-    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, attendanceRecords, awards, workJournalItems, customFieldMap);
+    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, dailyPunches, awards, workJournalItems, customFieldMap, startBound, endBound);
 
     await AIReport.findOneAndUpdate(
       { employeeId, reviewCycleId: cycleId },
@@ -527,7 +537,7 @@ const formatDateDDMMYYYY = (dateInput) => {
 };
 
 // Algorithmic local fallback synthesizing all employee evidence & manager feedback
-const generateLocalFallback = (scores, managerReviews, certifications = [], attendanceRecords = [], awards = [], workJournalItems = [], customFieldMap = {}) => {
+const generateLocalFallback = (scores, managerReviews, certifications = [], dailyPunches = [], awards = [], workJournalItems = [], customFieldMap = {}, startBound, endBound) => {
   const actualLogs = (workJournalItems || []).filter(w => !['certification', 'recognition', 'award'].includes(w.category?.toLowerCase()));
   const actualLogCount = actualLogs.length;
   
@@ -569,10 +579,23 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], atte
 
   // 3. Attendance Average (Calculated from Total Days Present / Total Working Days in Cycle)
   let avgAttendance = 85.6;
-  if (attendanceRecords.length > 0) {
-    const totalPresent = attendanceRecords.reduce((sum, att) => sum + (att.daysPresent || (att.attendancePercentage ? (att.attendancePercentage * (att.totalWorkingDays || 22) / 100) : 0)), 0);
-    const totalDays = attendanceRecords.reduce((sum, att) => sum + (att.totalWorkingDays || 22), 0);
-    avgAttendance = totalDays > 0 ? (totalPresent / totalDays) * 100 : (attendanceRecords.reduce((sum, att) => sum + (att.attendancePercentage || 0), 0) / attendanceRecords.length);
+  if (dailyPunches.length > 0) {
+    let totalPresent = 0;
+    dailyPunches.forEach(p => {
+      if (p.status === 'Present') totalPresent += 1;
+      else if (p.status === 'Half Day') totalPresent += 0.5;
+    });
+
+    let totalDays = 0;
+    const dTemp = new Date(startBound);
+    for (let d = dTemp; d <= endBound; d.setDate(d.getDate() + 1)) {
+      const day = d.getDay();
+      if (day !== 0 && day !== 6) {
+        totalDays++;
+      }
+    }
+    totalDays = Math.max(1, totalDays);
+    avgAttendance = (totalPresent / totalDays) * 100;
   }
   const attScore = Math.min(5.0, Math.max(1.0, (avgAttendance / 100) * 5.0));
 
