@@ -55,9 +55,7 @@ const aiReportSchema = new mongoose.Schema({
   responseRaw: {
     type: String
   },
-  modelUsed: {
-    type: String
-  },
+
   startDate: {
     type: Date
   },

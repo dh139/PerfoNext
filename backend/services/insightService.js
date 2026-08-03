@@ -135,7 +135,15 @@ const getAiInsights = async (employeeId, cycleId) => {
 
   } catch (error) {
     console.error('getAiInsights error:', error);
-    return generateLocalFallback([], [], [], [], [], []);
+    let employeeObj = {};
+    try {
+      if (employeeId) {
+        employeeObj = await User.findById(employeeId).populate('departmentId designationId') || {};
+      }
+    } catch (e) {
+      console.error('Failed to fetch employee in getAiInsights catch:', e);
+    }
+    return generateLocalFallback(employeeObj, [], [], [], [], [], [], {}, null, null);
   }
 };
 
@@ -378,19 +386,12 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
     });
   }
 
-  const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || process.env.GROQ_API_KEY || '').trim();
-  let modelName = (process.env.CHATGPT_MODEL || process.env.GROQ_MODEL || 'chatgpt-5.6-terra').trim();
+  const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || '').trim();
+  let modelName = (process.env.CHATGPT_MODEL || 'gpt-4o-mini').trim();
   
-  let targetUrl = (process.env.CHATGPT_API_URL || process.env.GROQ_API_URL || '').trim();
+  let targetUrl = (process.env.CHATGPT_API_URL || '').trim();
   if (!targetUrl) {
-    if (apiKey.startsWith('gsk_')) {
-      targetUrl = 'https://api.groq.com/openai/v1/chat/completions';
-      if (modelName === 'chatgpt-5.6-terra') {
-        modelName = 'llama-3.3-70b-versatile';
-      }
-    } else {
-      targetUrl = 'https://api.openai.com/v1/chat/completions';
-    }
+    targetUrl = 'https://api.openai.com/v1/chat/completions';
   }
 
   const systemPrompt = `You are PerfoNext AI Performance Intelligence, an enterprise HR Performance Auditor.
@@ -440,7 +441,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
 }`;
 
   // Call ChatGPT 5.6 Terra LLM API
-  const response = await fetch(targetUrl, {
+  let response = await fetch(targetUrl, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -457,10 +458,45 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
     })
   });
 
+  let errText = '';
   if (!response.ok) {
-    const errText = await response.text();
-    console.warn('ChatGPT 5.6 Terra API responded with error, utilizing local analytics engine:', errText);
-    const fallbackParsed = generateLocalFallback(scores, managerReviews, certifications, dailyPunches, awards, workJournalItems, customFieldMap, startBound, endBound);
+    errText = await response.text();
+    let isModelNotFoundError = false;
+    try {
+      const errObj = JSON.parse(errText);
+      if (errObj.error?.code === 'model_not_found' || 
+          (errObj.error?.message && errObj.error.message.includes('does not exist'))) {
+        isModelNotFoundError = true;
+      }
+    } catch (e) {}
+
+    if (isModelNotFoundError && modelName !== 'gpt-4o-mini') {
+      console.warn(`Model ${modelName} not found/accessible. Retrying with gpt-4o-mini...`);
+      response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: historyContext }
+          ],
+          temperature: 0.2,
+          response_format: { type: 'json_object' }
+        })
+      });
+      if (!response.ok) {
+        errText = await response.text();
+      }
+    }
+  }
+
+  if (!response.ok) {
+    console.warn('ChatGPT API responded with error, utilizing local analytics engine:', errText);
+    const fallbackParsed = generateLocalFallback(employee, scores, managerReviews, certifications, dailyPunches, awards, workJournalItems, customFieldMap, startBound, endBound);
 
     await AIReport.findOneAndUpdate(
       { employeeId, reviewCycleId: cycleId },
@@ -481,7 +517,6 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
         reviewMonth: cycle.reviewMonth,
         prompt: historyContext,
         responseRaw: 'LOCAL_FALLBACK_ENGINED_GENERATION: ' + errText,
-        modelUsed: modelName,
         status: 'COMPLETED',
         generatedAt: new Date()
       },
@@ -516,7 +551,6 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       reviewMonth: cycle.reviewMonth,
       prompt: historyContext,
       responseRaw: contentText,
-      modelUsed: modelName,
       status: 'COMPLETED',
       generatedAt: now
     },
@@ -537,7 +571,7 @@ const formatDateDDMMYYYY = (dateInput) => {
 };
 
 // Algorithmic local fallback synthesizing all employee evidence & manager feedback
-const generateLocalFallback = (scores, managerReviews, certifications = [], dailyPunches = [], awards = [], workJournalItems = [], customFieldMap = {}, startBound, endBound) => {
+const generateLocalFallback = (employee, scores, managerReviews, certifications = [], dailyPunches = [], awards = [], workJournalItems = [], customFieldMap = {}, startBound, endBound) => {
   const actualLogs = (workJournalItems || []).filter(w => !['certification', 'recognition', 'award'].includes(w.category?.toLowerCase()));
   const actualLogCount = actualLogs.length;
   
@@ -587,11 +621,14 @@ const generateLocalFallback = (scores, managerReviews, certifications = [], dail
     });
 
     let totalDays = 0;
-    const dTemp = new Date(startBound);
-    for (let d = dTemp; d <= endBound; d.setDate(d.getDate() + 1)) {
-      const day = d.getDay();
-      if (day !== 0 && day !== 6) {
-        totalDays++;
+    const dTemp = startBound ? new Date(startBound) : null;
+    const dEnd = endBound ? new Date(endBound) : null;
+    if (dTemp && !isNaN(dTemp.getTime()) && dEnd && !isNaN(dEnd.getTime())) {
+      for (let d = dTemp; d <= dEnd; d.setDate(d.getDate() + 1)) {
+        const day = d.getDay();
+        if (day !== 0 && day !== 6) {
+          totalDays++;
+        }
       }
     }
     totalDays = Math.max(1, totalDays);

@@ -320,7 +320,7 @@ const ReviewCycles = () => {
               className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg cursor-pointer transition-all shrink-0"
             >
               <Plus size={18} />
-              <span>+ Launch New Review Cycle</span>
+              <span>Launch New Review Cycle</span>
             </button>
           )}
         </div>

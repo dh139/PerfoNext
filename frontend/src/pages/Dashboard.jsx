@@ -36,7 +36,8 @@ import {
   Eye,
   Search,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  Image
 } from 'lucide-react';
 const PunchCard = () => {
   const [todayPunch, setTodayPunch] = useState(null);
@@ -334,23 +335,22 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const [isAddWorkLogOpen, setIsAddWorkLogOpen] = useState(false);
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await api.get('/api/dashboard/stats');
+      setData(res.data);
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      setError('Failed to load dashboard statistics.');
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        setLoading(true);
-        const res = await api.get('/api/dashboard/stats');
-        setData(res.data);
-      } catch (err) {
-        console.error('Failed to load dashboard data:', err);
-        setError('Failed to load dashboard statistics.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (user) {
-      fetchDashboard();
+      setLoading(true);
+      fetchDashboard().finally(() => setLoading(false));
     }
   }, [user]);
 
@@ -372,27 +372,40 @@ const Dashboard = () => {
     );
   }
 
+  const profile = data?.profile || {};
+  const deptId = user?.departmentId?._id || user?.departmentId || profile?.departmentId?._id || profile?.departmentId;
+
   // Choose sub-dashboard based on role
+  let dashboardView = null;
   if (user?.role === 'employee') {
-    return <EmployeeDashboard data={data} user={user} />;
+    dashboardView = <EmployeeDashboard data={data} user={user} onAddWorkLogClick={() => setIsAddWorkLogOpen(true)} />;
   } else if (user?.role === 'manager') {
-    return <ManagerDashboard data={data} user={user} />;
+    dashboardView = <ManagerDashboard data={data} user={user} onAddWorkLogClick={() => setIsAddWorkLogOpen(true)} />;
   } else if (user?.role === 'executive') {
-    return <ExecutiveDashboard data={data} user={user} />;
+    dashboardView = <ExecutiveDashboard data={data} user={user} />;
   } else if (user?.role === 'hr' || user?.role === 'admin') {
-    return <HRDashboard data={data} user={user} />;
+    dashboardView = <HRDashboard data={data} user={user} onAddWorkLogClick={() => setIsAddWorkLogOpen(true)} />;
+  } else {
+    dashboardView = <div className="p-6 bg-amber-50 text-amber-800 rounded-lg">Role Dashboard not defined.</div>;
   }
 
   return (
-    <div className="p-6 bg-amber-50 text-amber-800 rounded-lg">
-      Role Dashboard not defined.
-    </div>
+    <>
+      {dashboardView}
+      <AddWorkLogModal
+        isOpen={isAddWorkLogOpen}
+        onClose={() => setIsAddWorkLogOpen(false)}
+        user={user}
+        deptId={deptId}
+        onSuccess={fetchDashboard}
+      />
+    </>
   );
 };
 
 // ==================== SUB-DASHBOARD: EMPLOYEE ====================
 
-const EmployeeDashboard = ({ data, user }) => {
+const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
   const navigate = useNavigate();
   const {
     profile = {},
@@ -535,12 +548,21 @@ const EmployeeDashboard = ({ data, user }) => {
             Department: <span className="text-slate-300 font-semibold">{profile?.departmentId?.departmentName || 'N/A'}</span> | Designation: <span className="text-slate-300 font-semibold">{profile?.designationId?.designationName || 'N/A'}</span>
           </p>
         </div>
-        {profile?.managerId && (
-          <div className="bg-slate-800/80 border border-slate-800 px-4 py-2.5 rounded-xl text-xs">
-            <p className="text-slate-400 font-medium">Reporting Manager</p>
-            <p className="text-slate-200 font-bold mt-0.5">{profile.managerId.firstName} {profile.managerId.lastName}</p>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-3 relative z-10">
+          <button
+            onClick={onAddWorkLogClick}
+            className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-955 font-black text-xs px-4.5 py-2.5 rounded-xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Log Daily Work</span>
+          </button>
+          {profile?.managerId && (
+            <div className="bg-slate-800/80 border border-slate-800 px-4 py-2.5 rounded-xl text-xs">
+              <p className="text-slate-400 font-medium">Reporting Manager</p>
+              <p className="text-slate-200 font-bold mt-0.5">{profile.managerId.firstName} {profile.managerId.lastName}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Bento Grid: Journey Checklist (2/3) + Punch Card (1/3) */}
@@ -719,7 +741,7 @@ const EmployeeDashboard = ({ data, user }) => {
 
 // ==================== SUB-DASHBOARD: MANAGER ====================
 
-const ManagerDashboard = ({ data, user }) => {
+const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
   const navigate = useNavigate();
   const {
     teamCount = 0,
@@ -760,6 +782,25 @@ const ManagerDashboard = ({ data, user }) => {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Dashboard Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">
+            Manager Overview Dashboard
+          </h1>
+          <p className="text-slate-500 text-xs md:text-sm mt-0.5 font-medium">
+            Welcome, {user?.firstName}! Manage team reviews and log your own daily work.
+          </p>
+        </div>
+        <button
+          onClick={onAddWorkLogClick}
+          className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-4.5 py-2.5 rounded-xl shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer border border-slate-850"
+        >
+          <Plus size={16} />
+          <span>Log Daily Work</span>
+        </button>
+      </div>
+
       {/* Self Assessment Action Banner */}
       {pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
         <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800">
@@ -970,7 +1011,7 @@ const ManagerDashboard = ({ data, user }) => {
 
 // ==================== SUB-DASHBOARD: HR & ADMIN ====================
 
-const HRDashboard = ({ data, user }) => {
+const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
   const {
     stats = {},
     activeCycleMetrics = [],
@@ -1184,6 +1225,13 @@ const HRDashboard = ({ data, user }) => {
 
           {/* Quick Action Shortcuts */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={onAddWorkLogClick}
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer border border-indigo-700"
+            >
+              <Plus size={16} />
+              <span>Log Daily Work</span>
+            </button>
             <Link
               to="/hr/cycles"
               className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
@@ -3940,6 +3988,328 @@ const ExecutiveDashboard = ({ data, user }) => {
 
 
 
+    </div>
+  );
+};
+
+const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
+  const [title, setTitle] = useState('');
+  const [project, setProject] = useState('');
+  const [category, setCategory] = useState('Development');
+  const [hoursSpent, setHoursSpent] = useState('');
+  const [resultSummary, setResultSummary] = useState('');
+  const [evidenceType, setEvidenceType] = useState('Screenshot');
+  const [evidenceRef, setEvidenceRef] = useState('');
+  const [completedDate, setCompletedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [formTemplate, setFormTemplate] = useState(null);
+  const [customFieldsData, setCustomFieldsData] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !deptId) return;
+    const fetchTemplate = async () => {
+      try {
+        const res = await api.get(`/api/work-journal-templates/department/${deptId}`);
+        if (res.data) {
+          setFormTemplate(res.data);
+          if (res.data.categories && res.data.categories.length > 0) {
+            setCategory(res.data.categories[0].name);
+          }
+          if (res.data.evidenceTypes && res.data.evidenceTypes.length > 0) {
+            setEvidenceType(res.data.evidenceTypes[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load template:', err);
+      }
+    };
+    fetchTemplate();
+  }, [isOpen, deptId]);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setScreenshotFile(file);
+      setImagePreviewUrl(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title || !category) {
+      toast.error('Achievement Title and Category are required.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const formData = new FormData();
+      formData.append('title', title);
+      formData.append('project', project);
+      formData.append('category', category);
+      formData.append('hoursSpent', hoursSpent);
+      formData.append('resultSummary', resultSummary);
+      formData.append('evidenceType', evidenceType);
+      formData.append('evidenceRef', evidenceRef);
+      formData.append('completedDate', completedDate);
+      formData.append('customFieldsData', JSON.stringify(customFieldsData));
+
+      if (screenshotFile) {
+        formData.append('file', screenshotFile);
+      }
+
+      await api.post('/api/work-journal', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      toast.success('Daily Work Log submitted for manager verification!');
+      
+      // Reset state
+      setTitle('');
+      setProject('');
+      setCategory('Development');
+      setHoursSpent('');
+      setResultSummary('');
+      setEvidenceRef('');
+      setScreenshotFile(null);
+      setImagePreviewUrl('');
+      setCustomFieldsData({});
+      
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to submit work log.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const CATEGORIES = [
+    'Development',
+    'Testing',
+    'Bug Fix',
+    'Architecture',
+    'Code Review',
+    'Documentation',
+    'Deployment',
+    'Client Support',
+    'Process Improvement',
+    'Other'
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[9999] flex justify-center items-center p-4">
+      <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-4 border border-slate-100 text-xs max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-sky-50 rounded-lg text-sky-700">
+              <ClipboardList size={16} />
+            </div>
+            <h3 className="font-black text-slate-900 text-sm">Log Daily Work Achievement</h3>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-605 font-bold cursor-pointer text-sm">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">
+              {formTemplate?.titleLabel || 'Achievement Title'} *
+            </label>
+            <input
+              type="text"
+              placeholder={formTemplate?.titlePlaceholder || 'e.g. Conducted client pitch meeting...'}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-850 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/25 transition-all"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">
+                {formTemplate?.projectLabel || 'Project / Module'}
+              </label>
+              <input
+                type="text"
+                placeholder={formTemplate?.projectPlaceholder || 'e.g. Enterprise Client / System'}
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Category *</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-855 outline-none cursor-pointer focus:border-sky-500"
+                required
+              >
+                {(formTemplate?.categories && formTemplate.categories.length > 0 
+                  ? formTemplate.categories.map(c => c.name) 
+                  : CATEGORIES
+                ).map(catName => (
+                  <option key={catName} value={catName}>{catName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Date Completed *</label>
+              <input
+                type="date"
+                value={completedDate}
+                onChange={(e) => setCompletedDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-855 outline-none focus:border-sky-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Hours Spent</label>
+              <input
+                type="number"
+                step="0.5"
+                placeholder="e.g. 3.5"
+                value={hoursSpent}
+                onChange={(e) => setHoursSpent(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">
+              {formTemplate?.summaryLabel || 'Work Summary & Output Result'}
+            </label>
+            <textarea
+              rows="3"
+              placeholder={formTemplate?.summaryPlaceholder || 'Summarize what was delivered...'}
+              value={resultSummary}
+              onChange={(e) => setResultSummary(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-medium text-slate-850 outline-none focus:border-sky-500"
+            ></textarea>
+          </div>
+
+          {formTemplate?.customFields && formTemplate.customFields.length > 0 && (
+            <div className="space-y-3 bg-sky-50/50 p-3 rounded-xl border border-sky-100">
+              <span className="text-[10px] font-black uppercase text-sky-800 tracking-wider block">
+                {formTemplate.departmentId?.departmentName || 'Department'} Custom Questions
+              </span>
+              {formTemplate.customFields.map((field) => (
+                <div key={field.fieldKey} className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-700 uppercase flex items-center justify-between">
+                    <span>{field.label} {field.required && <span className="text-rose-500">*</span>}</span>
+                  </label>
+                  {field.fieldType === 'select' ? (
+                    <select
+                      value={customFieldsData[field.fieldKey] || ''}
+                      onChange={(e) => setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: e.target.value })}
+                      className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+                      required={field.required}
+                    >
+                      <option value="">-- Select Option --</option>
+                      {field.options?.map((opt, oIdx) => (
+                        <option key={oIdx} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : field.fieldType === 'textarea' ? (
+                    <textarea
+                      rows={2}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
+                      value={customFieldsData[field.fieldKey] || ''}
+                      onChange={(e) => setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: e.target.value })}
+                      className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-medium text-slate-855 outline-none focus:border-sky-500"
+                      required={field.required}
+                    />
+                  ) : (
+                    <input
+                      type={field.fieldType === 'number' ? 'number' : field.fieldType === 'url' ? 'url' : 'text'}
+                      placeholder={field.placeholder || `Enter ${field.label}...`}
+                      value={customFieldsData[field.fieldKey] || ''}
+                      onChange={(e) => setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: e.target.value })}
+                      className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+                      required={field.required}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Evidence Type</label>
+              <select
+                value={evidenceType}
+                onChange={(e) => setEvidenceType(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-855 outline-none cursor-pointer focus:border-sky-500"
+              >
+                {(formTemplate?.evidenceTypes && formTemplate.evidenceTypes.length > 0
+                  ? formTemplate.evidenceTypes
+                  : ['Screenshot Upload', 'Github PR / Commit', 'Jira / Task Ticket', 'Document / Doc Link', 'Client Email / Approval']
+                ).map((evType, evIdx) => (
+                  <option key={evIdx} value={evType}>{evType}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">
+                {formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'}
+              </label>
+              <input
+                type="text"
+                placeholder={formTemplate?.evidenceRefPlaceholder || 'e.g. URL or Doc Ref'}
+                value={evidenceRef}
+                onChange={(e) => setEvidenceRef(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Upload Screenshot Proof (Optional)</label>
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleFileChange}
+              className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs cursor-pointer outline-none focus:border-sky-500"
+            />
+            {imagePreviewUrl && (
+              <div className="mt-2 relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 max-h-36 flex justify-center items-center">
+                <img src={imagePreviewUrl} alt="Preview" className="max-h-32 object-contain" />
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white font-black cursor-pointer shadow-md transition-colors"
+            >
+              {submitting ? 'Submitting...' : 'Submit Log'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
