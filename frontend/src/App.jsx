@@ -65,6 +65,9 @@ function App() {
           {/* Notifications */}
           <Route path="/notifications" element={<Notifications />} />
           
+          {/* Holiday Calendar */}
+          <Route path="/settings/holidays" element={<HolidayCalendar />} />
+          
           {/* PIP Workspace */}
           <Route path="/pips" element={<PipWorkspace />} />
 
@@ -115,7 +118,6 @@ function App() {
           {/* Sub-group: Executive / Admin only — Attendance Settings */}
           <Route element={<ProtectedRoute allowedRoles={['executive', 'admin']} />}>
             <Route path="/settings/attendance-rules" element={<AttendanceRules />} />
-            <Route path="/settings/holidays" element={<HolidayCalendar />} />
           </Route>
         </Route>
       </Route>

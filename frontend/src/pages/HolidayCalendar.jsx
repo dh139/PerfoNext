@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../utils/api';
 import { toast } from '../store/toastStore';
+import useAuthStore from '../store/authStore';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -167,6 +168,9 @@ function DeleteConfirm({ name, onConfirm, onCancel }) {
 
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function HolidayCalendarPage() {
+  const { user } = useAuthStore();
+  const canEdit = user?.role === 'admin' || user?.role === 'executive';
+
   const [year, setYear]       = useState(new Date().getFullYear());
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,14 +265,16 @@ export default function HolidayCalendarPage() {
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">Holiday Calendar</h1>
             <p className="text-slate-400 text-xs mt-1">Manage company-wide holidays. Holiday dates block punch-in and exclude counts from working days.</p>
           </div>
-          <button
-            onClick={() => setModal({ mode: 'create', holiday: null })}
-            className="flex items-center gap-2 px-5 py-2.5 font-black rounded-xl shrink-0 cursor-pointer transition-all text-slate-950 text-xs self-stretch md:self-auto justify-center"
-            style={{ background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', boxShadow: '0 4px 16px rgba(14,165,233,0.3)' }}
-          >
-            <Plus size={16} />
-            Add Holiday
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setModal({ mode: 'create', holiday: null })}
+              className="flex items-center gap-2 px-5 py-2.5 font-black rounded-xl shrink-0 cursor-pointer transition-all text-slate-950 text-xs self-stretch md:self-auto justify-center"
+              style={{ background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', boxShadow: '0 4px 16px rgba(14,165,233,0.3)' }}
+            >
+              <Plus size={16} />
+              Add Holiday
+            </button>
+          )}
         </div>
       </div>
 
@@ -365,10 +371,12 @@ export default function HolidayCalendarPage() {
                         {isToday && <span className="text-[9px] bg-sky-500/20 text-sky-700 px-1.5 rounded-full font-black">Today</span>}
                       </div>
                     </div>
-                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => setModal({ mode: 'edit', holiday: h })} className="p-1 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 cursor-pointer border-none bg-transparent"><Edit2 size={11} /></button>
-                      <button onClick={() => setDeleteTarget(h)} className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer border-none bg-transparent"><Trash2 size={11} /></button>
-                    </div>
+                    {canEdit && (
+                      <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setModal({ mode: 'edit', holiday: h })} className="p-1 rounded text-slate-400 hover:text-sky-600 hover:bg-sky-50 cursor-pointer border-none bg-transparent"><Edit2 size={11} /></button>
+                        <button onClick={() => setDeleteTarget(h)} className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer border-none bg-transparent"><Trash2 size={11} /></button>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -439,7 +447,7 @@ export default function HolidayCalendarPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/30">
-                  {['Date', 'Day', 'Name', 'Type', 'Actions'].map(h => (
+                  {(canEdit ? ['Date', 'Day', 'Name', 'Type', 'Actions'] : ['Date', 'Day', 'Name', 'Type']).map(h => (
                     <th key={h} className="text-left px-5 py-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -459,16 +467,18 @@ export default function HolidayCalendarPage() {
                       <td className="px-5 py-3 text-slate-500 font-semibold">{dayName(h.date)}</td>
                       <td className="px-5 py-3 font-bold text-slate-800">{h.name}</td>
                       <td className="px-5 py-3"><TypeBadge type={h.type} /></td>
-                      <td className="px-5 py-3">
-                        <div className="flex gap-0.5">
-                          <button onClick={() => setModal({ mode: 'edit', holiday: h })} className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 cursor-pointer border-none bg-transparent">
-                            <Edit2 size={13} />
-                          </button>
-                          <button onClick={() => setDeleteTarget(h)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer border-none bg-transparent">
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </td>
+                      {canEdit && (
+                        <td className="px-5 py-3">
+                          <div className="flex gap-0.5">
+                            <button onClick={() => setModal({ mode: 'edit', holiday: h })} className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 cursor-pointer border-none bg-transparent">
+                              <Edit2 size={13} />
+                            </button>
+                            <button onClick={() => setDeleteTarget(h)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer border-none bg-transparent">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}

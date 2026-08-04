@@ -202,6 +202,10 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                 <Award size={16} />
                 <span>Awards & Accolades</span>
               </Link>
+              <Link to="/settings/holidays" className={linkClass('/settings/holidays')} onClick={handleNavClick}>
+                <CalendarDays size={16} />
+                <span>Holiday Calendar</span>
+              </Link>
             </div>
           )}
         </div>
@@ -396,14 +400,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                   <CalendarDays size={16} />
                   <span>Holiday Calendar</span>
                 </Link>
-                {/* Shift Management — Coming Soon */}
-                <div className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 cursor-not-allowed select-none">
-                  <Calendar size={16} />
-                  <span className="flex items-center gap-1.5">
-                    Shift Management
-                    <span className="text-[9px] bg-amber-500/20 text-amber-500 border border-amber-500/30 px-1.5 py-0.5 rounded-full font-semibold uppercase">Soon</span>
-                  </span>
-                </div>
+             
               </div>
             )}
           </div>

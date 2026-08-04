@@ -122,6 +122,7 @@ export default function AttendanceRulesPage() {
   const [changeNote, setChangeNote] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -142,6 +143,7 @@ export default function AttendanceRulesPage() {
     try {
       const res = await api.get('/api/attendance/settings/history');
       setHistory(Array.isArray(res.data) ? res.data : []);
+      setHistoryPage(1);
     } catch (e) {
       console.error(e);
     }
@@ -234,6 +236,11 @@ export default function AttendanceRulesPage() {
     const fmt = m => `${Math.floor(m / 60)}h ${m % 60 > 0 ? `${m % 60}m` : ''}`.trim();
     return { dur, lunch, net, fDur: fmt(dur), fLunch: fmt(lunch), fNet: fmt(net) };
   })();
+
+  const itemsPerPage = 3;
+  const totalPages = Math.ceil(history.length / itemsPerPage);
+  const startIndex = (historyPage - 1) * itemsPerPage;
+  const paginatedHistory = history.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 text-xs text-slate-800">
@@ -454,14 +461,7 @@ export default function AttendanceRulesPage() {
         )}
       </SectionCard>
 
-      {/* ── 10. Restrictions (Coming Soon) ──────────────────────────────────── */}
-      <SectionCard icon={Smartphone} iconBg="bg-slate-100 text-slate-600 border border-slate-200" title="Access Restrictions" subtitle="Future-ready controls for punch-in source validation" defaultOpen={false}>
-        <div className="space-y-3">
-          <ComingSoonCard icon={MapPin} title="Location Restriction" description="Restrict punch-in to a GPS radius around the office." />
-          <ComingSoonCard icon={Wifi} title="IP Restriction" description="Allow punch-in only from approved IP addresses." />
-          <ComingSoonCard icon={Smartphone} title="Device Restriction" description="Restrict attendance to registered/biometric devices." />
-        </div>
-      </SectionCard>
+    
 
       {/* ── Attendance Formula Card ──────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -543,7 +543,7 @@ export default function AttendanceRulesPage() {
               <p className="text-slate-500 text-xs text-center py-4">No changes recorded yet.</p>
             ) : (
               <div className="space-y-3">
-                {history.map((h, i) => (
+                {paginatedHistory.map((h, i) => (
                   <div key={i} className="p-4 bg-slate-50 border border-slate-250 rounded-xl">
                     <div className="flex items-center justify-between mb-2 gap-2 flex-wrap text-xs">
                       <span className="font-bold text-slate-700">
@@ -551,7 +551,6 @@ export default function AttendanceRulesPage() {
                         <span className="text-slate-500 text-[10px] ml-2 font-normal">({h.changedBy?.employeeCode})</span>
                       </span>
                       <div className="flex items-center gap-2">
-                        {h.version && <span className="bg-sky-50 border border-sky-200 text-sky-600 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">v{h.version}</span>}
                         <span className="text-slate-500 text-[10px]">{new Date(h.createdAt).toLocaleString('en-IN')}</span>
                       </div>
                     </div>
@@ -562,7 +561,12 @@ export default function AttendanceRulesPage() {
                         <div className="space-y-1">
                           <p>Start: <span className="text-slate-800">{h.oldValues?.officeStartTime}</span></p>
                           <p>End: <span className="text-slate-800">{h.oldValues?.officeEndTime}</span></p>
+                          <p>Grace Time: <span className="text-slate-800">{h.oldValues?.graceMinutes || 0} min</span></p>
                           <p>Present: <span className="text-slate-800">{h.oldValues?.presentHours}h</span></p>
+                          <p>Half Day: <span className="text-slate-800">{h.oldValues?.halfDayHours}h</span></p>
+                          <p>Lunch: <span className="text-slate-800">{h.oldValues?.lunchDeductionEnabled ? `${h.oldValues?.lunchDeductionMinutes || 0} min` : 'Disabled'}</span></p>
+                          <p>Early Exit: <span className="text-slate-800">{h.oldValues?.allowEarlyExit ? h.oldValues?.earlyExitTime : 'Disabled'}</span></p>
+                          <p>Overtime: <span className="text-slate-800">{h.oldValues?.enableOvertime ? `Min ${h.oldValues?.overtimeMinMinutes || 0}m` : 'Disabled'}</span></p>
                           <p>Weekends: <span className="text-slate-800">{(h.oldValues?.weekends || []).map(d => DAYS[d]).join(', ') || 'None'}</span></p>
                         </div>
                       </div>
@@ -571,13 +575,43 @@ export default function AttendanceRulesPage() {
                         <div className="space-y-1">
                           <p>Start: <span className="text-slate-800">{h.newValues?.officeStartTime}</span></p>
                           <p>End: <span className="text-slate-800">{h.newValues?.officeEndTime}</span></p>
+                          <p>Grace Time: <span className="text-slate-800">{h.newValues?.graceMinutes || 0} min</span></p>
                           <p>Present: <span className="text-slate-800">{h.newValues?.presentHours}h</span></p>
+                          <p>Half Day: <span className="text-slate-800">{h.newValues?.halfDayHours}h</span></p>
+                          <p>Lunch: <span className="text-slate-800">{h.newValues?.lunchDeductionEnabled ? `${h.newValues?.lunchDeductionMinutes || 0} min` : 'Disabled'}</span></p>
+                          <p>Early Exit: <span className="text-slate-800">{h.newValues?.allowEarlyExit ? h.newValues?.earlyExitTime : 'Disabled'}</span></p>
+                          <p>Overtime: <span className="text-slate-800">{h.newValues?.enableOvertime ? `Min ${h.newValues?.overtimeMinMinutes || 0}m` : 'Disabled'}</span></p>
                           <p>Weekends: <span className="text-slate-800">{(h.newValues?.weekends || []).map(d => DAYS[d]).join(', ') || 'None'}</span></p>
                         </div>
                       </div>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-xs mt-4">
+                <button
+                  type="button"
+                  disabled={historyPage === 1}
+                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-slate-500 font-medium">
+                  Page {historyPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={historyPage === totalPages}
+                  onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  Next
+                </button>
               </div>
             )}
           </div>

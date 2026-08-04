@@ -452,22 +452,34 @@ const reviewRegularization = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const getCeoSummary = async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todayDate = new Date(todayStr);
+    const { date } = req.query;
+    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDate = new Date(targetDateStr);
 
     const eligibleRoles = ['employee', 'manager', 'hr'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
-    const punches = await AttendancePunch.find({ date: todayDate })
+    const punches = await AttendancePunch.find({ date: targetDate })
       .populate('employeeId', 'firstName lastName role departmentId');
 
     let present = 0, halfDay = 0, absent = 0, late = 0, autoClosed = 0, leave = 0;
+    const lateEmployees = [];
     const punchedUserIds = punches.map(p => {
-      if (p.status === 'Present' || p.status === 'Regularized') present++;
-      else if (p.status === 'Late') { present++; late++; }
+      if (p.status === 'Present' || p.status === 'Regularized' || p.status === 'Incomplete') present++;
+      else if (p.status === 'Late') { 
+        present++; 
+        late++; 
+      }
       else if (p.status === 'Half Day') halfDay++;
       else if (p.status === 'Absent') absent++;
       else if (p.status === 'Auto Closed') autoClosed++;
       else if (p.status === 'Leave') leave++;
+
+      if (p.lateMinutes > 0) {
+        lateEmployees.push({
+          name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
+          lateMinutes: p.lateMinutes
+        });
+      }
       return (p.employeeId?._id || p.employeeId)?.toString();
     });
 
@@ -478,6 +490,9 @@ const getCeoSummary = async (req, res) => {
 
     const attendancePercentage = totalUsers > 0
       ? Math.round(((present + halfDay * 0.5) / totalUsers) * 100) : 0;
+
+    const latePercentage = totalUsers > 0
+      ? Math.round((late / totalUsers) * 100) : 0;
 
     let totalLoginMs = 0, loginCount = 0, totalLogoutMs = 0, logoutCount = 0;
     punches.forEach(p => {
@@ -491,9 +506,9 @@ const getCeoSummary = async (req, res) => {
     for (const d of depts) {
       const dUsers = await User.find({ departmentId: d._id, role: { $in: eligibleRoles } });
       if (dUsers.length > 0) {
-        const dPunches = await AttendancePunch.find({ date: todayDate, employeeId: { $in: dUsers.map(u => u._id) } });
+        const dPunches = await AttendancePunch.find({ date: targetDate, employeeId: { $in: dUsers.map(u => u._id) } });
         let dPresent = 0;
-        dPunches.forEach(p => { if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') dPresent++; else if (p.status === 'Half Day') dPresent += 0.5; });
+        dPunches.forEach(p => { if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized' || p.status === 'Incomplete') dPresent++; else if (p.status === 'Half Day') dPresent += 0.5; });
         deptBreakdown.push({ departmentName: d.departmentName, percentage: Math.round((dPresent / dUsers.length) * 100), active: dUsers.length });
       }
     }
@@ -502,9 +517,11 @@ const getCeoSummary = async (req, res) => {
       present, halfDay, absent, late, autoClosed, leave,
       notPunchedYet: unpunchedUsers.length,
       attendancePercentage,
+      latePercentage,
       avgLoginTime: loginCount > 0 ? fmt(totalLoginMs / loginCount) : '--:--',
       avgLogoutTime: logoutCount > 0 ? fmt(totalLogoutMs / logoutCount) : '--:--',
       absentEmployees: unpunchedUsers.map(u => `${u.firstName} ${u.lastName}`),
+      lateEmployees,
       deptBreakdown
     });
   } catch (error) {
@@ -518,16 +535,20 @@ const getCeoSummary = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const getHrSummary = async (req, res) => {
   try {
-    const todayDate = new Date(new Date().toISOString().split('T')[0]);
+    const { date } = req.query;
+    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDate = new Date(targetDateStr);
+
     const eligibleRoles = ['employee', 'manager', 'hr'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
-    const punches = await AttendancePunch.find({ date: todayDate })
+    const punches = await AttendancePunch.find({ date: targetDate })
       .populate('employeeId', 'firstName lastName employeeCode email');
 
     let present = 0, halfDay = 0, absent = 0, late = 0, earlyExit = 0, autoClosed = 0;
     const working = [];
+    const lateEmployees = [];
     const punchedUserIds = punches.map(p => {
-      if (p.status === 'Present' || p.status === 'Regularized') present++;
+      if (p.status === 'Present' || p.status === 'Regularized' || p.status === 'Incomplete') present++;
       else if (p.status === 'Late') { present++; late++; }
       else if (p.status === 'Half Day') halfDay++;
       else if (p.status === 'Absent') absent++;
@@ -537,6 +558,13 @@ const getHrSummary = async (req, res) => {
 
       if (p.punchIn && !p.punchOut) {
         working.push({ name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`, code: p.employeeId?.employeeCode || 'N/A', punchIn: p.punchIn });
+      }
+
+      if (p.lateMinutes > 0) {
+        lateEmployees.push({
+          name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
+          lateMinutes: p.lateMinutes
+        });
       }
       return (p.employeeId?._id || p.employeeId)?.toString();
     });
@@ -556,6 +584,7 @@ const getHrSummary = async (req, res) => {
       notPunchedCount: unpunchedUsers.length,
       pendingRegularizationCount,
       workingList: working,
+      lateEmployees,
       absentEmployees: unpunchedUsers.map(u => `${u.firstName} ${u.lastName}`)
     });
   } catch (error) {
@@ -674,6 +703,58 @@ const updateSettings = async (req, res) => {
     current.version = newVersion;
     current.updatedBy = req.user.id;
     await current.save();
+
+    // Recalculate today's punches under the new rules
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(todayStr);
+    const todayPunches = await AttendancePunch.find({ date: todayDate });
+    const rules = current.attendanceRules;
+
+    for (const punch of todayPunches) {
+      if (!punch.punchIn) continue;
+
+      // Recalculate late minutes
+      const shiftStart = getDateWithTime(punch.date, rules.officeStartTime);
+      const graceEnd = new Date(shiftStart.getTime() + (rules.graceMinutes || 0) * 60000);
+      const lateMinutes = punch.punchIn > graceEnd ? Math.round((punch.punchIn.getTime() - shiftStart.getTime()) / 60000) : 0;
+      punch.lateMinutes = lateMinutes;
+
+      if (punch.punchOut) {
+        const totalDurationMinutes = Math.round((punch.punchOut.getTime() - punch.punchIn.getTime()) / 60000);
+        punch.totalDurationMinutes = totalDurationMinutes;
+        punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+        
+        const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
+        punch.workingMinutes = workingMinutes;
+
+        const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
+        punch.earlyExitMinutes = punch.punchOut < shiftEnd ? Math.round((shiftEnd.getTime() - punch.punchOut.getTime()) / 60000) : 0;
+
+        let overtimeMinutes = 0;
+        if (rules.enableOvertime) {
+          const extraMins = Math.round((punch.punchOut.getTime() - shiftEnd.getTime()) / 60000);
+          if (extraMins >= (rules.overtimeMinMinutes || 30)) {
+            overtimeMinutes = Math.floor(extraMins / (rules.overtimeRoundMinutes || 15)) * (rules.overtimeRoundMinutes || 15);
+          }
+        }
+        punch.overtimeMinutes = overtimeMinutes;
+
+        const presentMins = (rules.presentHours || 8) * 60;
+        const halfDayMins = (rules.halfDayHours || 4) * 60;
+
+        if (workingMinutes >= presentMins) {
+          punch.status = lateMinutes > 0 ? 'Late' : 'Present';
+        } else if (workingMinutes >= halfDayMins) {
+          punch.status = 'Half Day';
+        } else {
+          punch.status = 'Absent';
+        }
+      } else {
+        punch.status = lateMinutes > 0 ? 'Late' : 'Incomplete';
+      }
+
+      await punch.save();
+    }
 
     // Write audit log history
     const history = new AttendanceSettingsHistory({
