@@ -327,9 +327,7 @@ const Certifications = () => {
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-400/30 tracking-wider">
-                Credentials Vault
-              </span>
+         
               {selectedUserObj && (
                 <span className="text-[10px] text-slate-300 font-bold bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-700">
                   Staff: {selectedUserObj.firstName} {selectedUserObj.lastName} ({selectedUserObj.role?.toUpperCase()})

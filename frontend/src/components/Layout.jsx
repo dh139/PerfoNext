@@ -24,14 +24,31 @@ const Layout = () => {
       }
     };
 
-    // Fetch active cycles to show header alert
+    // Fetch active cycles to show header alert — only show cycle relevant to the user's own department
     const fetchActiveCycles = async () => {
       try {
         const res = await api.get('/api/review-cycles');
-        const active = res.data.find(c => c.status === 'active');
-        if (active) {
-          setActiveCycle(active);
-        }
+        const userDeptId = user?.departmentId?._id
+          ? user.departmentId._id.toString()
+          : user?.departmentId
+          ? user.departmentId.toString()
+          : '';
+
+        // Find first active cycle that either:
+        //   (a) has no specific department (org-wide), OR
+        //   (b) targets this user's exact department
+        const active = res.data.find(c => {
+          if (c.status !== 'active') return false;
+          if (c.departmentId) {
+            const cycleDeptId = c.departmentId._id
+              ? c.departmentId._id.toString()
+              : c.departmentId.toString();
+            if (!userDeptId || userDeptId !== cycleDeptId) return false;
+          }
+          return true;
+        });
+
+        setActiveCycle(active || null);
       } catch (err) {
         console.error('Failed to load active cycles:', err);
       }

@@ -252,11 +252,7 @@ export default function AttendanceRulesPage() {
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">Enterprise Policy Desk</span>
-              {settings?.version && (
-                <span className="text-[9px] bg-slate-800 border border-slate-700 text-slate-400 px-2 py-0.5 rounded-full font-mono">
-                  v{settings.version}
-                </span>
-              )}
+
               {dirty && (
                 <span className="text-[9px] bg-amber-500/20 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded-full font-bold animate-pulse">
                   Unsaved Changes

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Plus, Users, ClipboardList, Clock, FileText, CheckCircle2, RefreshCw, Activity
+  Plus, Users, ClipboardList, Clock, FileText,
+  CheckCircle2, RefreshCw, Activity, ArrowUpRight,
+  AlertCircle, Star, TrendingUp, ChevronRight
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
@@ -20,6 +22,7 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
   } = data || {};
 
   const totalEmployees = teamCount || teamSize || 0;
+  const reviewsReady = pendingManagerReviews.filter(r => r.isEmployeeSubmitted).length;
 
   const [pendingRegs, setPendingRegs] = useState([]);
 
@@ -46,192 +49,317 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
     }
   };
 
+  const getRatingColor = (rating) => {
+    const r = (rating || '').toLowerCase();
+    if (r.includes('excellent') || r.includes('outstanding')) return 'text-emerald-600 bg-emerald-50 border-emerald-100';
+    if (r.includes('good') || r.includes('above')) return 'text-sky-600 bg-sky-50 border-sky-100';
+    if (r.includes('average') || r.includes('meet')) return 'text-amber-600 bg-amber-50 border-amber-100';
+    return 'text-rose-600 bg-rose-50 border-rose-100';
+  };
+
+  const kpiCards = [
+    {
+      label: 'Direct Reportees',
+      value: `${totalEmployees}`,
+      unit: 'Employees',
+      icon: <Users size={20} />,
+      iconBg: 'bg-sky-500/15 text-sky-400',
+      textColor: 'text-white',
+      bgClass: 'bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border-slate-800',
+      onClick: null,
+    },
+    {
+      label: 'Pending Work Log Verifications',
+      value: pendingWorkLogs,
+      unit: 'Logs',
+      icon: <ClipboardList size={20} />,
+      iconBg: 'bg-rose-50 text-rose-500',
+      textColor: 'text-rose-600',
+      bgClass: 'bg-white border-slate-200 hover:border-rose-200',
+      onClick: () => navigate('/performance/work-journal'),
+    },
+    {
+      label: 'Reviews Awaiting',
+      value: reviewsReady,
+      unit: 'Ready to Grade',
+      icon: <Clock size={20} />,
+      iconBg: 'bg-amber-50 text-amber-600',
+      textColor: 'text-amber-600',
+      bgClass: 'bg-white border-slate-200 hover:border-amber-200',
+      onClick: null,
+    },
+    {
+      label: 'Subordinate Evidence',
+      value: pendingSelfAssessmentsFromSubordinates.length,
+      unit: 'Confirmations',
+      icon: <FileText size={20} />,
+      iconBg: 'bg-indigo-50 text-indigo-600',
+      textColor: 'text-indigo-600',
+      bgClass: 'bg-white border-slate-200 hover:border-indigo-200',
+      onClick: null,
+    },
+  ];
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Dashboard Top Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-        <div>
-          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">
-            Manager Overview Dashboard
+    <div className="space-y-6 animate-fade-in">
+
+      {/* ── HERO WELCOME BANNER — identical styling to EmployeeDashboard ── */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden shadow-xl">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-gradient-to-br from-sky-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="space-y-2 relative z-10">
+          <div className="flex items-center gap-2">
+            <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
+              Manager Dashboard
+            </span>
+          </div>
+          <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
+            Welcome back, {user?.firstName}!
           </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-0.5 font-medium">
-            Welcome, {user?.firstName}! Manage team reviews and log your own daily work.
-          </p>
-        </div>
-        <button
-          onClick={onAddWorkLogClick}
-          className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-4.5 py-2.5 rounded-xl shadow-md transition-all hover:scale-105 active:scale-95 cursor-pointer border border-slate-850"
-        >
-          <Plus size={16} />
-          <span>Log Daily Work</span>
-        </button>
-      </div>
-
-      {/* Self Assessment Action Banner */}
-      {pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
-        <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] uppercase font-extrabold px-2 py-0.5 bg-sky-500/20 text-sky-300 rounded border border-sky-400/30">Action Required</span>
-              {(() => {
-                const type = pendingSelfAssessments[0].cycleType || '';
-                const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
-                return (
-                  <h3 className="font-bold text-sm">Your {typeLabel} Evidence Confirmation Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
-                );
-              })()}
-            </div>
-            <p className="text-xs text-sky-200 mt-1">Please confirm your verified work evidence for the active review cycle.</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-400 text-xs mt-1.5">
+            {user?.departmentId?.name && (
+              <span className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1 rounded-full border border-slate-800 text-[10px]">
+                <span className="w-1.5 h-1.5 bg-sky-400 rounded-full" />
+                Department: <strong className="text-slate-200">{user.departmentId.name}</strong>
+              </span>
+            )}
+            {user?.designation && (
+              <span className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1 rounded-full border border-slate-800 text-[10px]">
+                <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
+                Designation: <strong className="text-slate-200">{user.designation}</strong>
+              </span>
+            )}
           </div>
-          <Link
-            to={`/review/confirm/${pendingSelfAssessments[0].cycleId}`}
-            className="bg-sky-500 hover:bg-sky-400 text-slate-955 font-extrabold text-xs px-4 py-2 rounded-xl shadow transition-colors shrink-0"
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3.5 relative z-10 shrink-0">
+          <button
+            onClick={onAddWorkLogClick}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
           >
-            Confirm Evidence &rarr;
-          </Link>
-        </div>
-      )}
-
-      {/* Counters Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-sm relative overflow-hidden flex items-center justify-between">
-          <div>
-            <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Direct Reportees</p>
-            <h2 className="text-2xl font-black text-white mt-1.5">{totalEmployees} Employees</h2>
-          </div>
-          <div className="p-3 bg-slate-800 rounded-xl text-sky-400">
-            <Users size={22} />
-          </div>
-        </div>
-
-        <div
-          onClick={() => navigate('/performance/work-journal')}
-          className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between cursor-pointer hover:border-sky-300 transition-colors"
-        >
-          <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pending Work Log Verification</p>
-            <h2 className="text-2xl font-black text-rose-600 mt-1.5">{pendingWorkLogs} Logs</h2>
-          </div>
-          <div className="p-3 bg-rose-50 rounded-xl text-rose-600">
-            <ClipboardList size={22} />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Reviews Awaiting</p>
-            <h2 className="text-2xl font-black text-slate-800 mt-1.5">
-              {pendingManagerReviews.filter(r => r.isEmployeeSubmitted).length}
-            </h2>
-          </div>
-          <div className="p-3 bg-amber-50 rounded-xl text-amber-700">
-            <Clock size={22} />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Subordinate Evidence Confirmations</p>
-            <h2 className="text-2xl font-black text-slate-800 mt-1.5">{pendingSelfAssessmentsFromSubordinates.length}</h2>
-          </div>
-          <div className="p-3 bg-sky-50 rounded-xl text-sky-700">
-            <FileText size={22} />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Bento Grid: Reviews (2/3) + Sidebar (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Pending Reviews (2/3 width) */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
-              <Clock size={18} />
+            <Plus size={16} />
+            <span>Log Daily Work</span>
+          </button>
+          {/* Team chip — mirrors the Reporting Manager card in Employee dashboard */}
+          <div className="bg-slate-900/90 border border-slate-700 p-3 rounded-2xl text-[10px] flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-extrabold shadow-sm">
+              <Users size={15} />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 text-sm">Direct Subordinates Performance Reviews</h3>
-              <p className="text-[11px] text-slate-500">Grade submitted self-assessments</p>
+              <p className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Direct Reports</p>
+              <p className="text-slate-200 font-black mt-0.5">{totalEmployees} Employees</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── SELF-ASSESSMENT ACTION BANNER ── */}
+      {pendingSelfAssessments && pendingSelfAssessments.length > 0 && (() => {
+        const type = pendingSelfAssessments[0].cycleType || '';
+        const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly'
+          : type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly';
+        return (
+          <div className="bg-gradient-to-r from-sky-900 to-indigo-900 border border-sky-800/50 rounded-2xl px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-sky-500/15 text-sky-400 mt-0.5">
+                <AlertCircle size={18} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[9px] uppercase font-extrabold px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-400/30 tracking-wider">
+                    Action Required
+                  </span>
+                  <h3 className="font-bold text-sm text-white">
+                    Your {typeLabel} Evidence Confirmation Pending
+                  </h3>
+                  <span className="text-[10px] font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20">
+                    {pendingSelfAssessments[0].reviewMonth}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Please confirm your verified work evidence for the active review cycle.
+                </p>
+              </div>
+            </div>
+            <Link
+              to={`/review/confirm/${pendingSelfAssessments[0].cycleId}`}
+              className="shrink-0 flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow transition-all hover:scale-105 active:scale-95"
+            >
+              Confirm Evidence <ArrowUpRight size={13} />
+            </Link>
+          </div>
+        );
+      })()}
+
+      {/* ── KPI STAT CARDS ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((card, i) => (
+          <div
+            key={i}
+            onClick={card.onClick || undefined}
+            className={`relative rounded-2xl p-5 border shadow-sm flex items-center justify-between transition-all duration-200 ${card.bgClass} ${card.onClick ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : ''}`}
+          >
+            <div>
+              <p className={`text-[10px] uppercase font-bold tracking-wider ${i === 0 ? 'text-slate-400' : 'text-slate-500'}`}>
+                {card.label}
+              </p>
+              <h2 className={`text-2xl font-black mt-1.5 ${card.textColor}`}>
+                {card.value}
+                {card.unit && <span className="text-sm font-bold ml-1.5 opacity-70">{card.unit}</span>}
+              </h2>
+            </div>
+            <div className={`p-3 rounded-xl ${card.iconBg}`}>
+              {card.icon}
+            </div>
+            {card.onClick && (
+              <div className="absolute top-3 right-3 opacity-30">
+                <ChevronRight size={14} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── MAIN BENTO GRID ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* LEFT — Subordinate Reviews (2/3) */}
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+                <TrendingUp size={17} />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-800 text-sm">Direct Subordinates Performance Reviews</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">Grade submitted self-assessments</p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2.5 py-1 rounded-full">
+              {pendingManagerReviews.length} Total
+            </span>
           </div>
 
           {pendingManagerReviews.length === 0 ? (
-            <div className="py-10 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center">
-              <CheckCircle2 size={32} className="text-emerald-500 mx-auto mb-2" />
+            <div className="py-12 bg-emerald-50/60 rounded-2xl border border-dashed border-emerald-200 text-center">
+              <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-3" />
               <p className="text-slate-800 text-xs font-bold">All reviews completed!</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">There are no pending manager reviews for active cycles.</p>
+              <p className="text-[10px] text-slate-400 mt-1">No pending manager reviews for active cycles.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {pendingManagerReviews.map((item) => (
-                <div
-                  key={`${item.employee._id}-${item.cycleId}`}
-                  className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-colors text-xs"
-                >
-                  <div>
-                    <p className="font-bold text-slate-800">
-                      {item.employee.firstName} {item.employee.lastName}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">
-                      Cycle: <span className="font-semibold text-slate-600">{item.cycleMonth}</span> | Status: {' '}
-                      <span className={`font-semibold ${item.isEmployeeSubmitted ? 'text-emerald-600' : 'text-slate-500'}`}>
-                        {item.isEmployeeSubmitted ? 'Self Submitted' : 'Self Assessment Pending'}
-                      </span>
-                    </p>
+            <div className="space-y-2.5">
+              {pendingManagerReviews.map((item) => {
+                const isReady = item.isEmployeeSubmitted;
+                return (
+                  <div
+                    key={`${item.employee._id}-${item.cycleId}`}
+                    className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm text-xs ${
+                      isReady
+                        ? 'bg-sky-50/40 border-sky-100 hover:border-sky-200'
+                        : 'bg-slate-50 border-slate-100 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
+                        isReady ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500'
+                      }`}>
+                        {item.employee.firstName?.[0]}{item.employee.lastName?.[0]}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-xs">
+                          {item.employee.firstName} {item.employee.lastName}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-slate-400">Cycle:</span>
+                          <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {item.cycleMonth}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            isReady
+                              ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                              : 'text-slate-500 bg-slate-100 border border-slate-200'
+                          }`}>
+                            {isReady ? '✓ Self Submitted' : 'Self Assessment Pending'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      {isReady ? (
+                        <Link
+                          to={`/review/${item.cycleId}/${item.employee._id}`}
+                          className="inline-flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95"
+                        >
+                          Grade Review <ArrowUpRight size={11} />
+                        </Link>
+                      ) : (
+                        <span className="text-[10px] bg-slate-100 text-slate-400 border border-slate-200 px-3 py-1.5 rounded-lg font-semibold cursor-not-allowed select-none">
+                          Waiting for Self
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    {item.isEmployeeSubmitted ? (
-                      <Link
-                        to={`/review/${item.cycleId}/${item.employee._id}`}
-                        className="inline-block bg-sky-700 hover:bg-sky-800 text-white font-semibold text-xs px-3.5 py-1.5 rounded-lg shadow-sm cursor-pointer transition-colors"
-                      >
-                        Grade Review
-                      </Link>
-                    ) : (
-                      <span className="text-[10px] bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-semibold cursor-not-allowed">
-                        Waiting for Self
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Right sidebar: Punch Card + Regularizations (1/3 width) */}
+        {/* RIGHT SIDEBAR (1/3) */}
         <div className="flex flex-col gap-5">
+
           <PunchCard />
 
           {/* Pending Regularizations */}
           {pendingRegs.length > 0 && (
-            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <RefreshCw size={15} className="text-amber-500 animate-spin" />
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Pending Regularizations</h4>
+            <div className="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                    <RefreshCw size={15} className="animate-spin" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-800">Pending Regularizations</h4>
+                    <p className="text-[10px] text-slate-400">Attendance correction requests</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-extrabold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                  {pendingRegs.length}
+                </span>
               </div>
-              <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-56 overflow-y-auto pr-0.5">
                 {pendingRegs.map(reg => (
-                  <div key={reg._id} className="text-xs p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2">
-                    <div className="space-y-0.5">
-                      <p className="font-bold text-slate-800">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
-                      <p className="text-[10px] text-slate-400">Date: {new Date(reg.date).toLocaleDateString()}</p>
-                      <p className="text-[10px] text-slate-400">
-                        {new Date(reg.requestedPunchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} – {new Date(reg.requestedPunchOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </p>
-                      <p className="text-[10px] text-slate-500 italic">"{reg.regularizationReason}"</p>
+                  <div key={reg._id} className="text-xs p-3.5 bg-slate-50 border border-slate-100 rounded-xl hover:border-amber-200 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                        {reg.employeeId?.firstName?.[0]}{reg.employeeId?.lastName?.[0]}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 leading-tight">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
+                        <p className="text-[9px] text-slate-400">{new Date(reg.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      </div>
                     </div>
+                    <div className="flex items-center gap-1.5 mb-2 text-[10px] text-slate-500">
+                      <Clock size={10} />
+                      {new Date(reg.requestedPunchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <span className="text-slate-300">→</span>
+                      {new Date(reg.requestedPunchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {reg.regularizationReason && (
+                      <p className="text-[10px] text-slate-400 italic mb-2.5 leading-relaxed">"{reg.regularizationReason}"</p>
+                    )}
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleReviewReg(reg._id, 'approved')}
-                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors cursor-pointer"
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
                       >
-                        Approve
+                        ✓ Approve
                       </button>
                       <button
                         onClick={() => handleReviewReg(reg._id, 'rejected')}
-                        className="flex-1 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow transition-colors cursor-pointer"
+                        className="flex-1 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
                       >
-                        Reject
+                        ✕ Reject
                       </button>
                     </div>
                   </div>
@@ -242,33 +370,53 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
 
           {/* Team Ratings Summary */}
           <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col flex-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-700">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
                 <Activity size={16} />
               </div>
-              <h3 className="font-bold text-slate-800 text-sm">Recent Team Ratings</h3>
+              <div>
+                <h3 className="font-bold text-slate-800 text-xs">Recent Team Ratings</h3>
+                <p className="text-[10px] text-slate-400">Latest performance scores</p>
+              </div>
             </div>
-            <div className="flex-1 space-y-3 overflow-y-auto max-h-52">
+            <div className="flex-1 space-y-2.5 overflow-y-auto">
               {teamScores.length === 0 ? (
-                <p className="text-slate-400 text-xs py-6 text-center">No scores computed yet.</p>
+                <div className="py-8 text-center">
+                  <Star size={28} className="text-slate-200 mx-auto mb-2" />
+                  <p className="text-slate-400 text-[11px] font-medium">No scores computed yet.</p>
+                  <p className="text-[10px] text-slate-300 mt-0.5">Scores appear after review cycles close.</p>
+                </div>
               ) : (
                 teamScores.map((score) => (
-                  <div key={score._id} className="text-xs flex items-center justify-between border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
-                    <div>
-                      <p className="font-bold text-slate-800">
-                        {score.employeeId?.firstName} {score.employeeId?.lastName}
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Cycle: {score.reviewCycleId?.reviewMonth}</p>
+                  <div
+                    key={score._id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:border-slate-200 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                        {score.employeeId?.firstName?.[0]}{score.employeeId?.lastName?.[0]}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 text-[11px] leading-tight">
+                          {score.employeeId?.firstName} {score.employeeId?.lastName}
+                        </p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{score.reviewCycleId?.reviewMonth}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="font-extrabold text-sky-700 text-sm">{score.finalScore}</span>
-                      <p className="text-[9px] font-semibold text-slate-500 uppercase mt-0.5">{score.rating}</p>
+                    <div className="text-right shrink-0">
+                      <span className="font-extrabold text-indigo-700 text-sm">{score.finalScore}</span>
+                      {score.rating && (
+                        <p className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border mt-0.5 ${getRatingColor(score.rating)}`}>
+                          {score.rating}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))
               )}
             </div>
           </div>
+
         </div>
       </div>
     </div>

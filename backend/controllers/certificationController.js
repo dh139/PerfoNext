@@ -74,13 +74,14 @@ const uploadCertification = async (req, res) => {
     const userRole = targetUser.role;
 
     const isTargetCycleActive = activeCycles.some(c => {
-      const cycleDeptId = c.kpiTemplateId?.departmentId
-        ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
+      // Use cycle.departmentId directly (field on ReviewCycle model),
+      // NOT kpiTemplateId.departmentId which doesn't exist on the template sub-document.
+      const cycleDeptId = c.departmentId
+        ? (c.departmentId._id ? c.departmentId._id.toString() : c.departmentId.toString())
         : null;
-      const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
-      const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
 
-      const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId);
+      // A cycle with no departmentId is org-wide and applies to everyone
+      const deptMatches = !cycleDeptId || (userDeptId && cycleDeptId === userDeptId);
 
       let roleMatches = true;
       if (c.targetRole === 'manager') {

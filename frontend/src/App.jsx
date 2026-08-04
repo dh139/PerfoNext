@@ -11,7 +11,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
 import Notifications from './pages/Notifications';
-import QuarterlyEvidenceConfirmation from './pages/QuarterlyEvidenceConfirmation';
+import EvidenceConfirmation from './pages/EvidenceConfirmation';
 import ManagerReviewForm from './pages/ManagerReviewForm';
 import EmployeeReport from './pages/EmployeeReport';
 import DepartmentReports from './pages/DepartmentReports';
@@ -91,8 +91,8 @@ function App() {
           
           {/* Quarterly Evidence Confirmation */}
           <Route element={<ProtectedRoute allowedRoles={['employee', 'manager', 'hr', 'executive']} />}>
-            <Route path="/assessment/:cycleId" element={<QuarterlyEvidenceConfirmation />} />
-            <Route path="/review/confirm/:cycleId" element={<QuarterlyEvidenceConfirmation />} />
+            <Route path="/assessment/:cycleId" element={<EvidenceConfirmation />} />
+            <Route path="/review/confirm/:cycleId" element={<EvidenceConfirmation />} />
           </Route>
 
           {/* Manager Review Form */}

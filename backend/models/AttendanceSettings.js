@@ -1,10 +1,6 @@
 const mongoose = require('mongoose');
 
 const attendanceSettingsSchema = new mongoose.Schema({
-  companyName: {
-    type: String,
-    default: 'PerfoNex Technologies'
-  },
   attendanceRules: {
     officeStartTime: {
       type: String,
@@ -81,38 +77,7 @@ const attendanceSettingsSchema = new mongoose.Schema({
         type: Boolean,
         default: true
       }
-    },
-    restrictions: {
-      enableLocationRestriction: {
-        type: Boolean,
-        default: false
-      },
-      enableIpRestriction: {
-        type: Boolean,
-        default: false
-      },
-      allowedIps: {
-        type: [String],
-        default: []
-      },
-      enableDeviceRestriction: {
-        type: Boolean,
-        default: false
-      },
-      allowedDevices: {
-        type: [String],
-        default: ['Desktop', 'Mobile']
-      }
-    },
-    shiftType: {
-      type: String,
-      enum: ['General', 'Morning', 'Night', 'Custom'],
-      default: 'General'
     }
-  },
-  version: {
-    type: Number,
-    default: 1
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

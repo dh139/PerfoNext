@@ -22,7 +22,7 @@ const ExecutiveDashboard = ({ data, user }) => {
     recentAudits = []
   } = data || {};
 
-  const [activeTab, setActiveTab] = useState('grading'); // 'grading', 'leaderboard', 'cycles', 'audits', 'attendance'
+  const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'tree', 'grading', 'leaderboard', 'cycles', 'attendance'
   const [ceoSummary, setCeoSummary] = useState(null);
   const [loadingCeoSummary, setLoadingCeoSummary] = useState(true);
   const [pendingRegs, setPendingRegs] = useState([]);
@@ -179,148 +179,227 @@ const ExecutiveDashboard = ({ data, user }) => {
   const filteredLowestEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
   const filteredLowestManagersRanking = getUniqueLatest(filteredMgrPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
 
-  return (
-    <div className="space-y-8 animate-fade-in text-xs text-slate-800">
-      
-      {/* Hallmark Executive Hero Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-sky-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+  if (activeTab === 'hub') {
+    return (
+      <div className="space-y-8 animate-fade-in text-xs text-slate-800">
         
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
-                Executive Desk
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
+        {/* Executive Hero Header — unified design system */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-sky-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
+                  Executive Dashboard
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              </div>
+              
+              <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
+                Welcome back, {user?.firstName}!
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-slate-400 text-xs mt-1.5">
+                {user?.departmentId?.name && (
+                  <span className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1 rounded-full border border-slate-800 text-[10px]">
+                    <span className="w-1.5 h-1.5 bg-sky-400 rounded-full" />
+                    Department: <strong className="text-slate-200">{user.departmentId.name}</strong>
+                  </span>
+                )}
+                {user?.designation && (
+                  <span className="flex items-center gap-1.5 bg-slate-800/60 px-3 py-1 rounded-full border border-slate-800 text-[10px]">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full" />
+                    Designation: <strong className="text-slate-200">{user.designation}</strong>
+                  </span>
+                )}
+              </div>
             </div>
-            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
-              Executive Command Center
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Strategic organizational performance, manager evaluations, and multi-departmental analytics for enterprise leadership.
-            </p>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {/* CEO identity chip — mirrors Reporting Manager card in Employee dashboard */}
+              <div className="bg-slate-900/90 border border-slate-700 p-3 rounded-2xl text-[10px] flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-[10px] shadow-sm">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </div>
+                <div>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Role</p>
+                  <p className="text-slate-200 font-black mt-0.5">Chief Executive Officer</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-800/80 border border-slate-700/80 p-3 rounded-2xl shrink-0">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-sm shadow-md">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+          {/* Executive Metric Cards (4 Cards Grid) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+            
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Active Staff</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || 0}</h2>
+                <span className="text-[9px] text-sky-400 font-medium">Across all departments</span>
+              </div>
+              <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+                <Users size={20} />
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-white text-xs">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[10px] text-sky-400 font-semibold uppercase tracking-wider">Chief Executive Officer</p>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Reporting Managers</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalManagers || 0}</h2>
+                <span className="text-[9px] text-emerald-400 font-medium">Direct leadership team</span>
+              </div>
+              <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                <ShieldCheck size={20} />
+              </div>
             </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Departments</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalDepartments || 0}</h2>
+                <span className="text-[9px] text-indigo-400 font-medium">Business units</span>
+              </div>
+              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+                <Layers size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Review Cycles</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalTemplates || 0}</h2>
+                <span className="text-[9px] text-amber-400 font-medium">KPI Frameworks</span>
+              </div>
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+                <Briefcase size={20} />
+              </div>
+            </div>
+
           </div>
         </div>
 
-        {/* Executive Metric Cards (4 Cards Grid) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
-          
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Active Staff</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || 0}</h2>
-              <span className="text-[9px] text-sky-400 font-medium">Across all departments</span>
+        {/* Command Suite Grid */}
+        <div className="space-y-4">
+          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {/* Card 1: Org Tree */}
+            <div 
+              onClick={() => setActiveTab('tree')}
+              className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                <Layers size={22} />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Org Tree Hierarchy</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Visualize the enterprise reporting lines, departments, and active employee node mappings.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
+                <span>Enter Visualizer</span>
+                <span>&rarr;</span>
+              </div>
             </div>
-            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
-              <Users size={20} />
-            </div>
-          </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Reporting Managers</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalManagers || 0}</h2>
-              <span className="text-[9px] text-emerald-400 font-medium">Direct leadership team</span>
+            {/* Card 2: Direct Subordinates */}
+            <div 
+              onClick={() => setActiveTab('grading')}
+              className="bg-white border border-slate-200/80 hover:border-emerald-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-2xs relative">
+                <Users size={22} />
+                {needsCeoGradeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-bounce shadow">
+                    {needsCeoGradeCount}
+                  </span>
+                )}
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-emerald-600 transition-colors">Direct Subordinates</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Evaluate performance cycles, submit grades, and track completion of your leadership reports.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 group-hover:translate-x-1.5 transition-transform">
+                <span>Open Evaluation Desk</span>
+                <span>&rarr;</span>
+              </div>
             </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck size={20} />
-            </div>
-          </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Departments</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalDepartments || 0}</h2>
-              <span className="text-[9px] text-indigo-400 font-medium">Business units</span>
+            {/* Card 3: Leaderboards */}
+            <div 
+              onClick={() => setActiveTab('leaderboard')}
+              className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xs">
+                <Trophy size={22} />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Performance Leaderboards</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Rank departments and managers, highlight top performers and identify improvement areas.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                <span>View Rankings</span>
+                <span>&rarr;</span>
+              </div>
             </div>
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <Layers size={20} />
-            </div>
-          </div>
 
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Review Templates</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalTemplates || 0}</h2>
-              <span className="text-[9px] text-amber-400 font-medium">KPI Frameworks</span>
+            {/* Card 4: Review Cycles */}
+            <div 
+              onClick={() => setActiveTab('cycles')}
+              className="bg-white border border-slate-200/80 hover:border-amber-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-2xs">
+                <Calendar size={22} />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-amber-600 transition-colors">Review Cycles</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Track global cycle progress, check templates status, and review active cycle timelines.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-amber-600 group-hover:translate-x-1.5 transition-transform">
+                <span>Track Progress</span>
+                <span>&rarr;</span>
+              </div>
             </div>
-            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <Briefcase size={20} />
-            </div>
-          </div>
 
+            {/* Card 5: Attendance Analytics */}
+            <div 
+              onClick={() => setActiveTab('attendance')}
+              className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                <Clock size={22} />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Attendance Analytics</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Analyze daily punches, identify late arrivals, and monitor average clock-in/out speeds.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
+                <span>View Attendance</span>
+                <span>&rarr;</span>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Tabbed Executive Navigation Bar */}
-      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto no-scrollbar">
+  return (
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => setActiveTab('tree')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'tree' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+          onClick={() => setActiveTab('hub')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-[11px] shadow-sm border border-slate-200/50"
         >
-          <Layers size={16} />
-          <span>Org Tree Hierarchy</span>
+          <ChevronLeft size={14} />
+          <span>Back to Dashboard Hub</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('grading')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'grading' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock size={16} />
-          <span>Direct Subordinates Grading</span>
-          {needsCeoGradeCount > 0 && (
-            <span className="bg-sky-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">
-              {needsCeoGradeCount} Needs Grade
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveTab('leaderboard')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'leaderboard' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Trophy size={16} />
-          <span>Organizational Leaderboards</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('cycles')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'cycles' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Calendar size={16} />
-          <span>Review Cycles Progress</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'attendance' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock size={16} />
-          <span>Attendance Analytics</span>
-        </button>
+        <div className="h-4 w-px bg-slate-300"></div>
+        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+          {activeTab === 'tree' && 'Org Tree Hierarchy'}
+          {activeTab === 'grading' && 'Direct Reports Evaluations'}
+          {activeTab === 'leaderboard' && 'Performance Leaderboard'}
+          {activeTab === 'cycles' && 'Review Cycles Progress'}
+          {activeTab === 'attendance' && 'Attendance Analytics'}
+        </span>
       </div>
 
       {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
@@ -421,7 +500,7 @@ const ExecutiveDashboard = ({ data, user }) => {
               const safeCurrentPage = Math.min(ceoDatePage, totalPages);
               const paginatedRecords = filtered.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
               const statusColor = (s) => {
-                if (s === 'Present') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                if (s === 'Present' || s === 'Regularized') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
                 if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
                 if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
                 if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
@@ -467,9 +546,26 @@ const ExecutiveDashboard = ({ data, user }) => {
                               {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(r.status)}`}>
-                                {r.status}
-                              </span>
+                              <div className="flex flex-col gap-1">
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold w-fit ${statusColor(r.status)}`}>
+                                  {r.status}
+                                </span>
+                                {r.regularizationStatus === "pending" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200 animate-pulse w-fit">
+                                    ⏳ Reg. Pending
+                                  </span>
+                                )}
+                                {r.regularizationStatus === "approved" && r.status !== "Regularized" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-600 border-emerald-100 w-fit">
+                                    ✓ Regularized
+                                  </span>
+                                )}
+                                {r.regularizationStatus === "rejected" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-100 w-fit">
+                                    ✕ Reg. Rejected
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1127,7 +1223,6 @@ const ExecutiveDashboard = ({ data, user }) => {
           )}
         </div>
       )}
-
     </div>
   );
 };

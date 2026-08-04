@@ -24,7 +24,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
     recentAudits = []
   } = data || {};
 
-  const [activeTab, setActiveTab] = useState('cycles'); // 'cycles', 'direct_reports', 'leaderboard', 'audits', 'attendance'
+  const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'cycles', 'direct_reports', 'leaderboard', 'audits', 'attendance'
   const [hrSummary, setHrSummary] = useState(null);
   const [loadingHrSummary, setLoadingHrSummary] = useState(true);
   const [pendingRegs, setPendingRegs] = useState([]);
@@ -191,198 +191,269 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
   const filteredLowestEmployeesRanking = getUniqueLatest(filteredEmpPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
   const filteredLowestManagersRanking = getUniqueLatest(filteredMgrPool.filter(score => score.finalScore < 3.0)).sort((a, b) => a.finalScore - b.finalScore).slice(0, 10);
 
-  return (
-    <div className="space-y-8 animate-fade-in text-xs text-slate-800">
-      
-      {/* Hallmark HR / Admin Hero Header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-sky-500/10 rounded-full blur-3xl pointer-events-none" />
+  if (activeTab === 'hub') {
+    return (
+      <div className="space-y-8 animate-fade-in text-xs text-slate-800">
         
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-400/30 tracking-wider">
-                {user?.role === 'admin' ? 'System Administrator Console' : 'HR Operations Console'}
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-              </span>
-            </div>
-            <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
-              {user?.role === 'admin' ? 'System Administration Command Desk' : 'HR & Operations Command Desk'}
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              {user?.role === 'admin'
-                ? 'Organization-wide system administration, review cycle control, user management & performance oversight.'
-                : 'Organization-wide review cycle administration, submission tracking, & workforce performance control desk.'}
-            </p>
-          </div>
-
-          {/* Quick Action Shortcuts */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={onAddWorkLogClick}
-              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer border border-indigo-700"
-            >
-              <Plus size={16} />
-              <span>Log Daily Work</span>
-            </button>
-            <Link
-              to="/hr/cycles"
-              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-955 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
-            >
-              <Plus size={16} />
-              <span>New Review Cycle</span>
-            </Link>
-            <Link
-              to="/admin/users"
-              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-4 py-2.5 rounded-2xl border border-slate-700 transition-colors cursor-pointer"
-            >
-              <Users size={16} />
-              <span>User Directory</span>
-            </Link>
-          </div>
-        </div>
-
-        {/* HR Metric Cards (4 Cards Grid) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+        {/* Hallmark HR / Admin Hero Header */}
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500/10 to-sky-500/10 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Employees</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || stats.totalEmployees || 0}</h2>
-              <span className="text-[9px] text-sky-400 font-medium">Workforce headcount</span>
-            </div>
-            <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
-              <Users size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Departments</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalDepartments || 0}</h2>
-              <span className="text-[9px] text-indigo-400 font-medium">Active business units</span>
-            </div>
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
-              <Layers size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Review Cycles</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.activeCyclesCount || 0}</h2>
-              <span className="text-[9px] text-amber-400 font-medium">Active evaluation periods</span>
-            </div>
-            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <Calendar size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">People Managers</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalManagers || 0}</h2>
-              <span className="text-[9px] text-emerald-400 font-medium">Reporting leadership</span>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck size={20} />
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* HR Self Assessment Action Banner */}
-      {user?.role !== 'admin' && pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
-        (() => {
-          const type = pendingSelfAssessments[0].cycleType || '';
-          const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
-          return (
-            <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800 animate-fade-in">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30">Action Required</span>
-                  <h3 className="font-bold text-sm">Your {typeLabel} Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
-                </div>
-                <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-400/30 tracking-wider">
+                  {user?.role === 'admin' ? 'System Administrator Console' : 'HR Operations Console'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
               </div>
-              <Link
-                to={`/review/confirm/${pendingSelfAssessments[0].cycleId}`}
-                className="bg-sky-500 hover:bg-sky-400 text-slate-955 font-black text-xs px-5 py-2.5 rounded-xl shadow transition-colors shrink-0"
+              <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
+                {user?.role === 'admin' ? 'System Administration Command Desk' : 'HR & Operations Command Desk'}
+              </h1>
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                {user?.role === 'admin'
+                  ? 'Organization-wide system administration, review cycle control, user management & performance oversight.'
+                  : 'Organization-wide review cycle administration, submission tracking, & workforce performance control desk.'}
+              </p>
+            </div>
+
+            {/* Quick Action Shortcuts */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={onAddWorkLogClick}
+                className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
               >
-                Confirm Evidence &rarr;
+                <Plus size={16} />
+                <span>Log Daily Work</span>
+              </button>
+              <Link
+                to="/hr/cycles"
+                className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
+              >
+                <Plus size={16} />
+                <span>New Review Cycle</span>
+              </Link>
+              <Link
+                to="/admin/users"
+                className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-3 rounded-2xl border border-slate-700 transition-colors cursor-pointer"
+              >
+                <Users size={16} />
+                <span>User Directory</span>
               </Link>
             </div>
-          );
-        })()
-      )}
+          </div>
 
-      {/* Tabbed HR Control Navigation Bar */}
-      <div className="flex gap-2 border-b border-slate-200 pb-px overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setActiveTab('tree')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'tree' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Layers size={16} />
-          <span>Org Tree Hierarchy</span>
-        </button>
+          {/* HR Metric Cards (4 Cards Grid) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+            
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Employees</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalUsers || stats.totalEmployees || 0}</h2>
+                <span className="text-[9px] text-sky-400 font-medium">Workforce headcount</span>
+              </div>
+              <div className="p-3 bg-sky-500/10 rounded-xl text-sky-400 border border-sky-500/20">
+                <Users size={20} />
+              </div>
+            </div>
 
-        <button
-          onClick={() => setActiveTab('cycles')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'cycles' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Calendar size={16} />
-          <span>Active Review Cycles</span>
-          {activeCycleMetrics.length > 0 && (
-            <span className="bg-sky-100 text-sky-800 text-[9px] font-extrabold px-2 py-0.5 rounded-full">
-              {activeCycleMetrics.length} Active
-            </span>
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Departments</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalDepartments || 0}</h2>
+                <span className="text-[9px] text-indigo-400 font-medium">Active business units</span>
+              </div>
+              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
+                <Layers size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Active Review Cycles</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.activeCyclesCount || 0}</h2>
+                <span className="text-[9px] text-amber-400 font-medium">Active evaluation periods</span>
+              </div>
+              <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+                <Calendar size={20} />
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">People Managers</p>
+                <h2 className="text-xl font-extrabold text-white mt-0.5">{stats.totalManagers || 0}</h2>
+                <span className="text-[9px] text-emerald-400 font-medium">Reporting leadership</span>
+              </div>
+              <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                <ShieldCheck size={20} />
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* HR Self Assessment Action Banner */}
+        {user?.role !== 'admin' && pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
+          (() => {
+            const type = pendingSelfAssessments[0].cycleType || '';
+            const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
+            return (
+              <div className="bg-gradient-to-r from-sky-900 to-indigo-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-sky-800 animate-fade-in">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30">Action Required</span>
+                    <h3 className="font-bold text-sm">Your {typeLabel} Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+                  </div>
+                  <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
+                </div>
+                <Link
+                  to={"/review/confirm/" + pendingSelfAssessments[0].cycleId}
+                  className="bg-sky-500 hover:bg-sky-400 text-slate-955 font-black text-xs px-5 py-2.5 rounded-xl shadow transition-colors shrink-0"
+                >
+                  Confirm Evidence &rarr;
+                </Link>
+              </div>
+            );
+          })()
+        )}
+
+        {/* Command Suite Grid & Personal Punch Card Bento Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Command Suite Grid (2/3 width, or full width for Admin) */}
+          <div className={`${user?.role === 'admin' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-4`}>
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${user?.role === 'admin' ? 'lg:grid-cols-3' : ''} gap-6`}>
+              
+              {/* Card 1: Org Tree */}
+              <div 
+                onClick={() => setActiveTab('tree')}
+                className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                  <Layers size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Org Tree Hierarchy</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Visualize the enterprise reporting lines, departments, and active employee node mappings.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Enter Visualizer</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 2: Direct Subordinates */}
+              <div 
+                onClick={() => setActiveTab('direct_reports')}
+                className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-2xs relative">
+                  <Users size={22} />
+                  {needsHrGradeCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-bounce shadow">
+                      {needsHrGradeCount}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Direct Subordinates</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Evaluate performance cycles, submit grades, and track completion of your leadership reports.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Open Evaluation Desk</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 3: Leaderboards */}
+              <div 
+                onClick={() => setActiveTab('leaderboard')}
+                className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xs">
+                  <Trophy size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Performance Leaderboards</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Rank departments and managers, highlight top performers and identify improvement areas.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>View Rankings</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 4: Review Cycles */}
+              <div 
+                onClick={() => setActiveTab('cycles')}
+                className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-2xs">
+                  <Calendar size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Review Cycles</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Track global cycle progress, check templates status, and review active cycle timelines.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Track Progress</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 5: Attendance Control Desk */}
+              <div 
+                onClick={() => setActiveTab('attendance')}
+                className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                  <Clock size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Attendance Control Desk</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Manage employee registers, resolve regularization requests, and monitor check-ins.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Open Control Desk</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Right Column: Personal Punch Card (only rendered for non-Admin roles) */}
+          {user?.role !== 'admin' && (
+            <div className="lg:col-span-1 space-y-4">
+              <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Personal Shift Control</h2>
+              <PunchCard />
+            </div>
           )}
-        </button>
+        </div>
+      </div>
+    );
+  }
 
+  return (
+    <div className="space-y-6 animate-fade-in text-xs text-slate-800">
+      <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => setActiveTab('direct_reports')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'direct_reports' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+          onClick={() => setActiveTab('hub')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer text-[11px] shadow-sm border border-slate-200/50"
         >
-          <Clock size={16} />
-          <span>Self Assessment & Direct Reports</span>
-          {needsHrGradeCount > 0 && (
-            <span className="bg-sky-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse">
-              {needsHrGradeCount} Needs Grade
-            </span>
-          )}
+          <ChevronLeft size={14} />
+          <span>Back to Dashboard Hub</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('leaderboard')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'leaderboard' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Trophy size={16} />
-          <span>Organizational Leaderboards</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('attendance')}
-          className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-            activeTab === 'attendance' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          <Clock size={16} />
-          <span>Attendance Control Desk</span>
-        </button>
+        <div className="h-4 w-px bg-slate-300"></div>
+        <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">
+          {activeTab === 'tree' && 'Org Tree Hierarchy'}
+          {activeTab === 'direct_reports' && 'Self Assessment & Direct Reports'}
+          {activeTab === 'leaderboard' && 'Organizational Leaderboards'}
+          {activeTab === 'cycles' && 'Active Review Cycles'}
+          {activeTab === 'attendance' && 'Attendance Control Desk'}
+        </span>
       </div>
 
       {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
+      {activeTab === 'tree' && <OrgTreeHierarchy />}      {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
       {activeTab === 'tree' && <OrgTreeHierarchy />}
 
       {/* TAB: ATTENDANCE CONTROL DESK */}
@@ -475,7 +546,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
               const safeCurrentPage = Math.min(dateAttendancePage, totalPages);
               const paginatedRecords = filtered.slice((safeCurrentPage - 1) * ITEMS_PER_PAGE, safeCurrentPage * ITEMS_PER_PAGE);
               const statusColor = (s) => {
-                if (s === 'Present') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+                if (s === 'Present' || s === 'Regularized') return 'text-emerald-600 bg-emerald-50 border-emerald-200';
                 if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
                 if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
                 if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
@@ -521,9 +592,26 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                               {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
                             </td>
                             <td className="py-2.5 px-3">
-                              <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(r.status)}`}>
-                                {r.status}
-                              </span>
+                              <div className="flex flex-col gap-1">
+                                <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold w-fit ${statusColor(r.status)}`}>
+                                  {r.status}
+                                </span>
+                                {r.regularizationStatus === "pending" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200 animate-pulse w-fit">
+                                    ⏳ Reg. Pending
+                                  </span>
+                                )}
+                                {r.regularizationStatus === "approved" && r.status !== "Regularized" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-600 border-emerald-100 w-fit">
+                                    ✓ Regularized
+                                  </span>
+                                )}
+                                {r.regularizationStatus === "rejected" && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-rose-50 text-rose-600 border-rose-100 w-fit">
+                                    ✕ Reg. Rejected
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

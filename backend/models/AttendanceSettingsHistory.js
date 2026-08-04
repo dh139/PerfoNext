@@ -17,10 +17,6 @@ const attendanceSettingsHistorySchema = new mongoose.Schema({
   changeNote: {
     type: String,
     default: ''
-  },
-  version: {
-    type: Number,
-    required: true
   }
 }, { timestamps: true });
 

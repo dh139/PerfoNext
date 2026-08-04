@@ -186,14 +186,7 @@ const PromotionsWorkspace = () => {
         
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-400/30 tracking-wider">
-                Career Advancement Hub
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Compensation & Leveling Engine
-              </span>
-            </div>
+           
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
               <Award className="text-emerald-400" size={24} />
               <span>Promotions & Salary Recommendations</span>

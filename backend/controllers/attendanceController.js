@@ -30,9 +30,9 @@ const getDateWithTime = (baseDate, timeStr) => {
 
 // Singleton Settings Fetcher
 const getActiveSettings = async () => {
-  let settings = await AttendanceSettings.findOne().sort('-version');
+  let settings = await AttendanceSettings.findOne();
   if (!settings) {
-    settings = new AttendanceSettings({ version: 1 });
+    settings = new AttendanceSettings();
     await settings.save();
   }
   return settings;
@@ -65,13 +65,15 @@ const autoCloseIncompletePunches = async (settings) => {
     
     const totalDurationMinutes = Math.round((outTime.getTime() - punch.punchIn.getTime()) / 60000);
     punch.totalDurationMinutes = totalDurationMinutes;
-    punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+    const minMinsForLunch = 300;
+    punch.lunchDeductionMinutes = (rules.lunchDeductionEnabled && totalDurationMinutes >= minMinsForLunch) ? rules.lunchDeductionMinutes : 0;
     
     const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
     punch.workingMinutes = workingMinutes;
     
-    const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
-    punch.earlyExitMinutes = outTime < shiftEnd ? Math.round((shiftEnd.getTime() - outTime.getTime()) / 60000) : 0;
+    const targetEndTimeStr = (rules.allowEarlyExit && rules.earlyExitTime) ? rules.earlyExitTime : rules.officeEndTime;
+    const earlyExitLimit = getDateWithTime(punch.date, targetEndTimeStr);
+    punch.earlyExitMinutes = outTime < earlyExitLimit ? Math.round((earlyExitLimit.getTime() - outTime.getTime()) / 60000) : 0;
     
     let overtimeMinutes = 0;
     if (rules.enableOvertime) {
@@ -181,13 +183,16 @@ const punchOut = async (req, res) => {
 
     const totalDurationMinutes = Math.round((now.getTime() - punch.punchIn.getTime()) / 60000);
     punch.totalDurationMinutes = totalDurationMinutes;
-    punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+    const minMinsForLunch = 300;
+    punch.lunchDeductionMinutes = (rules.lunchDeductionEnabled && totalDurationMinutes >= minMinsForLunch) ? rules.lunchDeductionMinutes : 0;
 
     const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
     punch.workingMinutes = workingMinutes;
 
     // Early exit check
-    punch.earlyExitMinutes = now < shiftEnd ? Math.round((shiftEnd.getTime() - now.getTime()) / 60000) : 0;
+    const targetEndTimeStr = (rules.allowEarlyExit && rules.earlyExitTime) ? rules.earlyExitTime : rules.officeEndTime;
+    const earlyExitLimit = getDateWithTime(todayDate, targetEndTimeStr);
+    punch.earlyExitMinutes = now < earlyExitLimit ? Math.round((earlyExitLimit.getTime() - now.getTime()) / 60000) : 0;
 
     // Overtime check
     let overtimeMinutes = 0;
@@ -203,7 +208,15 @@ const punchOut = async (req, res) => {
     const presentMins = (rules.presentHours || 8) * 60;
     const halfDayMins = (rules.halfDayHours || 4) * 60;
 
-    if (workingMinutes >= presentMins) {
+    let isEarlyExitPresent = false;
+    if (rules.allowEarlyExit && rules.earlyExitTime) {
+      const earlyExitTarget = getDateWithTime(todayDate, rules.earlyExitTime);
+      if (now >= earlyExitTarget) {
+        isEarlyExitPresent = true;
+      }
+    }
+
+    if (workingMinutes >= presentMins || isEarlyExitPresent) {
       // If punchIn was late, maintain Late status or set Present
       punch.status = punch.lateMinutes > 0 ? 'Late' : 'Present';
     } else if (workingMinutes >= halfDayMins) {
@@ -303,6 +316,18 @@ const submitRegularization = async (req, res) => {
     const rules = settings.attendanceRules;
     const targetDateStr = date.split('T')[0];
     const targetDate = new Date(targetDateStr);
+
+    // Block regularization on weekends
+    const isWeekend = rules.weekends?.includes(targetDate.getDay());
+    if (isWeekend) {
+      return res.status(400).json({ message: 'Attendance regularization is not allowed on weekly off days (weekends).' });
+    }
+
+    // Block regularization on public holidays
+    const holiday = await Holiday.findOne({ date: targetDateStr });
+    if (holiday) {
+      return res.status(400).json({ message: `Attendance regularization is not allowed on public holidays (${holiday.name}).` });
+    }
 
     let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: targetDate });
     if (!punch) {
@@ -413,16 +438,27 @@ const reviewRegularization = async (req, res) => {
 
       const total = Math.round((punch.punchOut.getTime() - punch.punchIn.getTime()) / 60000);
       punch.totalDurationMinutes = total;
-      punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+      const minMinsForLunch = 300;
+      punch.lunchDeductionMinutes = (rules.lunchDeductionEnabled && total >= minMinsForLunch) ? rules.lunchDeductionMinutes : 0;
 
       const working = Math.max(0, total - punch.lunchDeductionMinutes);
       punch.workingMinutes = working;
-      punch.earlyExitMinutes = punch.punchOut < shiftEnd ? Math.round((shiftEnd.getTime() - punch.punchOut.getTime()) / 60000) : 0;
+      const targetEndTimeStr = (rules.allowEarlyExit && rules.earlyExitTime) ? rules.earlyExitTime : rules.officeEndTime;
+      const earlyExitLimit = getDateWithTime(punch.date, targetEndTimeStr);
+      punch.earlyExitMinutes = punch.punchOut < earlyExitLimit ? Math.round((earlyExitLimit.getTime() - punch.punchOut.getTime()) / 60000) : 0;
 
       const presentMins = (rules.presentHours || 8) * 60;
       const halfDayMins = (rules.halfDayHours || 4) * 60;
 
-      if (working >= presentMins) {
+      let isEarlyExitPresent = false;
+      if (rules.allowEarlyExit && rules.earlyExitTime) {
+        const earlyExitTarget = getDateWithTime(punch.date, rules.earlyExitTime);
+        if (punch.punchOut >= earlyExitTarget) {
+          isEarlyExitPresent = true;
+        }
+      }
+
+      if (working >= presentMins || isEarlyExitPresent) {
         punch.status = 'Regularized';
       } else if (working >= halfDayMins) {
         punch.status = 'Half Day';
@@ -633,7 +669,9 @@ async function getAttendanceByDate(req, res) {
     const records = punches.map(p => {
       let workingMinutes = p.workingMinutes || 0;
       if (p.punchIn && !p.punchOut && isToday) {
-        workingMinutes = Math.max(0, Math.round((new Date().getTime() - new Date(p.punchIn).getTime()) / 60000));
+        const totalDurationMinutes = Math.max(0, Math.round((new Date().getTime() - new Date(p.punchIn).getTime()) / 60000));
+        const activeLunchDeduction = (rules.lunchDeductionEnabled && totalDurationMinutes >= 300) ? (rules.lunchDeductionMinutes || 60) : 0;
+        workingMinutes = Math.max(0, totalDurationMinutes - activeLunchDeduction);
       }
       return {
         employeeId: p.employeeId?._id,
@@ -695,12 +733,8 @@ const updateSettings = async (req, res) => {
     const current = await getActiveSettings();
     const oldSnapshot = JSON.parse(JSON.stringify(current.attendanceRules));
 
-    // Increment version
-    const newVersion = (current.version || 1) + 1;
-
     // Update active settings doc
     current.attendanceRules = { ...oldSnapshot, ...attendanceRules };
-    current.version = newVersion;
     current.updatedBy = req.user.id;
     await current.save();
 
@@ -722,14 +756,17 @@ const updateSettings = async (req, res) => {
       if (punch.punchOut) {
         const totalDurationMinutes = Math.round((punch.punchOut.getTime() - punch.punchIn.getTime()) / 60000);
         punch.totalDurationMinutes = totalDurationMinutes;
-        punch.lunchDeductionMinutes = rules.lunchDeductionEnabled ? rules.lunchDeductionMinutes : 0;
+        const minMinsForLunch = 300;
+        punch.lunchDeductionMinutes = (rules.lunchDeductionEnabled && totalDurationMinutes >= minMinsForLunch) ? rules.lunchDeductionMinutes : 0;
         
         const workingMinutes = Math.max(0, totalDurationMinutes - punch.lunchDeductionMinutes);
         punch.workingMinutes = workingMinutes;
 
-        const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
-        punch.earlyExitMinutes = punch.punchOut < shiftEnd ? Math.round((shiftEnd.getTime() - punch.punchOut.getTime()) / 60000) : 0;
+        const targetEndTimeStr = (rules.allowEarlyExit && rules.earlyExitTime) ? rules.earlyExitTime : rules.officeEndTime;
+        const earlyExitLimit = getDateWithTime(punch.date, targetEndTimeStr);
+        punch.earlyExitMinutes = punch.punchOut < earlyExitLimit ? Math.round((earlyExitLimit.getTime() - punch.punchOut.getTime()) / 60000) : 0;
 
+        const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
         let overtimeMinutes = 0;
         if (rules.enableOvertime) {
           const extraMins = Math.round((punch.punchOut.getTime() - shiftEnd.getTime()) / 60000);
@@ -742,7 +779,15 @@ const updateSettings = async (req, res) => {
         const presentMins = (rules.presentHours || 8) * 60;
         const halfDayMins = (rules.halfDayHours || 4) * 60;
 
-        if (workingMinutes >= presentMins) {
+        let isEarlyExitPresent = false;
+        if (rules.allowEarlyExit && rules.earlyExitTime) {
+          const earlyExitTarget = getDateWithTime(punch.date, rules.earlyExitTime);
+          if (punch.punchOut >= earlyExitTarget) {
+            isEarlyExitPresent = true;
+          }
+        }
+
+        if (workingMinutes >= presentMins || isEarlyExitPresent) {
           punch.status = lateMinutes > 0 ? 'Late' : 'Present';
         } else if (workingMinutes >= halfDayMins) {
           punch.status = 'Half Day';
@@ -762,7 +807,6 @@ const updateSettings = async (req, res) => {
       oldValues: oldSnapshot,
       newValues: current.attendanceRules,
       changeNote: changeNote || 'Settings updated',
-      version: newVersion
     });
     await history.save();
 

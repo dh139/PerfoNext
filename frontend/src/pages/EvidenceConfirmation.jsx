@@ -44,7 +44,7 @@ const formatDateDDMMYYYY = (dateVal) => {
   return `${day}/${month}/${year}`;
 };
 
-const QuarterlyEvidenceConfirmation = () => {
+const EvidenceConfirmation = () => {
   const { cycleId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -57,8 +57,6 @@ const QuarterlyEvidenceConfirmation = () => {
   const [attendancePct, setAttendancePct] = useState(null);
   const [attendanceLabel, setAttendanceLabel] = useState('N/A (No Logs)');
   const [dateWindowLabel, setDateWindowLabel] = useState('');
-
-  const typeLabel = cycle?.cycleType === 'yearly' ? 'Yearly' : (cycle?.cycleType === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
 
   // Pagination & Filtering for 200-300+ logs
   const [searchTerm, setSearchTerm] = useState('');
@@ -233,7 +231,7 @@ const QuarterlyEvidenceConfirmation = () => {
         if (existing) {
           setAssessmentStatus(existing.status);
           if (existing.status === 'submitted') {
-            setGeneralError(`Your ${typeLabel.toLowerCase()} evidence confirmation has already been submitted to your reporting manager.`);
+            setGeneralError(`Your evidence confirmation has already been submitted to your reporting manager.`);
           }
         }
       } catch (err) {
@@ -276,11 +274,11 @@ const QuarterlyEvidenceConfirmation = () => {
       });
 
       setAssessmentStatus('submitted');
-      toast.success(`${typeLabel} Evidence confirmed and submitted successfully!`);
+      toast.success(`Evidence confirmed and submitted successfully!`);
       navigate('/', { replace: true });
     } catch (err) {
       console.error(err);
-      setGeneralError(err.response?.data?.message || `Failed to confirm ${typeLabel.toLowerCase()} evidence.`);
+      setGeneralError(err.response?.data?.message || `Failed to confirm evidence.`);
     } finally {
       setSubmitting(false);
     }
@@ -350,7 +348,7 @@ const QuarterlyEvidenceConfirmation = () => {
               )}
             </div>
             <h2 className="text-xl font-black text-white tracking-tight">
-              {typeLabel} Evidence Confirmation
+              Evidence Confirmation
             </h2>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed font-medium">
               Review your automatically collected evidence for this evaluation period ({dateWindowLabel}). Zero manual typing required.
@@ -388,7 +386,7 @@ const QuarterlyEvidenceConfirmation = () => {
             <span className={`text-base font-black ${attendancePct !== null ? 'text-amber-400' : 'text-slate-400'}`}>
               {attendancePct !== null ? `✔ ${attendanceLabel}` : '⚠️ N/A (No Logs)'}
             </span>
-            <span className="text-[9px] text-slate-400 block">{typeLabel} attendance</span>
+            <span className="text-[9px] text-slate-400 block">Attendance</span>
           </div>
         </div>
       </div>
@@ -402,7 +400,7 @@ const QuarterlyEvidenceConfirmation = () => {
 
       {/* Warning Banner if 0 Approved Work Logs */}
       {approvedLogs.length === 0 && (
-        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-3xl text-amber-950 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-3xl text-amber-955 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
           <div className="flex items-center gap-3">
             <AlertCircle size={24} className="text-amber-600 shrink-0" />
             <div>
@@ -526,7 +524,7 @@ const QuarterlyEvidenceConfirmation = () => {
       {assessmentStatus !== 'submitted' && (
         <div className="flex justify-between items-center bg-white border border-slate-200 p-5 rounded-2xl shadow-sm">
           <div>
-            <span className="font-extrabold text-slate-900 text-xs block">Ready to confirm your {typeLabel.toLowerCase()} evidence?</span>
+            <span className="font-extrabold text-slate-900 text-xs block">Ready to confirm your evidence?</span>
             <span className="text-slate-500 text-[11px]">
               {approvedLogs.length === 0
                 ? '⚠️ Submission disabled: Log your work in Daily Work Log first.'
@@ -552,4 +550,4 @@ const QuarterlyEvidenceConfirmation = () => {
   );
 };
 
-export default QuarterlyEvidenceConfirmation;
+export default EvidenceConfirmation;

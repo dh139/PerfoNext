@@ -327,9 +327,7 @@ const ManagerReviewForm = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider flex items-center gap-1">
-                <Sparkles size={11} /> Evidence-Driven Manager Review
-              </span>
+           
               <span className="text-[10px] text-slate-400 font-medium">Review Cycle: {cycle?.reviewMonth}</span>
             </div>
             <h2 className="text-xl font-black text-white tracking-tight">

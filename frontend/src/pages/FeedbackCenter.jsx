@@ -460,14 +460,7 @@ const FeedbackCenter = () => {
         
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 relative z-10">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
-                Feedback Hub
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                360° Anonymized Peer Engine
-              </span>
-            </div>
+           
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">
               360° & Peer Feedback Center
             </h1>
