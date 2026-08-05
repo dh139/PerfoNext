@@ -40,7 +40,7 @@ const attendanceSettingsSchema = new mongoose.Schema({
     },
     enableOvertime: {
       type: Boolean,
-      default: true
+      default: false
     },
     overtimeMinMinutes: {
       type: Number,

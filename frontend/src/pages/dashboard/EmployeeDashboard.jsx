@@ -184,9 +184,9 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
       </div>
 
       {/* Bento Grid: Journey Checklist (2/3) + Punch Card (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Your Journey Checklist Card */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col space-y-6">
+        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col space-y-6 self-start w-full">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-sky-50 rounded-xl text-sky-700">
@@ -214,7 +214,7 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
           </div>
 
           {/* Checklist list */}
-          <div className="flex-1 space-y-3.5">
+          <div className="space-y-3.5">
             {checklistItems.map((item, idx) => (
               <div 
                 key={idx} 
@@ -250,11 +250,11 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
         </div>
 
         {/* Punch Card — right sidebar */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 self-start w-full">
           <PunchCard />
 
           {/* Recent Alerts — stacked below PunchCard */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col flex-1">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-amber-50 rounded-xl text-amber-700">

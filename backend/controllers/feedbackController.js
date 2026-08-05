@@ -2,6 +2,7 @@ const FeedbackRequest = require('../models/FeedbackRequest');
 const FeedbackResponse = require('../models/FeedbackResponse');
 const ReviewCycle = require('../models/ReviewCycle');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 const getFeedbackRequests = async (req, res) => {
   try {
@@ -69,6 +70,21 @@ const createFeedbackRequest = async (req, res) => {
       cycleId,
       status: 'pending'
     });
+
+    // Create in-app notification for the assigned reviewer
+    try {
+      const subjectEmp = await User.findById(employeeId);
+      const reviewerEmp = await User.findById(reviewerId);
+      if (reviewerEmp && subjectEmp) {
+        await Notification.create({
+          userId: reviewerId,
+          type: 'review_assigned',
+          message: `You have been assigned to provide 360° feedback for ${subjectEmp.firstName} ${subjectEmp.lastName} in review cycle ${cycle.reviewMonth}.`
+        });
+      }
+    } catch (notifError) {
+      console.error('Failed to create feedback assignment notification:', notifError);
+    }
 
     res.status(201).json(request);
   } catch (error) {

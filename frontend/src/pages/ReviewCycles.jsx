@@ -539,6 +539,146 @@ const ReviewCycles = () => {
         )}
       </div>
 
+      {/* ── Individual Re-Open Modal ─────────────────────────────────────── */}
+      {unlockModalCycle && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <Unlock size={16} className="text-amber-500" />
+                  <p className="font-black text-slate-800 text-sm">Individual Re-Open</p>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Cycle: <strong>{unlockModalCycle.reviewMonth}</strong> &nbsp;·&nbsp;
+                  {unlockModalCycle.departmentId?.departmentName || 'All Departments'}
+                </p>
+              </div>
+              <button
+                onClick={() => setUnlockModalCycle(null)}
+                className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 p-5 space-y-4">
+              {/* Already-unlocked users */}
+              {unlockModalCycle.unlockedUserIds?.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                    Currently Extended ({unlockModalCycle.unlockedUserIds.length})
+                  </p>
+                  <div className="space-y-1.5">
+                    {unlockModalCycle.unlockedUserIds.map(u => (
+                      <div
+                        key={u._id || u}
+                        className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-3 py-2"
+                      >
+                        <div>
+                          <p className="font-black text-slate-800 text-xs">
+                            {u.firstName} {u.lastName}
+                          </p>
+                          <p className="text-[10px] text-slate-400">{u.employeeCode} · {u.email}</p>
+                        </div>
+                        <button
+                          onClick={() => handleRevokeUnlock(u._id || u)}
+                          className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Lock size={11} /> Revoke
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Grant to a new user */}
+              <div>
+                <p className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                  Grant Extension to Employee
+                </p>
+                {/* Search */}
+                <div className="relative mb-3">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search employee name or code…"
+                    value={userSearchTerm}
+                    onChange={e => setUserSearchTerm(e.target.value)}
+                    className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-sky-400"
+                  />
+                </div>
+
+                {/* Eligible user list */}
+                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                  {(() => {
+                    const alreadyUnlocked = new Set(
+                      (unlockModalCycle.unlockedUserIds || []).map(u => (u._id || u).toString())
+                    );
+                    const eligible = getEligibleUsersForUnlockModal().filter(u => {
+                      if (alreadyUnlocked.has(u._id.toString())) return false;
+                      if (!userSearchTerm) return true;
+                      const q = userSearchTerm.toLowerCase();
+                      return (
+                        `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) ||
+                        (u.employeeCode || '').toLowerCase().includes(q)
+                      );
+                    });
+
+                    if (eligible.length === 0) {
+                      return (
+                        <p className="text-center text-[11px] text-slate-400 py-6">
+                          {userSearchTerm ? 'No matching employees found.' : 'All eligible employees already have extensions.'}
+                        </p>
+                      );
+                    }
+
+                    return eligible.map(u => (
+                      <div
+                        key={u._id}
+                        onClick={() => setSelectedUserIdToUnlock(u._id)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl border cursor-pointer transition-colors ${
+                          selectedUserIdToUnlock === u._id
+                            ? 'bg-sky-50 border-sky-300'
+                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div>
+                          <p className="font-black text-slate-800 text-xs">{u.firstName} {u.lastName}</p>
+                          <p className="text-[10px] text-slate-400">{u.employeeCode} · {u.departmentId?.departmentName || ''}</p>
+                        </div>
+                        {selectedUserIdToUnlock === u._id && (
+                          <CheckCircle2 size={15} className="text-sky-500 shrink-0" />
+                        )}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-100 flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setUnlockModalCycle(null)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleGrantUnlock(selectedUserIdToUnlock)}
+                disabled={!selectedUserIdToUnlock}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-xs transition-colors cursor-pointer shadow-md"
+              >
+                <Unlock size={13} /> Grant Extension
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">

@@ -1076,8 +1076,6 @@ const relockUserForCycle = async (req, res) => {
       .populate({ path: 'unlockedUserIds', select: 'firstName lastName email employeeCode role departmentId' });
 
     res.json(updatedCycle);
-
-    res.json(updatedCycle);
   } catch (error) {
     console.error('relockUserForCycle error:', error);
     res.status(500).json({ message: error.message || 'Internal server error.' });

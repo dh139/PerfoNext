@@ -31,11 +31,28 @@ const PipWorkspace = () => {
   const [goals, setGoals] = useState([{ description: '', targetDate: '', status: 'pending' }]);
   const [hrList, setHrList] = useState([]);
   const [selectedHrId, setSelectedHrId] = useState('');
+
+  // Custom Modal State for PIP Closure / Escalation
+  const [showClosureModal, setShowClosureModal] = useState(false);
+  const [closurePipId, setClosurePipId] = useState(null);
+  const [closureIsEscalate, setClosureIsEscalate] = useState(false);
+  const [closureNotesText, setClosureNotesText] = useState('');
+  const [closureIsResolveEscalation, setClosureIsResolveEscalation] = useState(false);
+  const [existingEscalationNotes, setExistingEscalationNotes] = useState('');
   
   // Enterprise Combobox State for Employee Selection
   const [empComboboxOpen, setEmpComboboxOpen] = useState(false);
   const [empSearchQuery, setEmpSearchQuery] = useState('');
   const [empDeptFilter, setEmpDeptFilter] = useState('all');
+
+  // Pagination State
+  const [sugPage, setSugPage] = useState(1);
+  const [pipPage, setPipPage] = useState(1);
+
+  // Reset page numbers when search / filter parameters change
+  useEffect(() => {
+    setPipPage(1);
+  }, [pipSearch, pipDeptFilter, pipStatusFilter]);
 
   const fetchData = async () => {
     try {
@@ -177,16 +194,44 @@ const PipWorkspace = () => {
     }
   };
 
-  const handleClosePip = async (pipId, isEscalate) => {
-    const notes = window.prompt(isEscalate ? 'Provide escalation details:' : 'Provide closure notes:');
-    if (notes === null) return; // cancelled
+  const handleClosePip = (pipId, isEscalate) => {
+    setClosurePipId(pipId);
+    setClosureIsEscalate(isEscalate);
+    setClosureIsResolveEscalation(false);
+    setExistingEscalationNotes('');
+    setClosureNotesText('');
+    setShowClosureModal(true);
+  };
+
+  const handleResolveEscalation = (pipId, existingNotes) => {
+    setClosurePipId(pipId);
+    setClosureIsEscalate(false);
+    setClosureIsResolveEscalation(true);
+    setExistingEscalationNotes(existingNotes || '');
+    setClosureNotesText('');
+    setShowClosureModal(true);
+  };
+
+  const submitClosePip = async (e) => {
+    if (e) e.preventDefault();
+    if (!closureNotesText.trim()) {
+      toast.error(closureIsResolveEscalation ? 'Please provide resolution details.' : (closureIsEscalate ? 'Please provide escalation details.' : 'Please provide closure notes.'));
+      return;
+    }
+
+    let finalNotes = closureNotesText;
+    if (closureIsResolveEscalation) {
+      finalNotes = `${existingEscalationNotes}\n\n[HR Resolution by ${user?.firstName} ${user?.lastName}]: ${closureNotesText}`;
+    }
 
     try {
-      await api.patch(`/api/pips/${pipId}`, {
-        status: isEscalate ? 'escalated' : 'closed',
-        closureNotes: notes
+      await api.patch(`/api/pips/${closurePipId}`, {
+        status: closureIsEscalate ? 'escalated' : 'closed',
+        closureNotes: finalNotes
       });
+      setShowClosureModal(false);
       fetchData();
+      toast.success(closureIsResolveEscalation ? 'PIP escalation resolved and closed successfully.' : (closureIsEscalate ? 'PIP escalated to HR successfully.' : 'PIP completed and closed successfully.'));
     } catch (err) {
       console.error(err);
       toast.error('Failed to close PIP.');
@@ -301,61 +346,92 @@ const PipWorkspace = () => {
       )}
 
       {/* Auto Suggestions Panel (HR/Admin/Manager/Executive) */}
-      {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && suggestions.length > 0 && (
-        <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="text-amber-700 shrink-0" size={20} />
-            <h3 className="font-extrabold text-slate-900 text-sm">Performance Flagged Auto-Suggestions</h3>
-          </div>
-          <p className="text-slate-600 font-medium leading-relaxed text-xs">
-            The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in their latest appraisal cycle.
-          </p>
+      {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && suggestions.length > 0 && (() => {
+        const SUGS_PER_PAGE = 2;
+        const totalSugPages = Math.ceil(suggestions.length / SUGS_PER_PAGE);
+        const safeSugPage = Math.min(sugPage, Math.max(totalSugPages, 1));
+        const paginatedSuggestions = suggestions.slice((safeSugPage - 1) * SUGS_PER_PAGE, safeSugPage * SUGS_PER_PAGE);
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {suggestions.map(sug => {
-              const emp = sug.employee || {};
-              const deptName = emp.departmentId?.departmentName || 'General';
-              const desigName = emp.designationId?.designationName || '-';
+        return (
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="text-amber-700 shrink-0" size={20} />
+              <h3 className="font-extrabold text-slate-900 text-sm">Performance Flagged Auto-Suggestions</h3>
+            </div>
+            <p className="text-slate-600 font-medium leading-relaxed text-xs">
+              The system auto-flagged the following employees due to <strong className="text-slate-800">Needs Improvement</strong> or <strong className="text-slate-800">Unsatisfactory</strong> ratings in their latest appraisal cycle.
+            </p>
 
-              return (
-                <div key={emp._id} className="bg-white border border-amber-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between gap-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-extrabold text-slate-900 text-sm">
-                        {emp.firstName} {emp.lastName}
-                      </span>
-                      <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
-                        {emp.employeeCode || 'EMP-N/A'}
-                      </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {paginatedSuggestions.map(sug => {
+                const emp = sug.employee || {};
+                const deptName = emp.departmentId?.departmentName || 'General';
+                const desigName = emp.designationId?.designationName || '-';
+
+                return (
+                  <div key={emp._id} className="bg-white border border-amber-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-extrabold text-slate-900 text-sm">
+                          {emp.firstName} {emp.lastName}
+                        </span>
+                        <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
+                          {emp.employeeCode || 'EMP-N/A'}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
+                          {deptName}
+                        </span>
+                        <span className="text-[9px] font-medium text-slate-500">
+                          • {desigName}
+                        </span>
+                      </div>
+
+                      <p className="text-[10px] text-amber-800 font-medium bg-amber-50/80 p-2 rounded-xl border border-amber-100/60 mt-1">
+                        ⚠️ {sug.reason}
+                      </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-[9px] font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md border border-indigo-100">
-                        {deptName}
-                      </span>
-                      <span className="text-[9px] font-medium text-slate-500">
-                        • {desigName}
-                      </span>
-                    </div>
-
-                    <p className="text-[10px] text-amber-800 font-medium bg-amber-50/80 p-2 rounded-xl border border-amber-100/60 mt-1">
-                      ⚠️ {sug.reason}
-                    </p>
+                    <button
+                      onClick={() => handleInitiatePip(sug)}
+                      className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-xs py-2 px-3 rounded-xl cursor-pointer shadow-3xs transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Plus size={14} />
+                      <span>Initiate PIP Plan</span>
+                    </button>
                   </div>
+                );
+              })}
+            </div>
 
+            {totalSugPages > 1 && (
+              <div className="flex justify-between items-center pt-3 border-t border-amber-200/50">
+                <span className="text-[10px] text-amber-800 font-medium">
+                  Showing page {safeSugPage} of {totalSugPages} ({suggestions.length} suggestions)
+                </span>
+                <div className="flex gap-1.5">
                   <button
-                    onClick={() => handleInitiatePip(sug)}
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white font-black text-xs py-2 px-3 rounded-xl cursor-pointer shadow-3xs transition-colors flex items-center justify-center gap-1.5"
+                    onClick={() => setSugPage(p => Math.max(p - 1, 1))}
+                    disabled={safeSugPage === 1}
+                    className="px-2.5 py-1 bg-white hover:bg-amber-100 disabled:opacity-50 text-[10px] font-bold border border-amber-200 text-amber-800 rounded-lg cursor-pointer transition-colors"
                   >
-                    <Plus size={14} />
-                    <span>Initiate PIP Plan</span>
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setSugPage(p => Math.min(p + 1, totalSugPages))}
+                    disabled={safeSugPage === totalSugPages}
+                    className="px-2.5 py-1 bg-white hover:bg-amber-100 disabled:opacity-50 text-[10px] font-bold border border-amber-200 text-amber-800 rounded-lg cursor-pointer transition-colors"
+                  >
+                    Next
                   </button>
                 </div>
-              );
-            })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Active Plans Catalog Header & Filters */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
@@ -461,132 +537,215 @@ const PipWorkspace = () => {
             );
           }
 
+          const PIPS_PER_PAGE = 3;
+          const totalPipPages = Math.ceil(filteredPips.length / PIPS_PER_PAGE);
+          const safePipPage = Math.min(pipPage, Math.max(totalPipPages, 1));
+          const paginatedPips = filteredPips.slice((safePipPage - 1) * PIPS_PER_PAGE, safePipPage * PIPS_PER_PAGE);
+
           return (
             <div className="space-y-6">
-              {filteredPips.map(pip => {
-                const emp = pip.employeeId || {};
-                const deptName = emp.departmentId?.departmentName || 'General';
-                const desigName = emp.designationId?.designationName || '-';
+              <div className="space-y-6">
+                {paginatedPips.map(pip => {
+                  const emp = pip.employeeId || {};
+                  const deptName = emp.departmentId?.departmentName || 'General';
+                  const desigName = emp.designationId?.designationName || '-';
 
-                return (
-                  <div key={pip._id} className="border border-slate-200/80 rounded-2xl p-5 space-y-4 bg-slate-50/40 hover:bg-slate-50 transition-colors shadow-2xs">
-                    
-                    {/* PIP Card Header */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-200/60 pb-3">
-                      <div>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <img
-                            src={getUserAvatarUrl(emp)}
-                            alt="Avatar"
-                            className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                          />
-                          <div>
-                            <h4 className="font-extrabold text-slate-800 text-sm">
-                              {emp.firstName} {emp.lastName}
-                            </h4>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md">
-                                {emp.employeeCode || 'EMP-N/A'}
-                              </span>
-                              <span className="text-[9px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
-                                {deptName}
-                              </span>
-                              <span className="text-[9px] font-semibold text-slate-500">
-                                {desigName}
-                              </span>
+                  return (
+                    <div key={pip._id} className="border border-slate-200/80 rounded-2xl p-5 space-y-4 bg-slate-50/40 hover:bg-slate-50 transition-colors shadow-2xs">
+                      
+                      {/* PIP Card Header */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-200/60 pb-3">
+                        <div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <img
+                              src={getUserAvatarUrl(emp)}
+                              alt="Avatar"
+                              className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                            />
+                            <div>
+                              <h4 className="font-extrabold text-slate-800 text-sm">
+                                {emp.firstName} {emp.lastName}
+                              </h4>
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[9px] font-mono font-extrabold px-2 py-0.5 bg-slate-200/80 text-slate-700 rounded-md">
+                                  {emp.employeeCode || 'EMP-N/A'}
+                                </span>
+                                <span className="text-[9px] font-bold px-2.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200/80">
+                                  {deptName}
+                                </span>
+                                <span className="text-[9px] font-semibold text-slate-500">
+                                  {desigName}
+                                </span>
+                              </div>
                             </div>
                           </div>
+
+                          <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
+                            <span className="flex items-center gap-1">
+                              <Calendar size={11} className="text-slate-400" />
+                              Duration: {new Date(pip.startDate).toLocaleDateString()} to {new Date(pip.endDate).toLocaleDateString()}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <UserCheck size={11} className="text-slate-400" />
+                              HR Overseer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
+                            </span>
+                            {(() => {
+                              if (pip.status !== 'active') return null;
+                              const today = new Date();
+                              today.setHours(0, 0, 0, 0);
+                              const endDate = new Date(pip.endDate);
+                              endDate.setHours(0, 0, 0, 0);
+                              const hasEnded = today.getTime() >= endDate.getTime();
+                              if (!hasEnded) return null;
+
+                              const allGoalsCompleted = pip.goals.every(g => g.status === 'completed');
+                              if (allGoalsCompleted) {
+                                return (
+                                  <>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-250 px-2 py-0.5 rounded font-bold text-[9px]">
+                                      ⚠️ Plan Period Ended - Goals Met (Ready to Close)
+                                    </span>
+                                  </>
+                                );
+                              } else {
+                                return (
+                                  <>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-250 px-2 py-0.5 rounded font-bold text-[9px]">
+                                      ⚠️ Plan Period Ended - Unmet Goals (Pending Action)
+                                    </span>
+                                  </>
+                                );
+                              }
+                            })()}
+                          </p>
                         </div>
 
-                        <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap font-medium">
-                          <span className="flex items-center gap-1">
-                            <Calendar size={11} className="text-slate-400" />
-                            Duration: {new Date(pip.startDate).toLocaleDateString()} to {new Date(pip.endDate).toLocaleDateString()}
+                        {/* Status & Quick Actions */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className={`px-3 py-1 rounded-full font-extrabold uppercase text-[9px] tracking-wider ${getStatusBadge(pip.status)}`}>
+                            ● {pip.status}
                           </span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1">
-                            <UserCheck size={11} className="text-slate-400" />
-                            HR Overseer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
-                          </span>
-                        </p>
+
+                          {(() => {
+                            const reviewerId = (pip.hrReviewerId?._id || pip.hrReviewerId)?.toString();
+                            const currentUserId = (user?.id || user?._id)?.toString();
+                            const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
+                            const isLeadership = user?.role === 'admin' || user?.role === 'executive';
+                            const canManageStatus = (isDesignatedHrReviewer || isLeadership) && (pip.status === 'active' || pip.status === 'escalated');
+
+                            if (!canManageStatus) return null;
+
+                            return (
+                              <div className="flex gap-1.5">
+                                {pip.status === 'active' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleClosePip(pip._id, false)}
+                                      title="Mark as Met & Close: This successfully closes the performance plan, indicating the employee has successfully met all performance expectations. No further action will be required."
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                    >
+                                      Complete Plan (Goals Met)
+                                    </button>
+                                    <button
+                                      onClick={() => handleClosePip(pip._id, true)}
+                                      title="Escalate: This marks the performance plan as failed and escalates it to HR. HR will review the case for formal disciplinary action or termination policy procedures."
+                                      className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                    >
+                                      Escalate to HR (Goals Unmet)
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => handleResolveEscalation(pip._id, pip.closureNotes)}
+                                    title="Resolve Escalation: Conclude this escalated PIP. Allows the HR reviewer or leadership to log the final HR outcome and close the PIP."
+                                    className="bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    Resolve & Close PIP
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
 
-                      {/* Status & Quick Actions */}
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className={`px-3 py-1 rounded-full font-extrabold uppercase text-[9px] tracking-wider ${getStatusBadge(pip.status)}`}>
-                          ● {pip.status}
-                        </span>
-
-                        {(() => {
-                          const reviewerId = (pip.hrReviewerId?._id || pip.hrReviewerId)?.toString();
-                          const currentUserId = (user?.id || user?._id)?.toString();
-                          const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
-                          const isLeadership = user?.role === 'admin' || user?.role === 'executive';
-                          const canManageStatus = (isDesignatedHrReviewer || isLeadership) && pip.status === 'active';
-
-                          return canManageStatus ? (
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={() => handleClosePip(pip._id, false)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                              >
-                                Close PIP
-                              </button>
-                              <button
-                                onClick={() => handleClosePip(pip._id, true)}
-                                className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                              >
-                                Escalate
-                              </button>
-                            </div>
-                          ) : null;
-                        })()}
-                      </div>
-                    </div>
-
-                    {/* Goals checklist */}
-                    <div className="space-y-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Target Action Goals</span>
+                      {/* Goals checklist */}
                       <div className="space-y-2">
-                        {pip.goals.map((g, idx) => (
-                          <div key={idx} className="flex justify-between items-center bg-white border border-slate-200 p-3 rounded-xl">
-                            <div>
-                              <p className="font-semibold text-slate-800 text-xs">{g.description}</p>
-                              <p className="text-[9px] text-slate-400 mt-0.5">Target Date: {new Date(g.targetDate).toLocaleDateString()}</p>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Target Action Goals</span>
+                        <div className="space-y-2">
+                          {pip.goals.map((g, idx) => (
+                            <div key={idx} className="flex justify-between items-center bg-white border border-slate-200 p-3 rounded-xl">
+                              <div>
+                                <p className="font-semibold text-slate-800 text-xs">{g.description}</p>
+                                <p className="text-[9px] text-slate-400 mt-0.5">Target Date: {new Date(g.targetDate).toLocaleDateString()}</p>
+                              </div>
+                              
+                              {/* Goal Status Selector */}
+                              {pip.status === 'active' ? (
+                                <select
+                                  value={g.status}
+                                  onChange={(e) => handleUpdateGoalStatus(pip._id, idx, e.target.value)}
+                                  className="bg-slate-50 border border-slate-200 font-bold p-1.5 rounded-lg text-[10px] outline-none cursor-pointer text-slate-700"
+                                >
+                                  <option value="pending">Pending</option>
+                                  <option value="in_progress">In Progress</option>
+                                  <option value="completed">Completed</option>
+                                </select>
+                              ) : (
+                                <span className={`font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-full ${
+                                  g.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {g.status}
+                                </span>
+                              )}
                             </div>
-                            
-                            {/* Goal Status Selector */}
-                            {pip.status === 'active' ? (
-                              <select
-                                value={g.status}
-                                onChange={(e) => handleUpdateGoalStatus(pip._id, idx, e.target.value)}
-                                className="bg-slate-50 border border-slate-200 font-bold p-1.5 rounded-lg text-[10px] outline-none cursor-pointer text-slate-700"
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="in_progress">In Progress</option>
-                                <option value="completed">Completed</option>
-                              </select>
-                            ) : (
-                              <span className={`font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-full ${
-                                g.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500'
-                              }`}>
-                                {g.status}
-                              </span>
-                            )}
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    {pip.closureNotes && (
-                      <div className="bg-slate-100 border border-slate-200 p-3 rounded-xl text-slate-700 text-xs">
-                        <span className="font-bold text-[9px] uppercase text-slate-500 block mb-0.5">Closure Notes</span>
-                        <p className="italic">{pip.closureNotes}</p>
-                      </div>
-                    )}
+                      {pip.closureNotes && (
+                        <div className={`border p-3 rounded-xl text-slate-700 text-xs ${
+                          pip.status === 'escalated' ? 'bg-rose-50/40 border-rose-100' : 'bg-slate-50 border-slate-200'
+                        }`}>
+                          <span className={`font-bold text-[9px] uppercase block mb-0.5 ${
+                            pip.status === 'escalated' ? 'text-rose-500' : 'text-slate-500'
+                          }`}>
+                            {pip.status === 'escalated' ? 'Escalation Details' : 'Closure Notes'}
+                          </span>
+                          <p className="italic">{pip.closureNotes}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {totalPipPages > 1 && (
+                <div className="flex justify-between items-center pt-4 border-t border-slate-250/60">
+                  <span className="text-slate-500 font-semibold text-[10px]">
+                    Showing {Math.min(filteredPips.length, (safePipPage - 1) * PIPS_PER_PAGE + 1)}–{Math.min(filteredPips.length, safePipPage * PIPS_PER_PAGE)} of {filteredPips.length} plans
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setPipPage(p => Math.max(p - 1, 1))}
+                      disabled={safePipPage === 1}
+                      className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-extrabold border border-slate-200 rounded-xl text-[10px] cursor-pointer transition-all"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => setPipPage(p => Math.min(p + 1, totalPipPages))}
+                      disabled={safePipPage === totalPipPages}
+                      className="px-3 py-1 bg-white hover:bg-slate-50 disabled:opacity-40 text-slate-700 font-extrabold border border-slate-200 rounded-xl text-[10px] cursor-pointer transition-all"
+                    >
+                      Next
+                    </button>
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           );
         })()}
@@ -914,6 +1073,94 @@ const PipWorkspace = () => {
           </div>
         </div>
       )}
+
+      {/* Custom PIP Closure / Escalation Modal */}
+      {showClosureModal && (() => {
+        let iconBg = 'bg-emerald-50 text-emerald-600';
+        let modalTitle = 'Successfully Complete & Close PIP';
+        let modalSubtitle = 'Submit summary details of successful target achievement to complete the plan.';
+        let inputLabel = 'Provide Closure Notes';
+        let placeholderText = "Provide summary notes of the employee's progress, goal accomplishments, and successful wrap-up...";
+        let submitBtnClass = 'bg-emerald-600 hover:bg-emerald-700';
+        let submitBtnText = 'Complete & Close';
+
+        if (closureIsEscalate) {
+          iconBg = 'bg-rose-50 text-rose-600';
+          modalTitle = 'Escalate PIP to HR Department';
+          modalSubtitle = 'Submit details regarding unresolved performance issues to HR for policy action.';
+          inputLabel = 'Provide Escalation Details';
+          placeholderText = "Provide details on why goals were not met, specific shortcomings, and recommendations for HR review...";
+          submitBtnClass = 'bg-rose-600 hover:bg-rose-700';
+          submitBtnText = 'Submit Escalation';
+        } else if (closureIsResolveEscalation) {
+          iconBg = 'bg-sky-50 text-sky-600';
+          modalTitle = 'Resolve HR Escalation & Close PIP';
+          modalSubtitle = 'Provide final HR action/resolution notes to conclude this performance plan.';
+          inputLabel = 'Provide Final HR Resolution Details';
+          placeholderText = "Provide details on the final outcome (e.g. employee termination per policy, role reassignment, cycle extension, etc.)...";
+          submitBtnClass = 'bg-sky-600 hover:bg-sky-700';
+          submitBtnText = 'Resolve & Close Plan';
+        }
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 animate-fade-in">
+              <div className="flex items-center gap-3 border-b pb-3">
+                <div className={`p-2.5 rounded-xl ${iconBg}`}>
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-800">
+                    {modalTitle}
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">
+                    {modalSubtitle}
+                  </p>
+                </div>
+              </div>
+
+              {closureIsResolveEscalation && existingEscalationNotes && (
+                <div className="bg-rose-50/40 border border-rose-100 p-3 rounded-xl text-xs space-y-1">
+                  <span className="font-bold text-[9px] uppercase text-rose-500 block">Original Escalation Details</span>
+                  <p className="italic text-slate-600 font-medium">{existingEscalationNotes}</p>
+                </div>
+              )}
+
+              <form onSubmit={submitClosePip} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                    {inputLabel}
+                  </label>
+                  <textarea
+                    value={closureNotesText}
+                    onChange={(e) => setClosureNotesText(e.target.value)}
+                    placeholder={placeholderText}
+                    rows={4}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:bg-white p-3 rounded-xl outline-none text-slate-800 text-xs transition-all resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowClosureModal(false)}
+                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className={`text-white font-semibold px-5 py-2 rounded-xl shadow-xs cursor-pointer transition-colors text-xs ${submitBtnClass}`}
+                  >
+                    {submitBtnText}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

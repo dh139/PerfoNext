@@ -504,6 +504,7 @@ const ExecutiveDashboard = ({ data, user }) => {
                 if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
                 if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
                 if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
+                if (s === 'Auto Closed' || s === 'Unusual') return 'text-rose-600 bg-rose-50 border-rose-200';
                 return 'text-rose-600 bg-rose-50 border-rose-200';
               };
               return (
@@ -548,7 +549,7 @@ const ExecutiveDashboard = ({ data, user }) => {
                             <td className="py-2.5 px-3">
                               <div className="flex flex-col gap-1">
                                 <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold w-fit ${statusColor(r.status)}`}>
-                                  {r.status}
+                                  {r.status === 'Auto Closed' ? 'Unusual' : r.status}
                                 </span>
                                 {r.regularizationStatus === "pending" && (
                                   <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200 animate-pulse w-fit">

@@ -42,6 +42,10 @@ const Certifications = () => {
 
   const fetchActiveCycleStatus = async (empId, currentUsersList) => {
     try {
+      if (user?.role === 'admin' || user?.role === 'executive') {
+        setActiveCycleExists(true);
+        return;
+      }
       const res = await api.get('/api/review-cycles');
       const cycles = res.data || [];
 

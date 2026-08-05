@@ -453,7 +453,7 @@ export default function AttendanceRulesPage() {
           description="If an employee forgets to punch out, the system marks them out at the configured time."
         />
         {rules.autoPunchOut?.enable && (
-          <TimeField label="Auto Punch-Out Time" value={rules.autoPunchOut?.time} onChange={v => setNestedRule('autoPunchOut', 'time', v)} hint='Records will be marked with status "Auto Closed"' />
+          <TimeField label="Auto Punch-Out Time" value={rules.autoPunchOut?.time} onChange={v => setNestedRule('autoPunchOut', 'time', v)} hint='Records will be marked with status "Unusual"' />
         )}
       </SectionCard>
 

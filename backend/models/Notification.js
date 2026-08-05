@@ -10,7 +10,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['review_assigned', 'assessment_pending', 'manager_review_pending', 'review_completed', 'final_score_ready'],
+      enum: ['review_assigned', 'assessment_pending', 'manager_review_pending', 'review_completed', 'final_score_ready', 'regularization_submitted'],
       required: true
     },
     message: {

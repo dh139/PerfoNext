@@ -281,12 +281,102 @@ const sendIndividualExtensionEmail = async (toEmail, firstName, reviewMonth, end
   });
 };
 
+const sendPipCreatedEmail = async (toEmail, employeeName, startDate, endDate) => {
+  const subject = 'Performance Improvement Plan (PIP) Assigned';
+  const text = `Hello ${employeeName},\n\nYou have been placed on a Performance Improvement Plan (PIP) starting ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.\nPlease log in to PerfoNext and navigate to the PIP Workspace to review your target action goals.\n\nBest regards,\nPerfoNext Team`;
+  const html = getEmailWrapper(
+    'Performance Improvement Plan Assigned',
+    `
+      <p style="margin-top: 0;">Hello <strong>${employeeName}</strong>,</p>
+      <p>A Performance Improvement Plan (PIP) has been initiated and assigned to you. Please review the details below:</p>
+      
+      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Start Date:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${new Date(startDate).toLocaleDateString()}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">End Date:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${new Date(endDate).toLocaleDateString()}</td>
+          </tr>
+        </table>
+      </div>
+
+      <p>Please log in to your PerfoNext portal and open the <strong>PIP Workspace</strong> to review your target action goals and track your progress.</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. PIP assignment email simulated for ${toEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: toEmail,
+    subject,
+    text,
+    html
+  });
+};
+
+const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes) => {
+  const isEscalate = status.toLowerCase() === 'escalated';
+  const statusLabel = isEscalate ? 'ESCALATED TO HR' : 'SUCCESSFULLY CLOSED';
+  
+  const subject = `Your Performance Improvement Plan (PIP) Status: ${statusLabel}`;
+  const text = `Hello ${employeeName},\n\nYour Performance Improvement Plan (PIP) has been updated.\nStatus: ${statusLabel}\n\nDetails / Notes:\n"${notes || 'No notes provided.'}"\n\nBest regards,\nPerfoNext Team`;
+  
+  const html = getEmailWrapper(
+    `PIP Status: ${statusLabel}`,
+    `
+      <p style="margin-top: 0;">Hello <strong>${employeeName}</strong>,</p>
+      <p>Your Performance Improvement Plan (PIP) status has been updated by your evaluator.</p>
+      
+      <div style="background-color: ${isEscalate ? '#fff1f2' : '#f0fdf4'}; border: 1px solid ${isEscalate ? '#fecdd3' : '#bbf7d0'}; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Current Status:</td>
+            <td style="color: ${isEscalate ? '#be123c' : '#15803d'}; font-weight: bold; font-size: 13px; padding: 4px 0; text-transform: uppercase;">${statusLabel}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0; vertical-align: top;">Notes / Remarks:</td>
+            <td style="color: #1e293b; font-style: italic; font-size: 13px; padding: 4px 0;">"${notes || 'No notes provided.'}"</td>
+          </tr>
+        </table>
+      </div>
+
+      <p>${isEscalate 
+        ? 'Since the plan was escalated, the HR department will contact you shortly to schedule a review session.' 
+        : 'Congratulations on successfully completing the improvement plan. No further targets are active under this plan.'}</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. PIP status update email simulated for ${toEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: toEmail,
+    subject,
+    text,
+    html
+  });
+};
+
 module.exports = {
   sendOtpEmail,
   sendWelcomeEmail,
   sendReviewCycleStartedEmail,
   sendSelfAssessmentSubmittedEmail,
   sendFinalReportGeneratedEmail,
-  sendIndividualExtensionEmail
+  sendIndividualExtensionEmail,
+  sendPipCreatedEmail,
+  sendPipStatusUpdatedEmail
 };
 

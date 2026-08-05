@@ -220,135 +220,134 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
         ))}
       </div>
 
-      {/* ── MAIN BENTO GRID ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        {/* LEFT — Subordinate Reviews (2/3) */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-                <TrendingUp size={17} />
+        {/* LEFT COLUMN: Team Management Workspace (2/3 width) */}
+        <div className="lg:col-span-2 flex flex-col gap-6 self-start w-full">
+          
+          {/* Subordinate Reviews Card */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
+                  <TrendingUp size={17} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">Direct Subordinates Performance Reviews</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Grade submitted self-assessments</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-bold text-slate-800 text-sm">Direct Subordinates Performance Reviews</h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">Grade submitted self-assessments</p>
-              </div>
+              <span className="text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2.5 py-1 rounded-full">
+                {pendingManagerReviews.length} Total
+              </span>
             </div>
-            <span className="text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 px-2.5 py-1 rounded-full">
-              {pendingManagerReviews.length} Total
-            </span>
-          </div>
 
-          {pendingManagerReviews.length === 0 ? (
-            <div className="py-12 bg-emerald-50/60 rounded-2xl border border-dashed border-emerald-200 text-center">
-              <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-3" />
-              <p className="text-slate-800 text-xs font-bold">All reviews completed!</p>
-              <p className="text-[10px] text-slate-400 mt-1">No pending manager reviews for active cycles.</p>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {pendingManagerReviews.map((item) => {
-                const isReady = item.isEmployeeSubmitted;
-                return (
-                  <div
-                    key={`${item.employee._id}-${item.cycleId}`}
-                    className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm text-xs ${
-                      isReady
-                        ? 'bg-sky-50/40 border-sky-100 hover:border-sky-200'
-                        : 'bg-slate-50 border-slate-100 hover:border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
-                        isReady ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500'
-                      }`}>
-                        {item.employee.firstName?.[0]}{item.employee.lastName?.[0]}
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-800 text-xs">
-                          {item.employee.firstName} {item.employee.lastName}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-slate-400">Cycle:</span>
-                          <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                            {item.cycleMonth}
-                          </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            isReady
-                              ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
-                              : 'text-slate-500 bg-slate-100 border border-slate-200'
-                          }`}>
-                            {isReady ? '✓ Self Submitted' : 'Self Assessment Pending'}
-                          </span>
+            {pendingManagerReviews.length === 0 ? (
+              <div className="py-12 bg-emerald-50/60 rounded-2xl border border-dashed border-emerald-200 text-center">
+                <CheckCircle2 size={36} className="text-emerald-500 mx-auto mb-3" />
+                <p className="text-slate-800 text-xs font-bold">All reviews completed!</p>
+                <p className="text-[10px] text-slate-400 mt-1">No pending manager reviews for active cycles.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingManagerReviews.map((item) => {
+                  const isReady = item.isEmployeeSubmitted;
+                  return (
+                    <div
+                      key={`${item.employee._id}-${item.cycleId}`}
+                      className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm text-xs ${
+                        isReady
+                          ? 'bg-sky-50/40 border-sky-100 hover:border-sky-200'
+                          : 'bg-slate-50 border-slate-100 hover:border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
+                          isReady ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                          {item.employee.firstName?.[0]}{item.employee.lastName?.[0]}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs">
+                            {item.employee.firstName} {item.employee.lastName}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-slate-400">Cycle:</span>
+                            <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {item.cycleMonth}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              isReady
+                                ? 'text-emerald-700 bg-emerald-50 border border-emerald-100'
+                                : 'text-slate-500 bg-slate-100 border border-slate-200'
+                            }`}>
+                              {isReady ? '✓ Self Submitted' : 'Self Assessment Pending'}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <div className="shrink-0">
+                        {isReady ? (
+                          <Link
+                            to={`/review/${item.cycleId}/${item.employee._id}`}
+                            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95"
+                          >
+                            Grade Review <ArrowUpRight size={11} />
+                          </Link>
+                        ) : (
+                          <span className="text-[10px] bg-slate-100 text-slate-400 border border-slate-200 px-3 py-1.5 rounded-lg font-semibold cursor-not-allowed select-none">
+                            Waiting for Self
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="shrink-0">
-                      {isReady ? (
-                        <Link
-                          to={`/review/${item.cycleId}/${item.employee._id}`}
-                          className="inline-flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-[11px] px-3.5 py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95"
-                        >
-                          Grade Review <ArrowUpRight size={11} />
-                        </Link>
-                      ) : (
-                        <span className="text-[10px] bg-slate-100 text-slate-400 border border-slate-200 px-3 py-1.5 rounded-lg font-semibold cursor-not-allowed select-none">
-                          Waiting for Self
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-        {/* RIGHT SIDEBAR (1/3) */}
-        <div className="flex flex-col gap-5">
-
-          <PunchCard />
-
-          {/* Pending Regularizations */}
+          {/* Pending Regularizations Card (moved to left column, 2/3 width) */}
           {pendingRegs.length > 0 && (
-            <div className="bg-white border border-amber-100 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-amber-100 rounded-2xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-                    <RefreshCw size={15} className="animate-spin" />
+                    <RefreshCw size={16} className="animate-spin" />
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-800">Pending Regularizations</h4>
-                    <p className="text-[10px] text-slate-400">Attendance correction requests</p>
+                    <p className="text-[10px] text-slate-400">Attendance correction requests from subordinates</p>
                   </div>
                 </div>
-                <span className="text-[10px] font-extrabold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-extrabold bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full border border-amber-200">
                   {pendingRegs.length}
                 </span>
               </div>
-              <div className="space-y-3 max-h-56 overflow-y-auto pr-0.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {pendingRegs.map(reg => (
-                  <div key={reg._id} className="text-xs p-3.5 bg-slate-50 border border-slate-100 rounded-xl hover:border-amber-200 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
-                        {reg.employeeId?.firstName?.[0]}{reg.employeeId?.lastName?.[0]}
+                  <div key={reg._id} className="text-xs p-4 bg-slate-50 border border-slate-100 rounded-xl hover:border-amber-200 transition-colors flex flex-col justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                          {reg.employeeId?.firstName?.[0]}{reg.employeeId?.lastName?.[0]}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 leading-tight">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
+                          <p className="text-[9px] text-slate-400">{new Date(reg.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800 leading-tight">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
-                        <p className="text-[9px] text-slate-400">{new Date(reg.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      <div className="flex items-center gap-1.5 mt-3 text-[10px] text-slate-500">
+                        <Clock size={10} />
+                        {new Date(reg.requestedPunchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <span className="text-slate-350">→</span>
+                        {new Date(reg.requestedPunchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
+                      {reg.regularizationReason && (
+                        <p className="text-[10px] text-slate-400 italic mt-2 leading-relaxed">"{reg.regularizationReason}"</p>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 mb-2 text-[10px] text-slate-500">
-                      <Clock size={10} />
-                      {new Date(reg.requestedPunchIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      <span className="text-slate-300">→</span>
-                      {new Date(reg.requestedPunchOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                    {reg.regularizationReason && (
-                      <p className="text-[10px] text-slate-400 italic mb-2.5 leading-relaxed">"{reg.regularizationReason}"</p>
-                    )}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => handleReviewReg(reg._id, 'approved')}
                         className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold py-1.5 rounded-lg shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer"
@@ -368,56 +367,67 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
             </div>
           )}
 
-          {/* Team Ratings Summary */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col flex-1">
+          {/* Team Ratings Summary Card (moved to left column, 2/3 width) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
                 <Activity size={16} />
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 text-xs">Recent Team Ratings</h3>
-                <p className="text-[10px] text-slate-400">Latest performance scores</p>
+                <p className="text-[10px] text-slate-400">Latest computed performance scores for subordinates</p>
               </div>
             </div>
-            <div className="flex-1 space-y-2.5 overflow-y-auto">
+            <div>
               {teamScores.length === 0 ? (
-                <div className="py-8 text-center">
+                <div className="py-8 text-center bg-slate-50/50 rounded-2xl border border-slate-100">
                   <Star size={28} className="text-slate-200 mx-auto mb-2" />
                   <p className="text-slate-400 text-[11px] font-medium">No scores computed yet.</p>
-                  <p className="text-[10px] text-slate-300 mt-0.5">Scores appear after review cycles close.</p>
+                  <p className="text-[10px] text-slate-350 mt-0.5">Scores appear after review cycles close.</p>
                 </div>
               ) : (
-                teamScores.map((score) => (
-                  <div
-                    key={score._id}
-                    className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:border-slate-200 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black shrink-0">
-                        {score.employeeId?.firstName?.[0]}{score.employeeId?.lastName?.[0]}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {teamScores.map((score) => (
+                    <div
+                      key={score._id}
+                      className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/60 hover:border-slate-200 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black shrink-0">
+                          {score.employeeId?.firstName?.[0]}{score.employeeId?.lastName?.[0]}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-800 text-[11px] leading-tight">
+                            {score.employeeId?.firstName} {score.employeeId?.lastName}
+                          </p>
+                          <p className="text-[9px] text-slate-400 mt-1">Cycle: <span className="font-semibold">{score.reviewCycleId?.reviewMonth}</span></p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-800 text-[11px] leading-tight">
-                          {score.employeeId?.firstName} {score.employeeId?.lastName}
-                        </p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">{score.reviewCycleId?.reviewMonth}</p>
+                      <div className="text-right shrink-0">
+                        <div>
+                          <span className="font-extrabold text-indigo-700 text-sm">{score.finalScore}</span>
+                          <span className="text-[10px] text-slate-400"> / 5.0</span>
+                        </div>
+                        {score.rating && (
+                          <p className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border mt-1.5 ${getRatingColor(score.rating)}`}>
+                            {score.rating}
+                          </p>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="font-extrabold text-indigo-700 text-sm">{score.finalScore}</span>
-                      {score.rating && (
-                        <p className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border mt-0.5 ${getRatingColor(score.rating)}`}>
-                          {score.rating}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
         </div>
+
+        {/* RIGHT COLUMN: Personal Shift Workspace (1/3 width) */}
+        <div className="flex flex-col gap-5 self-start w-full">
+          <PunchCard />
+        </div>
+
       </div>
     </div>
   );

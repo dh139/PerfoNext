@@ -4,6 +4,7 @@ const AttendanceSettingsHistory = require('../models/AttendanceSettingsHistory')
 const Holiday = require('../models/Holiday');
 const User = require('../models/User');
 const Department = require('../models/Department');
+const Notification = require('../models/Notification');
 const { logAction } = require('../utils/logger');
 const mongoose = require('mongoose');
 
@@ -46,12 +47,12 @@ const autoCloseIncompletePunches = async (settings) => {
   const todayStr = new Date().toISOString().split('T')[0];
   const todayDate = new Date(todayStr);
 
-  // Find all punches from previous days that don't have punchOut and aren't Auto Closed yet
+  // Find all punches from previous days that don't have punchOut and aren't Auto Closed / Unusual yet
   const incompletePunches = await AttendancePunch.find({
     date: { $lt: todayDate },
     punchIn: { $exists: true },
     punchOut: { $exists: null },
-    status: { $ne: 'Auto Closed' }
+    status: { $nin: ['Auto Closed', 'Unusual'] }
   });
 
   if (incompletePunches.length === 0) return;
@@ -83,7 +84,7 @@ const autoCloseIncompletePunches = async (settings) => {
       }
     }
     punch.overtimeMinutes = overtimeMinutes;
-    punch.status = 'Auto Closed';
+    punch.status = 'Unusual';
 
     await punch.save();
   }
@@ -349,6 +350,41 @@ const submitRegularization = async (req, res) => {
     punch.regularizationReason = reason;
 
     await punch.save();
+
+    // Notify the employee's reporting manager and/or CEO
+    try {
+      const employee = await User.findById(req.user.id);
+      if (employee) {
+        const targetUserIds = new Set();
+
+        // If the submitter is a manager or HR, target all CEOs (role: executive)
+        if (employee.role === 'manager' || employee.role === 'hr') {
+          const ceos = await User.find({ role: 'executive' });
+          ceos.forEach(ceo => targetUserIds.add(ceo._id.toString()));
+        }
+
+        // Target the direct manager if assigned
+        if (employee.managerId) {
+          targetUserIds.add(employee.managerId.toString());
+        }
+
+        // Send notifications to all unique target IDs
+        if (targetUserIds.size > 0) {
+          await Promise.all(
+            Array.from(targetUserIds).map(userId =>
+              Notification.create({
+                userId,
+                type: 'regularization_submitted',
+                message: `${employee.firstName} ${employee.lastName} has submitted an attendance regularization request for ${targetDateStr}.`
+              })
+            )
+          );
+        }
+      }
+    } catch (notifError) {
+      console.error('Failed to create regularization notification:', notifError);
+    }
+
     await logAction({ req, userId: req.user.id, action: 'REGULARIZATION_SUBMITTED', module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
     res.json({ message: 'Regularization request submitted successfully.', punch });
@@ -507,7 +543,7 @@ const getCeoSummary = async (req, res) => {
       }
       else if (p.status === 'Half Day') halfDay++;
       else if (p.status === 'Absent') absent++;
-      else if (p.status === 'Auto Closed') autoClosed++;
+      else if (p.status === 'Auto Closed' || p.status === 'Unusual') autoClosed++;
       else if (p.status === 'Leave') leave++;
 
       if (p.lateMinutes > 0) {
@@ -588,7 +624,7 @@ const getHrSummary = async (req, res) => {
       else if (p.status === 'Late') { present++; late++; }
       else if (p.status === 'Half Day') halfDay++;
       else if (p.status === 'Absent') absent++;
-      else if (p.status === 'Auto Closed') autoClosed++;
+      else if (p.status === 'Auto Closed' || p.status === 'Unusual') autoClosed++;
 
       if (p.earlyExitMinutes > 0) earlyExit++;
 
@@ -683,7 +719,7 @@ async function getAttendanceByDate(req, res) {
         workingMinutes,
         lateMinutes: p.lateMinutes || 0,
         overtimeMinutes: p.overtimeMinutes || 0,
-        status: p.status || 'Unknown',
+        status: p.status === 'Auto Closed' ? 'Unusual' : (p.status || 'Unknown'),
         regularizationStatus: p.regularizationStatus || null,
       };
     });

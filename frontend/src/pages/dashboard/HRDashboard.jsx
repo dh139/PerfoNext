@@ -321,7 +321,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
         )}
 
         {/* Command Suite Grid & Personal Punch Card Bento Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Left Column: Command Suite Grid (2/3 width, or full width for Admin) */}
           <div className={`${user?.role === 'admin' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-4`}>
             <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
@@ -550,6 +550,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                 if (s === 'Half Day') return 'text-amber-600 bg-amber-50 border-amber-200';
                 if (s === 'Incomplete') return 'text-rose-500 bg-rose-50 border-rose-200';
                 if (s === 'Weekly Off') return 'text-slate-500 bg-slate-50 border-slate-200';
+                if (s === 'Auto Closed' || s === 'Unusual') return 'text-rose-600 bg-rose-50 border-rose-200';
                 return 'text-rose-600 bg-rose-50 border-rose-200';
               };
               return (
@@ -594,7 +595,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                             <td className="py-2.5 px-3">
                               <div className="flex flex-col gap-1">
                                 <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold w-fit ${statusColor(r.status)}`}>
-                                  {r.status}
+                                  {r.status === 'Auto Closed' ? 'Unusual' : r.status}
                                 </span>
                                 {r.regularizationStatus === "pending" && (
                                   <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-600 border-amber-200 animate-pulse w-fit">

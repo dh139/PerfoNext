@@ -93,7 +93,8 @@ const uploadCertification = async (req, res) => {
       return deptMatches && roleMatches;
     });
 
-    if (!isTargetCycleActive) {
+    const isUserAdminOrCEO = req.user.role === 'admin' || req.user.role === 'executive';
+    if (!isTargetCycleActive && !isUserAdminOrCEO) {
       if (req.file && fs.existsSync(req.file.path)) {
         try { fs.unlinkSync(req.file.path); } catch (e) {}
       }

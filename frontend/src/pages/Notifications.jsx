@@ -7,7 +7,8 @@ const NOTIFICATION_STYLE = {
   assessment_pending: { color: 'bg-amber-50 text-amber-700', icon: AlertCircle },
   manager_review_pending: { color: 'bg-amber-50 text-amber-700', icon: ClipboardList },
   review_completed: { color: 'bg-emerald-50 text-emerald-700', icon: Check },
-  final_score_ready: { color: 'bg-indigo-50 text-indigo-700', icon: Award }
+  final_score_ready: { color: 'bg-indigo-50 text-indigo-700', icon: Award },
+  regularization_submitted: { color: 'bg-indigo-50 text-indigo-700', icon: ClipboardList }
 };
 
 const Notifications = () => {

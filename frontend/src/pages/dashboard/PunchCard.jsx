@@ -187,15 +187,17 @@ const PunchCard = () => {
     'Half Day':    'bg-amber-50 text-amber-700 border-amber-200',
     'Absent':      'bg-rose-50 text-rose-700 border-rose-200',
     'Incomplete':  'bg-sky-50 text-sky-700 border-sky-200 animate-pulse',
+    'Unusual':     'bg-orange-50 text-orange-700 border-orange-200',
     'Auto Closed': 'bg-orange-50 text-orange-700 border-orange-200',
     'Holiday':     'bg-emerald-50 text-emerald-700 border-emerald-200',
     'Weekly Off':  'bg-slate-50 text-slate-500 border-slate-200',
     'Not Punched Yet': 'bg-slate-50 text-slate-500 border-slate-200'
   };
 
-  const displayStatus = todayPunch?.status === 'Not Punched Yet'
+  let displayStatus = todayPunch?.status === 'Not Punched Yet'
     ? (isHoliday ? 'Holiday' : isWeekend ? 'Weekly Off' : 'Not Punched Yet')
     : (todayPunch?.status || (isHoliday ? 'Holiday' : isWeekend ? 'Weekly Off' : 'Not Punched Yet'));
+  if (displayStatus === 'Auto Closed') displayStatus = 'Unusual';
   const displayStatusClass = finalizedStatusColors[displayStatus] || 'bg-slate-50 text-slate-500 border-slate-200';
 
   // Progress bar for live working time towards present threshold

@@ -3,6 +3,7 @@ const User = require('../models/User');
 const ReviewScore = require('../models/ReviewScore');
 const Notification = require('../models/Notification');
 const { logAction } = require('../utils/logger');
+const { sendPipCreatedEmail, sendPipStatusUpdatedEmail } = require('../services/emailService');
 
 const getPipSuggestions = async (req, res) => {
   try {
@@ -121,6 +122,11 @@ const createPip = async (req, res) => {
       message: `You have been placed on a Performance Improvement Plan (PIP) starting ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}. Please review your goals.`
     });
 
+    if (populatedPip.employeeId && populatedPip.employeeId.email) {
+      await sendPipCreatedEmail(populatedPip.employeeId.email, `${populatedPip.employeeId.firstName} ${populatedPip.employeeId.lastName}`, startDate, endDate)
+        .catch(err => console.error('PIP assignment email send failed:', err));
+    }
+
     await logAction({
       userId: req.user.id,
       action: 'review_update',
@@ -185,6 +191,11 @@ const updatePip = async (req, res) => {
         type: 'review_completed',
         message: `Your Performance Improvement Plan (PIP) has been updated to: ${status.toUpperCase()}. closure notes: ${closureNotes || 'None'}`
       });
+
+      if (updatedPip.employeeId && updatedPip.employeeId.email) {
+        await sendPipStatusUpdatedEmail(updatedPip.employeeId.email, `${updatedPip.employeeId.firstName} ${updatedPip.employeeId.lastName}`, status, closureNotes)
+          .catch(err => console.error('PIP status update email send failed:', err));
+      }
     }
 
     await logAction({

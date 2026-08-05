@@ -571,6 +571,76 @@ const WorkJournal = () => {
             </div>
           </div>
 
+          {/* Project Log Sheets */}
+          <div className="space-y-2">
+            <h4 className="font-extrabold text-[11px] text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+              <span>📁 Project Log Sheets</span>
+              <span className="text-[10px] lowercase text-slate-400 font-medium">(Select a sheet to filter logs)</span>
+            </h4>
+            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+              {/* All Projects Sheet */}
+              <button
+                onClick={() => {
+                  setProjectFilter('all');
+                  setCurrentPage(1);
+                }}
+                className={`flex items-start gap-3 p-4 border rounded-2xl text-left shrink-0 w-44 transition-all shadow-3xs cursor-pointer ${
+                  projectFilter === 'all'
+                    ? 'border-sky-500 bg-sky-50/70 shadow-xs ring-1 ring-sky-500/20'
+                    : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                }`}
+              >
+                <div className={`p-2 rounded-xl shrink-0 ${projectFilter === 'all' ? 'bg-sky-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                  <Folder size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-black text-slate-900 text-xs truncate">All Projects</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                    {items.length} Log Sheets
+                  </p>
+                  <p className="text-[9px] text-sky-700 font-bold mt-0.5">
+                    {items.reduce((sum, i) => sum + (Number(i.hoursSpent) || 0), 0)} hrs total
+                  </p>
+                </div>
+              </button>
+
+              {/* Dynamic Project Sheets */}
+              {uniqueProjects.map(proj => {
+                const projLogs = items.filter(i => (i.project || '').trim() === proj);
+                const totalHours = projLogs.reduce((sum, i) => sum + (Number(i.hoursSpent) || 0), 0);
+                const isSelected = projectFilter === proj;
+
+                return (
+                  <button
+                    key={proj}
+                    onClick={() => {
+                      setProjectFilter(proj);
+                      setCurrentPage(1);
+                    }}
+                    className={`flex items-start gap-3 p-4 border rounded-2xl text-left shrink-0 w-44 transition-all shadow-3xs cursor-pointer ${
+                      isSelected
+                        ? 'border-sky-500 bg-sky-50/70 shadow-xs ring-1 ring-sky-500/20'
+                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-xl shrink-0 ${isSelected ? 'bg-sky-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                      <FileText size={16} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-black text-slate-900 text-xs truncate" title={proj}>{proj}</p>
+                      <p className="text-[10px] text-slate-500 mt-1 font-semibold">
+                        {projLogs.length} Log Sheets
+                      </p>
+                      <p className="text-[9px] text-sky-700 font-bold mt-0.5">
+                        {totalHours} hrs logged
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {loading ? (
             <div className="flex justify-center items-center py-16">
               <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>

@@ -41,25 +41,29 @@ const RecognitionsWorkspace = () => {
 
       const cycleRes = await api.get('/api/review-cycles');
       setCycles(cycleRes.data);
-      const active = cycleRes.data.some(c => {
-        if (c.status !== 'active') return false;
-        const cycleDeptId = c.kpiTemplateId?.departmentId
-          ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
-          : null;
-        const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
-        const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
+      if (user?.role === 'admin' || user?.role === 'executive') {
+        setActiveCycleExists(true);
+      } else {
+        const active = cycleRes.data.some(c => {
+          if (c.status !== 'active') return false;
+          const cycleDeptId = c.kpiTemplateId?.departmentId
+            ? (c.kpiTemplateId.departmentId._id || c.kpiTemplateId.departmentId).toString()
+            : null;
+          const templateName = (c.kpiTemplateId?.templateName || '').toLowerCase();
+          const isGeneralTemplate = !cycleDeptId || templateName.includes('general');
 
-        const userDeptId = user?.departmentId?._id || user?.departmentId;
-        const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId.toString());
+          const userDeptId = user?.departmentId?._id || user?.departmentId;
+          const deptMatches = isGeneralTemplate || (userDeptId && cycleDeptId === userDeptId.toString());
 
-        let roleMatches = true;
-        if (c.targetRole === 'manager') {
-          roleMatches = user?.role === 'manager' || user?.role === 'hr' || user?.role === 'executive' || user?.role === 'admin';
-        }
+          let roleMatches = true;
+          if (c.targetRole === 'manager') {
+            roleMatches = user?.role === 'manager' || user?.role === 'hr' || user?.role === 'executive' || user?.role === 'admin';
+          }
 
-        return deptMatches && roleMatches;
-      });
-      setActiveCycleExists(active);
+          return deptMatches && roleMatches;
+        });
+        setActiveCycleExists(active);
+      }
 
       const deptsRes = await api.get('/api/departments');
       setDepartments(deptsRes.data);

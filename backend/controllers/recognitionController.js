@@ -62,7 +62,8 @@ const createRecognition = async (req, res) => {
     // Check if there is an active review cycle
     await ReviewCycle.autoCloseExpiredCycles();
     const activeCycle = await ReviewCycle.findOne({ status: 'active' });
-    if (!activeCycle && !cycleId) {
+    const isUserAdminOrCEO = req.user.role === 'admin' || req.user.role === 'executive';
+    if (!isUserAdminOrCEO && !activeCycle && !cycleId) {
       return res.status(400).json({ message: 'Cannot award recognition when there is no active review cycle.' });
     }
 
