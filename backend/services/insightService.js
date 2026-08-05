@@ -411,6 +411,49 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
     });
   }
 
+  // Calculate dynamic honest AI score in the backend
+  let workLogQualityScore = 5.0;
+  let loggingConsistency = 'Excellent';
+  let confidence = 'High';
+
+  if (actualLogsCount === 0) {
+    workLogQualityScore = 1.0;
+    loggingConsistency = 'Poor';
+    confidence = 'Low';
+  } else if (actualLogsCount <= 3) {
+    workLogQualityScore = 1.0;
+    loggingConsistency = 'Poor';
+    confidence = 'Low';
+  } else if (actualLogsCount <= 8) {
+    workLogQualityScore = 2.0;
+    loggingConsistency = 'Poor';
+    confidence = 'Medium';
+  } else if (actualLogsCount <= 20) {
+    workLogQualityScore = 3.0;
+    loggingConsistency = 'Moderate';
+    confidence = 'High';
+  } else if (actualLogsCount <= 45) {
+    workLogQualityScore = 4.0;
+    loggingConsistency = 'Good';
+    confidence = 'High';
+  }
+
+  let mgrCompAvg = 3.50;
+  if (managerReviews.length > 0) {
+    const mr = managerReviews[0];
+    if (mr.competencyRatings) {
+      const vals = Object.values(mr.competencyRatings).map(Number).filter(v => v > 0);
+      if (vals.length > 0) mgrCompAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+  }
+
+  const attScore = Math.min(5.0, Math.max(1.0, (attendancePct / 100) * 5.0));
+  const certScore = certifications.length === 0 ? 3.0 : certifications.length === 1 ? 4.0 : 5.0;
+  const awardScore = awards.length === 0 ? 3.0 : awards.length === 1 ? 4.25 : 5.0;
+
+  const rawAiScore = (workLogQualityScore * 0.50) + (mgrCompAvg * 0.20) + (attScore * 0.10) + (certScore * 0.10) + (awardScore * 0.10);
+  const calculatedAiScore = Math.round(rawAiScore * 100) / 100;
+
   const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || '').trim();
   let modelName = (process.env.CHATGPT_MODEL || 'gpt-4o-mini').trim();
   
@@ -452,16 +495,19 @@ CORE AUDIT DIRECTIVES & SCORING RULES:
 5. ZERO GENERIC HR FLUFF:
 - Every strength and development area MUST cite specific evidence (work logs, certificates, awards, or attendance). NEVER use generic fluff.
 
+6. DYNAMIC AI SCORE CONTEXT:
+- The overall "aiScore" is calculated as ${calculatedAiScore.toFixed(2)}/5.0. You MUST output exactly this score in the "aiScore" field in the output JSON.
+
 Output JSON in this exact structure (raw JSON, no markdown formatting):
 {
   "summary": "<2-3 sentence executive summary written as an HR Business Partner describing actual work deliverables, custom department question answers, credentials, awards, attendance percentage, and manager ratings>",
-  "aiScore": 2.50,
-  "confidence": "High / Medium / Low",
+  "aiScore": ${calculatedAiScore.toFixed(2)},
+  "confidence": "${confidence}",
   "aiScoreRationale": "<1-2 sentence AI audit rationale explaining how the AI score was derived from actual work log count, custom fields, manager competency ratings, attendance percentage, certs, and awards>",
   "strengths": ["<Evidence-grounded strength 1>", "<Evidence-grounded strength 2>"],
   "improvements": ["<Evidence-grounded improvement area 1>", "<Evidence-grounded improvement area 2>"],
-  "sentiment": "Positive / Mixed / Critical",
-  "loggingConsistency": "Excellent / Good / Moderate / Poor",
+  "sentiment": "${actualLogsCount <= 5 ? 'Mixed' : (calculatedAiScore >= 4.0 ? 'Positive' : 'Neutral')}",
+  "loggingConsistency": "${loggingConsistency}",
   "actionItems": ["<Action item 1>", "<Action item 2>"]
 }`;
 
@@ -529,7 +575,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
         employeeId,
         reviewCycleId: cycleId,
         summary: fallbackParsed.summary,
-        aiScore: fallbackParsed.aiScore || 3.08,
+        aiScore: calculatedAiScore,
         confidence: fallbackParsed.confidence || 'Medium',
         aiScoreRationale: fallbackParsed.aiScoreRationale || '',
         strengths: fallbackParsed.strengths || [],
@@ -548,7 +594,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       { upsert: true }
     );
 
-    return { ...fallbackParsed, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: new Date() };
+    return { ...fallbackParsed, aiScore: calculatedAiScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: new Date() };
   }
 
   const resData = await response.json();
@@ -563,7 +609,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       employeeId,
       reviewCycleId: cycleId,
       summary: parsed.summary,
-      aiScore: Number(parsed.aiScore) || 3.08,
+      aiScore: calculatedAiScore,
       confidence: parsed.confidence || 'Medium',
       aiScoreRationale: parsed.aiScoreRationale || '',
       strengths: parsed.strengths || [],
@@ -582,7 +628,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
     { upsert: true }
   );
 
-  return { ...parsed, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
+  return { ...parsed, aiScore: calculatedAiScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
 };
 
 const formatDateDDMMYYYY = (dateInput) => {

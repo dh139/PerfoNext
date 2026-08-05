@@ -343,9 +343,6 @@ const submitSelfAssessment = async (req, res) => {
       }
 
       for (const d of details) {
-        if (!d.score || d.score < 1 || d.score > 5) {
-          return res.status(400).json({ message: 'A score between 1 and 5 is required for all KPIs.' });
-        }
         if (!d.comment || !d.comment.trim()) {
           return res.status(400).json({ message: 'A justification comment is required for all evaluated items.' });
         }
@@ -706,10 +703,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         leadership: Number(comp.leadership) || 4.0,
         teamwork: Number(comp.teamwork) || 4.0,
         learning: Number(comp.learningAbility) || 4.0,
-        problemSolving: Number(comp.problemSolving) || 4.0,
-        technical: Number(comp.problemSolving) || Number(comp.learningAbility) || competencyScore,
-        productivity: Number(comp.leadership) || competencyScore,
-        workQuality: Number(comp.teamwork) || competencyScore
+        problemSolving: Number(comp.problemSolving) || 4.0
       };
 
       let isNewScore = false;
@@ -903,28 +897,33 @@ const calculateAggregateScores = async (req, res) => {
 
 const calculateAverages = (scoresList) => {
   const sumScores = {
-    workQuality: 0, productivity: 0, technical: 0, communication: 0, ownership: 0, learning: 0
+    communication: 0,
+    ownership: 0,
+    leadership: 0,
+    teamwork: 0,
+    learning: 0,
+    problemSolving: 0
   };
   let sumFinal = 0;
   
   scoresList.forEach(s => {
     sumFinal += s.finalScore;
-    sumScores.workQuality += s.categoryScores?.workQuality || 0;
-    sumScores.productivity += s.categoryScores?.productivity || 0;
-    sumScores.technical += s.categoryScores?.technical || 0;
     sumScores.communication += s.categoryScores?.communication || 0;
     sumScores.ownership += s.categoryScores?.ownership || 0;
+    sumScores.leadership += s.categoryScores?.leadership || 0;
+    sumScores.teamwork += s.categoryScores?.teamwork || 0;
     sumScores.learning += s.categoryScores?.learning || 0;
+    sumScores.problemSolving += s.categoryScores?.problemSolving || 0;
   });
   
   const count = scoresList.length;
   const categoryScores = {
-    workQuality: Math.round((sumScores.workQuality / count) * 100) / 100,
-    productivity: Math.round((sumScores.productivity / count) * 100) / 100,
-    technical: Math.round((sumScores.technical / count) * 100) / 100,
     communication: Math.round((sumScores.communication / count) * 100) / 100,
     ownership: Math.round((sumScores.ownership / count) * 100) / 100,
-    learning: Math.round((sumScores.learning / count) * 100) / 100
+    leadership: Math.round((sumScores.leadership / count) * 100) / 100,
+    teamwork: Math.round((sumScores.teamwork / count) * 100) / 100,
+    learning: Math.round((sumScores.learning / count) * 100) / 100,
+    problemSolving: Math.round((sumScores.problemSolving / count) * 100) / 100
   };
   
   const finalScore = Math.round((sumFinal / count) * 100) / 100;

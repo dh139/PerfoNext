@@ -56,6 +56,7 @@ const UserManagement = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [workModeFilter, setWorkModeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
@@ -77,6 +78,7 @@ const UserManagement = () => {
   const [employmentStatus, setEmploymentStatus] = useState('active');
   const [joiningDate, setJoiningDate] = useState('');
   const [gender, setGender] = useState('male');
+  const [workMode, setWorkMode] = useState('Work From office');
 
   const fetchData = async () => {
     try {
@@ -116,6 +118,7 @@ const UserManagement = () => {
     setEmployeeCode(''); setFirstName(''); setLastName(''); setEmail(''); setMobile(''); setPassword('');
     setRole('employee'); setManagerId(''); setEmploymentStatus('active');
     setGender('male');
+    setWorkMode('Work From office');
     setJoiningDate(new Date().toISOString().split('T')[0]);
     if (departments.length > 0) setDepartmentId(departments[0]._id);
     setShowModal(true);
@@ -132,6 +135,7 @@ const UserManagement = () => {
     setDesignationId(user.designationId?._id || ''); setManagerId(user.managerId?._id || '');
     setEmploymentStatus(user.employmentStatus);
     setGender(user.gender || 'male');
+    setWorkMode(user.workMode || 'Work From office');
     setJoiningDate(user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : '');
     setShowModal(true);
   };
@@ -142,6 +146,14 @@ const UserManagement = () => {
     setModalError('');
     setIsSubmitting(true);
 
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      const errMsg = 'Mobile number must be exactly 10 digits long.';
+      setModalError(errMsg);
+      toast.error(errMsg);
+      setIsSubmitting(false);
+      return;
+    }
+
     const todayStr = new Date().toISOString().split('T')[0];
     if (joiningDate && joiningDate > todayStr) {
       const errMsg = 'Joining date cannot be in the future.';
@@ -151,7 +163,7 @@ const UserManagement = () => {
       return;
     }
 
-    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId: departmentId || null, designationId: designationId || null, managerId: managerId || '', joiningDate, employmentStatus, gender };
+    const payload = { employeeCode, firstName, lastName, email, mobile, role, departmentId: departmentId || null, designationId: designationId || null, managerId: managerId || '', joiningDate, employmentStatus, gender, workMode };
     if (password) payload.password = password;
     try {
       if (editUser) {
@@ -217,7 +229,8 @@ const UserManagement = () => {
     const uDeptId = u.departmentId?._id || u.departmentId;
     const matchesDept = deptFilter === 'all' || (uDeptId && uDeptId.toString() === deptFilter.toString());
     const matchesStatus = statusFilter === 'all' || u.employmentStatus === statusFilter;
-    return matchesSearch && matchesRole && matchesDept && matchesStatus;
+    const matchesWorkMode = workModeFilter === 'all' || (u.workMode || 'Work From office') === workModeFilter;
+    return matchesSearch && matchesRole && matchesDept && matchesStatus && matchesWorkMode;
   });
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -360,6 +373,12 @@ const UserManagement = () => {
               <option value="all">All Statuses</option>
               <option value="active">Active Only</option>
               <option value="inactive">Inactive Only</option>
+            </select>
+            <select value={workModeFilter} onChange={(e) => { setWorkModeFilter(e.target.value); setCurrentPage(1); }} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer">
+              <option value="all">All Work Modes</option>
+              <option value="Work From office">Work From Office</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Remote">Remote</option>
             </select>
           </div>
         </div>
@@ -578,26 +597,74 @@ const UserManagement = () => {
                       type="text"
                       value={mobile}
                       onChange={(e) => setMobile(e.target.value)}
-                      placeholder="e.g. +91 9876543210"
+                      placeholder="e.g. 9876543210"
+                      pattern="\d{10}"
+                      title="Mobile number must be exactly 10 digits (numbers only)"
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
                   </div>
 
-                  {/* Gender */}
+                  {/* Gender – icon toggle buttons */}
                   <div className="space-y-1">
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                       Gender <span className="text-rose-500">*</span>
                     </label>
-                    <select
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-bold cursor-pointer transition-all"
-                      required
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                    </select>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setGender('male')}
+                        className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all font-bold text-[11px] cursor-pointer ${
+                          gender === 'male'
+                            ? 'border-sky-500 bg-sky-50 text-sky-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="text-xl">👨</span>
+                        Male
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGender('female')}
+                        className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all font-bold text-[11px] cursor-pointer ${
+                          gender === 'female'
+                            ? 'border-rose-400 bg-rose-50 text-rose-600'
+                            : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                        }`}
+                      >
+                        <span className="text-xl">👩</span>
+                        Female
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Work Mode */}
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      Work Mode <span className="text-rose-500">*</span>
+                    </label>
+                    <div className="flex gap-3">
+                      {(() => {
+                        const workModes = [
+                          { mode: 'Work From office', icon: '🏢', label: 'Office', activeClass: 'border-sky-500 bg-sky-50 text-sky-700' },
+                          { mode: 'Hybrid', icon: '🔀', label: 'Hybrid', activeClass: 'border-indigo-500 bg-indigo-50 text-indigo-700' },
+                          { mode: 'Remote', icon: '🏠', label: 'Remote', activeClass: 'border-emerald-500 bg-emerald-50 text-emerald-700' },
+                        ];
+                        return workModes.map(({ mode, icon, label, activeClass }) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setWorkMode(mode)}
+                            className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 transition-all font-bold text-[11px] cursor-pointer ${
+                              workMode === mode ? activeClass : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'
+                            }`}
+                        >
+                          <span className="text-xl">{icon}</span>
+                          {mode === 'Work From office' ? 'Office' : mode}
+                        </button>
+                        ));
+                      })()}
+                    </div>
                   </div>
 
                   {/* Joining Date */}

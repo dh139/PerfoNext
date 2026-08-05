@@ -121,6 +121,10 @@ const Profile = () => {
         return;
       }
     }
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      setError('Mobile number must be exactly 10 digits long.');
+      return;
+    }
 
     const payload = { firstName, lastName, mobile, gender };
     if (showPasswordFields && newPassword) {
@@ -291,6 +295,8 @@ const Profile = () => {
                   type="text"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
+                  pattern="\d{10}"
+                  title="Mobile number must be exactly 10 digits (numbers only)"
                   className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition-all"
                   required
                 />
@@ -307,6 +313,29 @@ const Profile = () => {
                 <option value="male">Male</option>
                 <option value="female">Female</option>
               </select>
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Work Mode</label>
+              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+                <span className="text-lg">
+                  {profile?.workMode === 'Hybrid' ? '🔀' : profile?.workMode === 'Remote' ? '🏠' : '🏢'}
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    {profile?.workMode || 'Work From Office'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Assigned by your administrator</p>
+                </div>
+                <span className={`ml-auto text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border ${
+                  profile?.workMode === 'Remote'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : profile?.workMode === 'Hybrid'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : 'bg-sky-50 text-sky-700 border-sky-200'
+                }`}>
+                  {profile?.workMode === 'Remote' ? 'Remote' : profile?.workMode === 'Hybrid' ? 'Hybrid' : 'On-Site'}
+                </span>
+              </div>
             </div>
           </div>
 

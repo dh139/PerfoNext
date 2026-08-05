@@ -136,7 +136,8 @@ const createUser = async (req, res) => {
       joiningDate,
       employmentStatus,
       role,
-      gender
+      gender,
+      workMode
     } = req.body;
 
     if (!email || !firstName || !lastName || !role) {
@@ -184,6 +185,9 @@ const createUser = async (req, res) => {
     }
 
     if (mobile) {
+      if (!/^\d{10}$/.test(String(mobile).trim())) {
+        return res.status(400).json({ message: 'Mobile number must be exactly 10 digits long (numbers only).' });
+      }
       const mobileExists = await User.findOne({ mobile: String(mobile).trim() });
       if (mobileExists) {
         return res.status(400).json({ message: 'This mobile number is already registered with another account.' });
@@ -238,7 +242,8 @@ const createUser = async (req, res) => {
       employmentStatus: employmentStatus || 'active',
       role,
       level: computedLevel,
-      gender: gender || 'male'
+      gender: gender || 'male',
+      workMode: workMode || 'Work From office'
     });
 
     const userObj = newUser.toObject();
@@ -296,6 +301,9 @@ const updateUser = async (req, res) => {
     const updates = { ...req.body };
 
     if (updates.mobile) {
+      if (!/^\d{10}$/.test(String(updates.mobile).trim())) {
+        return res.status(400).json({ message: 'Mobile number must be exactly 10 digits long (numbers only).' });
+      }
       const mobileExists = await User.findOne({ mobile: String(updates.mobile).trim(), _id: { $ne: userId } });
       if (mobileExists) {
         return res.status(400).json({ message: 'This mobile number is already registered with another account.' });
@@ -502,12 +510,16 @@ const updateMyProfile = async (req, res) => {
     delete before.passwordHash;
     delete before.refreshToken;
 
-    const { firstName, lastName, mobile, currentPassword, newPassword, gender } = req.body;
+    const { firstName, lastName, mobile, currentPassword, newPassword, gender, workMode } = req.body;
 
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
     if (gender && ['male', 'female'].includes(gender)) user.gender = gender;
+    if (workMode && ['Work From office', 'Hybrid', 'Remote'].includes(workMode)) user.workMode = workMode;
     if (mobile && mobile.trim() !== user.mobile) {
+      if (!/^\d{10}$/.test(mobile.trim())) {
+        return res.status(400).json({ message: 'Mobile number must be exactly 10 digits long (numbers only).' });
+      }
       const mobileExists = await User.findOne({ mobile: mobile.trim(), _id: { $ne: user._id } });
       if (mobileExists) {
         return res.status(400).json({ message: 'This mobile number is already registered with another account.' });

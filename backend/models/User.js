@@ -31,7 +31,13 @@ const userSchema = new mongoose.Schema(
     mobile: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+      validate: {
+        validator: function(v) {
+          return /^\d{10}$/.test(v);
+        },
+        message: props => `${props.value} is not a valid 10-digit mobile number!`
+      }
     },
     passwordHash: {
       type: String,
@@ -83,6 +89,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['male', 'female'],
       default: 'male',
+      required: true
+    },
+    workMode: {
+      type: String,
+      enum: ['Work From office', 'Hybrid', 'Remote'],
+      default: 'Work From office',
       required: true
     },
     profilePhoto: {

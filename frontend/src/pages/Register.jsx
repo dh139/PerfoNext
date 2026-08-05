@@ -88,6 +88,11 @@ const Register = () => {
       }
     }
 
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      setError('Mobile number must be exactly 10 digits long.');
+      return;
+    }
+
     try {
       const res = await api.post('/api/auth/register', {
         firstName,
@@ -268,6 +273,8 @@ const Register = () => {
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
                   placeholder="e.g. 9876543210"
+                  pattern="\d{10}"
+                  title="Mobile number must be exactly 10 digits (numbers only)"
                   className="w-full bg-slate-950/60 border border-slate-800 focus:border-sky-500 text-slate-200 pl-10 pr-4 py-2.5 rounded-xl outline-none transition-all text-xs"
                   required
                 />

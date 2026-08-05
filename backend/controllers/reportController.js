@@ -149,44 +149,44 @@ const getDepartmentReport = async (req, res) => {
         rating: 'Pending Evaluation',
         isPending: true,
         categoryScores: {
-          workQuality: 0,
-          productivity: 0,
-          technical: 0,
           communication: 0,
           ownership: 0,
-          learning: 0
+          leadership: 0,
+          teamwork: 0,
+          learning: 0,
+          problemSolving: 0
         }
       };
     });
 
     // Calculate aggregated department averages based on computed scores
     let avgFinalScore = 0;
-    let avgWorkQuality = 0;
-    let avgProductivity = 0;
-    let avgTechnical = 0;
     let avgCommunication = 0;
     let avgOwnership = 0;
+    let avgLeadership = 0;
+    let avgTeamwork = 0;
     let avgLearning = 0;
+    let avgProblemSolving = 0;
 
     if (scores.length > 0) {
       scores.forEach(s => {
         avgFinalScore += s.finalScore;
-        avgWorkQuality += s.categoryScores?.workQuality || s.finalScore || 0;
-        avgProductivity += s.categoryScores?.productivity || s.finalScore || 0;
-        avgTechnical += (s.categoryScores?.technical && s.categoryScores.technical > 0) ? s.categoryScores.technical : (s.categoryScores?.problemSolving || s.finalScore || 0);
         avgCommunication += s.categoryScores?.communication || s.finalScore || 0;
         avgOwnership += s.categoryScores?.ownership || s.finalScore || 0;
+        avgLeadership += s.categoryScores?.leadership || s.categoryScores?.productivity || s.finalScore || 0;
+        avgTeamwork += s.categoryScores?.teamwork || s.categoryScores?.workQuality || s.finalScore || 0;
         avgLearning += s.categoryScores?.learning || s.finalScore || 0;
+        avgProblemSolving += s.categoryScores?.problemSolving || s.categoryScores?.technical || s.finalScore || 0;
       });
 
       const count = scores.length;
       avgFinalScore = Math.round((avgFinalScore / count) * 100) / 100;
-      avgWorkQuality = Math.round((avgWorkQuality / count) * 100) / 100;
-      avgProductivity = Math.round((avgProductivity / count) * 100) / 100;
-      avgTechnical = Math.round((avgTechnical / count) * 100) / 100;
       avgCommunication = Math.round((avgCommunication / count) * 100) / 100;
       avgOwnership = Math.round((avgOwnership / count) * 100) / 100;
+      avgLeadership = Math.round((avgLeadership / count) * 100) / 100;
+      avgTeamwork = Math.round((avgTeamwork / count) * 100) / 100;
       avgLearning = Math.round((avgLearning / count) * 100) / 100;
+      avgProblemSolving = Math.round((avgProblemSolving / count) * 100) / 100;
     }
 
     res.json({
@@ -199,10 +199,10 @@ const getDepartmentReport = async (req, res) => {
         categoryScores: {
           communication: avgCommunication,
           ownership: avgOwnership,
-          leadership: avgProductivity,
-          teamwork: avgWorkQuality,
+          leadership: avgLeadership,
+          teamwork: avgTeamwork,
           learning: avgLearning,
-          problemSolving: avgTechnical
+          problemSolving: avgProblemSolving
         }
       }
     });

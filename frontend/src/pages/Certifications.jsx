@@ -295,10 +295,21 @@ const Certifications = () => {
   const [userPage, setUserPage] = useState(1);
   const USER_PAGE_SIZE = 10;
 
+  const [certPage, setCertPage] = useState(1);
+  const CERT_PAGE_SIZE = 6;
+
+  useEffect(() => {
+    setCertPage(1);
+  }, [certSearch, selectedEmployeeId]);
+
   const filteredCerts = certs.filter(c => {
     const term = certSearch.toLowerCase();
     return c.name.toLowerCase().includes(term) || c.issuer.toLowerCase().includes(term);
   });
+
+  const totalCertPages = Math.max(1, Math.ceil(filteredCerts.length / CERT_PAGE_SIZE));
+  const safeCertPage = Math.min(certPage, totalCertPages);
+  const paginatedCerts = filteredCerts.slice((safeCertPage - 1) * CERT_PAGE_SIZE, safeCertPage * CERT_PAGE_SIZE);
 
   const filteredUsers = users.filter(u => {
     const term = userSearch.toLowerCase();
@@ -378,7 +389,7 @@ const Certifications = () => {
         )}
 
         {/* Summary Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-6 border-t border-slate-800/80">
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Total Credentials</p>
@@ -398,28 +409,6 @@ const Certifications = () => {
             </div>
             <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400 border border-indigo-500/20">
               <FileText size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Verification Status</p>
-              <h2 className="text-xl font-extrabold text-emerald-400 mt-0.5">Verified</h2>
-              <span className="text-[9px] text-emerald-400 font-medium">Manager confirmed</span>
-            </div>
-            <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 size={20} />
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">License Validity</p>
-              <h2 className="text-xl font-extrabold text-white mt-0.5">Active</h2>
-              <span className="text-[9px] text-amber-400 font-medium">Current credentials</span>
-            </div>
-            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
-              <Calendar size={20} />
             </div>
           </div>
         </div>
@@ -597,50 +586,65 @@ const Certifications = () => {
             <p className="text-slate-500 font-bold text-xs">No professional certifications found matching your query.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCerts.map((c) => (
-              <div key={c._id} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 hover:border-slate-300 transition-colors space-y-4 flex flex-col justify-between">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100">
-                      <Award size={20} />
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {paginatedCerts.map((c) => (
+                <div key={c._id} className="bg-white border border-slate-200/80 rounded-2xl p-5 hover:border-sky-350 hover:shadow-md hover:shadow-sky-500/5 transition-all duration-300 flex flex-col justify-between group relative">
+                  <div className="space-y-3.5">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="p-2.5 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100/60 group-hover:bg-indigo-100 group-hover:text-indigo-850 transition-colors">
+                        <Award size={20} className="transition-transform duration-250 group-hover:scale-110" />
+                      </div>
                     </div>
-                    <span className="text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Verified Active
-                    </span>
+
+                    <div className="space-y-1.5">
+                      <h4 className="font-extrabold text-slate-800 text-sm leading-snug group-hover:text-slate-900 transition-colors break-words">{c.name}</h4>
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100/60 rounded inline-block">
+                        Issuer: {c.issuer}
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
-                    <h4 className="font-black text-slate-800 text-sm leading-snug">{c.name}</h4>
-                    <p className="text-[11px] font-bold text-sky-700 mt-0.5">Issuer: {c.issuer}</p>
+                  <div className="space-y-3 pt-3.5 border-t border-slate-100 text-[11px]">
+                    <div className="flex items-center justify-between text-slate-500">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-500">
+                        <Calendar size={12} className="text-slate-400" />
+                        Issue Date:
+                      </span>
+                      <span className="font-extrabold text-slate-700">{formatDateDDMMYYYY(c.issueDate)}</span>
+                    </div>
+                    {c.expiryDate && (
+                      <div className="flex items-center justify-between text-slate-500">
+                        <span className="flex items-center gap-1.5 font-semibold text-slate-500">
+                          <Calendar size={12} className="text-slate-400" />
+                          Expiry Date:
+                        </span>
+                        <span className="font-extrabold text-slate-700">{formatDateDDMMYYYY(c.expiryDate)}</span>
+                      </div>
+                    )}
+
+                    {c.fileUrl && (
+                      <button
+                        onClick={() => setPreviewDoc({ fileName: c.name, fileUrl: c.fileUrl })}
+                        className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-350 rounded-xl font-extrabold text-xs text-slate-700 flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-3xs"
+                      >
+                        <Eye size={13} className="text-slate-400" />
+                        <span>Preview Document Proof</span>
+                      </button>
+                    )}
                   </div>
                 </div>
+              ))}
+            </div>
 
-                <div className="space-y-3 pt-3 border-t border-slate-200/80 text-[11px]">
-                  <div className="flex justify-between text-slate-500">
-                    <span>Issue Date:</span>
-                    <span className="font-bold text-slate-700">{formatDateDDMMYYYY(c.issueDate)}</span>
-                  </div>
-                  {c.expiryDate && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Expiry Date:</span>
-                      <span className="font-bold text-slate-700">{formatDateDDMMYYYY(c.expiryDate)}</span>
-                    </div>
-                  )}
-
-                  {c.fileUrl && (
-                    <button
-                      onClick={() => setPreviewDoc({ fileName: c.name, fileUrl: c.fileUrl })}
-                      className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-xs text-sky-700 flex items-center justify-center gap-2 transition-colors cursor-pointer"
-                    >
-                      <Eye size={14} />
-                      <span>Preview Document Proof</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+            <TablePagination
+              page={safeCertPage}
+              totalPages={totalCertPages}
+              totalCount={filteredCerts.length}
+              pageSize={CERT_PAGE_SIZE}
+              onPageChange={(p) => setCertPage(p)}
+            />
+          </>
         )}
       </div>
 

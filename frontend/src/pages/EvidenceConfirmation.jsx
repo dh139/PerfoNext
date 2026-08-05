@@ -260,9 +260,6 @@ const EvidenceConfirmation = () => {
 
       const details = [
         {
-          category: 'quality',
-          kpiItemId: 'work_logs_summary',
-          score: 4,
           comment: `Confirmed ${approvedLogs.length} verified daily work logs for ${cycle?.reviewMonth}.`
         }
       ];

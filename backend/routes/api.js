@@ -35,7 +35,7 @@ const { authLimiter, publicLimiter, userActionLimiter } = require('../middleware
 
 // ==================== AUTH ROUTES ====================
 router.post('/auth/login', authLimiter, validateLogin, authController.login);
-router.post('/auth/refresh', authLimiter, authController.refresh);
+router.post('/auth/refresh', authController.refresh);
 router.post('/auth/logout', authController.logout);
 router.post('/auth/register', authLimiter, validateRegister, authController.register);
 router.post('/auth/forgot-password', authLimiter, validateForgotPassword, authController.forgotPassword);

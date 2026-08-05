@@ -1,6 +1,6 @@
 const AttendancePunch = require('../models/AttendancePunch');
 // const AttendanceSettings = require('../models/AttendanceSettings'); // removed
-const IntegrationLog = require('../models/IntegrationLog');
+const AttendanceSyncLog = require('../models/AttendanceSyncLog');
 const User = require('../models/User');
 
 // Helper to calculate total working days in a given month,
@@ -176,8 +176,8 @@ const sendTeamsWebhook = async (req, res) => {
       }
     }
 
-    // Log to IntegrationLog
-    const log = await IntegrationLog.create({
+    // Log to AttendanceSyncLog
+    const log = await AttendanceSyncLog.create({
       system: 'teams',
       eventType: 'webhook_dispatch',
       payload: { webhookUrl, title, message },
@@ -210,7 +210,7 @@ const syncLmsRecord = async (req, res) => {
       return res.status(400).json({ message: 'employeeId, courseName, provider, and completionDate are required.' });
     }
 
-    const log = await IntegrationLog.create({
+    const log = await AttendanceSyncLog.create({
       system: 'lms',
       eventType: 'lms_course_completion',
       payload: { employeeId, courseName, provider, score },
@@ -228,7 +228,7 @@ const syncLmsRecord = async (req, res) => {
 // ==================== INTEGRATION LOGS ====================
 const getIntegrationLogs = async (req, res) => {
   try {
-    const logs = await IntegrationLog.find().sort('-createdAt').limit(50);
+    const logs = await AttendanceSyncLog.find().sort('-createdAt').limit(50);
     res.json(logs);
   } catch (error) {
     console.error('getIntegrationLogs error:', error);

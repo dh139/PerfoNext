@@ -270,7 +270,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
             <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
               <Link to="/integrations" className={linkClass('/integrations')} onClick={handleNavClick}>
                 <Cpu size={16} />
-                <span>Learning</span>
+                <span>Attendance Sync</span>
               </Link>
               <Link to="/pips" className={linkClass('/pips')} onClick={handleNavClick}>
                 <ClipboardList size={16} />

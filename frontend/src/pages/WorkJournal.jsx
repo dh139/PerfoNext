@@ -53,6 +53,8 @@ const WorkJournal = () => {
   const [projectFilter, setProjectFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [showAllProjects, setShowAllProjects] = useState(false);
   const PAGE_SIZE = 10;
 
   const [activeTab, setActiveTab] = useState('my_logs'); // my_logs, manager_desk, timeline
@@ -291,10 +293,24 @@ const WorkJournal = () => {
     }));
   };
 
-  // Extract unique project list dynamically
+  // Extract unique project list dynamically, sorted by most recent work log completed/created date (latest first)
   const uniqueProjects = Array.from(
     new Set(items.map(i => (i.project || '').trim()).filter(Boolean))
-  ).sort();
+  ).sort((a, b) => {
+    const logsA = items.filter(i => (i.project || '').trim() === a);
+    const logsB = items.filter(i => (i.project || '').trim() === b);
+    const maxDateA = Math.max(...logsA.map(i => new Date(i.completedDate || i.createdAt).getTime()));
+    const maxDateB = Math.max(...logsB.map(i => new Date(i.completedDate || i.createdAt).getTime()));
+    return maxDateB - maxDateA;
+  });
+
+  const filteredUniqueProjects = uniqueProjects.filter(p =>
+    p.toLowerCase().includes(projectSearch.toLowerCase())
+  );
+
+  const displayedProjects = showAllProjects
+    ? filteredUniqueProjects
+    : filteredUniqueProjects.slice(0, 11);
 
   const filteredItems = items.filter(item => {
     const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
@@ -343,6 +359,30 @@ const WorkJournal = () => {
         <Clock size={10} /> Pending
       </span>
     );
+  };
+
+  const getCategoryBadgeStyle = (cat) => {
+    switch (cat) {
+      // Engineering
+      case 'Development': return 'bg-sky-50 text-sky-700 border-sky-200/50';
+      case 'Testing': return 'bg-amber-50 text-amber-700 border-amber-200/50';
+      case 'Bug Fix': return 'bg-rose-50 text-rose-700 border-rose-200/50';
+      case 'Architecture': return 'bg-violet-50 text-violet-700 border-violet-200/50';
+      case 'Code Review': return 'bg-purple-50 text-purple-700 border-purple-200/50';
+      case 'Documentation': return 'bg-slate-100 text-slate-700 border-slate-200/50';
+      case 'Deployment': return 'bg-indigo-50 text-indigo-700 border-indigo-200/50';
+      case 'Client Support': return 'bg-emerald-50 text-emerald-700 border-emerald-200/50';
+      case 'Process Improvement': return 'bg-teal-50 text-teal-700 border-teal-200/50';
+      // Sales & CRM
+      case 'Client Meeting & Demo': return 'bg-emerald-50 text-emerald-700 border-emerald-200/50';
+      case 'Lead Qualification & Call': return 'bg-sky-50 text-sky-700 border-sky-200/50';
+      case 'Proposal & Quote Submitted': return 'bg-indigo-50 text-indigo-700 border-indigo-200/50';
+      case 'Deal Closing & Contract': return 'bg-violet-50 text-violet-700 border-violet-200/50';
+      case 'Client Follow-up & Nurturing': return 'bg-pink-50 text-pink-700 border-pink-200/50';
+      case 'Account Management': return 'bg-teal-50 text-teal-700 border-teal-200/50';
+      case 'Market Research': return 'bg-amber-50 text-amber-700 border-amber-250/50';
+      default: return 'bg-slate-50 text-slate-600 border-slate-200';
+    }
   };
 
   // Group Manager Desk items by employee
@@ -549,7 +589,10 @@ const WorkJournal = () => {
                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none cursor-pointer"
               >
                 <option value="all">All Categories</option>
-                {CATEGORIES.map(cat => (
+                {(formTemplate?.categories && formTemplate.categories.length > 0
+                  ? formTemplate.categories.map(c => c.name)
+                  : CATEGORIES
+                ).map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -572,40 +615,56 @@ const WorkJournal = () => {
           </div>
 
           {/* Project Log Sheets */}
-          <div className="space-y-2">
-            <h4 className="font-extrabold text-[11px] text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-              <span>📁 Project Log Sheets</span>
-              <span className="text-[10px] lowercase text-slate-400 font-medium">(Select a sheet to filter logs)</span>
-            </h4>
-            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h4 className="font-extrabold text-[11px] text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📁 Project Log Sheets</span>
+                <span className="text-[10px] lowercase text-slate-400 font-medium normal-case">(select a sheet to filter logs)</span>
+              </h4>
+              {/* Project Search Bar */}
+              <div className="relative">
+                <Search size={11} className="absolute left-2.5 top-2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Filter projects..."
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg pl-6 pr-2.5 py-1 text-[10.5px] outline-none focus:border-sky-500 w-44 font-semibold text-slate-700"
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {/* All Projects Sheet */}
               <button
                 onClick={() => {
                   setProjectFilter('all');
                   setCurrentPage(1);
                 }}
-                className={`flex items-start gap-3 p-4 border rounded-2xl text-left shrink-0 w-44 transition-all shadow-3xs cursor-pointer ${
+                className={`group flex flex-col justify-between p-3.5 border rounded-xl text-left transition-all duration-200 cursor-pointer ${
                   projectFilter === 'all'
-                    ? 'border-sky-500 bg-sky-50/70 shadow-xs ring-1 ring-sky-500/20'
-                    : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                    ? 'bg-gradient-to-br from-sky-600 to-indigo-600 border-transparent text-white shadow-md shadow-sky-500/15 scale-[1.02]'
+                    : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 shadow-3xs hover:scale-[1.01]'
                 }`}
               >
-                <div className={`p-2 rounded-xl shrink-0 ${projectFilter === 'all' ? 'bg-sky-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                  <Folder size={16} />
+                <div className="flex items-center justify-between w-full">
+                  <div className={`p-1.5 rounded-lg ${projectFilter === 'all' ? 'bg-white/20 text-white' : 'bg-sky-50 text-sky-600 group-hover:bg-sky-100/85'}`}>
+                    <Folder size={13} className="transition-transform duration-200 group-hover:scale-110" />
+                  </div>
+                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${projectFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-650'}`}>
+                    {items.length} logs
+                  </span>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-black text-slate-900 text-xs truncate">All Projects</p>
-                  <p className="text-[10px] text-slate-500 mt-1 font-semibold">
-                    {items.length} Log Sheets
-                  </p>
-                  <p className="text-[9px] text-sky-700 font-bold mt-0.5">
+                <div className="mt-3.5 min-w-0">
+                  <p className={`font-black text-[11px] truncate ${projectFilter === 'all' ? 'text-white' : 'text-slate-800'}`}>All Projects</p>
+                  <p className={`text-[10px] font-bold mt-0.5 ${projectFilter === 'all' ? 'text-sky-100/90' : 'text-slate-450'}`}>
                     {items.reduce((sum, i) => sum + (Number(i.hoursSpent) || 0), 0)} hrs total
                   </p>
                 </div>
               </button>
 
               {/* Dynamic Project Sheets */}
-              {uniqueProjects.map(proj => {
+              {displayedProjects.map(proj => {
                 const projLogs = items.filter(i => (i.project || '').trim() === proj);
                 const totalHours = projLogs.reduce((sum, i) => sum + (Number(i.hoursSpent) || 0), 0);
                 const isSelected = projectFilter === proj;
@@ -617,21 +676,23 @@ const WorkJournal = () => {
                       setProjectFilter(proj);
                       setCurrentPage(1);
                     }}
-                    className={`flex items-start gap-3 p-4 border rounded-2xl text-left shrink-0 w-44 transition-all shadow-3xs cursor-pointer ${
+                    className={`group flex flex-col justify-between p-3.5 border rounded-xl text-left transition-all duration-200 cursor-pointer ${
                       isSelected
-                        ? 'border-sky-500 bg-sky-50/70 shadow-xs ring-1 ring-sky-500/20'
-                        : 'border-slate-200 bg-slate-50/40 hover:bg-slate-50 hover:border-slate-300'
+                        ? 'bg-gradient-to-br from-sky-600 to-indigo-600 border-transparent text-white shadow-md shadow-sky-500/15 scale-[1.02]'
+                        : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 shadow-3xs hover:scale-[1.01]'
                     }`}
                   >
-                    <div className={`p-2 rounded-xl shrink-0 ${isSelected ? 'bg-sky-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                      <FileText size={16} />
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500 group-hover:bg-slate-250/80'}`}>
+                        <FileText size={13} className="transition-transform duration-200 group-hover:scale-110" />
+                      </div>
+                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full shrink-0 ${isSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-650'}`}>
+                        {projLogs.length} logs
+                      </span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-black text-slate-900 text-xs truncate" title={proj}>{proj}</p>
-                      <p className="text-[10px] text-slate-500 mt-1 font-semibold">
-                        {projLogs.length} Log Sheets
-                      </p>
-                      <p className="text-[9px] text-sky-700 font-bold mt-0.5">
+                    <div className="mt-3.5 min-w-0">
+                      <p className={`font-black text-[11px] truncate ${isSelected ? 'text-white' : 'text-slate-800'}`} title={proj}>{proj}</p>
+                      <p className={`text-[10px] font-bold mt-0.5 ${isSelected ? 'text-sky-100/90' : 'text-slate-450'}`}>
                         {totalHours} hrs logged
                       </p>
                     </div>
@@ -639,6 +700,21 @@ const WorkJournal = () => {
                 );
               })}
             </div>
+
+            {/* Pagination / Expand for Projects */}
+            {filteredUniqueProjects.length > 11 && (
+              <div className="flex justify-center pt-1.5">
+                <button
+                  onClick={() => setShowAllProjects(!showAllProjects)}
+                  className="px-4 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-[10px] font-extrabold text-slate-600 hover:text-slate-700 transition-colors cursor-pointer"
+                >
+                  {showAllProjects
+                    ? 'Show Less Projects'
+                    : `Show All Projects (${filteredUniqueProjects.length})`
+                  }
+                </button>
+              </div>
+            )}
           </div>
 
           {loading ? (
@@ -655,40 +731,53 @@ const WorkJournal = () => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {paginatedItems.map((item) => (
-                  <div key={item._id} className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-5 hover:border-slate-300 transition-colors space-y-4 flex flex-col justify-between overflow-hidden">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                  <div key={item._id} className="bg-white border border-slate-200/70 rounded-2xl p-5 hover:border-sky-300 hover:shadow-md hover:shadow-sky-500/5 transition-all duration-300 space-y-4 flex flex-col justify-between overflow-hidden group">
+                    <div className="space-y-3.5">
+                      {/* Category Tag & Status Badge */}
+                      <div className="flex justify-between items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border shrink-0 ${getCategoryBadgeStyle(item.category)}`}>
                             {item.category}
                           </span>
                         </div>
                         {getStatusBadge(item.status, item.isLocked)}
                       </div>
 
-                      <div className="min-w-0">
-                        <h4 className="font-black text-slate-900 text-sm leading-snug break-words">{item.title}</h4>
-                        <p className="text-[11px] font-bold text-slate-600 mt-1">
-                          Project: <strong className="text-slate-800">{item.project || 'General'}</strong> {item.hoursSpent ? `• ${item.hoursSpent} Hours Logged` : ''}
-                        </p>
+                      {/* Log Title & Project Info */}
+                      <div className="space-y-1.5 min-w-0">
+                        <h4 className="font-extrabold text-slate-800 text-sm leading-snug break-words group-hover:text-slate-900 transition-colors">
+                          {item.title}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/60">
+                            📁 {item.project || 'General'}
+                          </span>
+                          {item.hoursSpent && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-250/60 font-mono">
+                              ⏱️ {item.hoursSpent} hrs
+                            </span>
+                          )}
+                        </div>
                       </div>
 
+                      {/* Summary Description Box */}
                       {(item.resultSummary || item.description) && (
-                        <div className="bg-white p-3 rounded-xl border border-slate-200/70 text-xs text-slate-700 space-y-1 overflow-hidden">
-                          <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Work Summary / Result</span>
-                          <p className="leading-relaxed font-medium break-words">{item.resultSummary || item.description}</p>
+                        <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 text-[11.5px] text-slate-650 space-y-1 overflow-hidden">
+                          <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Work Summary & Result</span>
+                          <p className="leading-relaxed font-medium break-words text-slate-700">{item.resultSummary || item.description}</p>
                         </div>
                       )}
 
+                      {/* Custom Fields answers */}
                       {item.customFieldsData && Object.keys(item.customFieldsData).length > 0 && (
-                        <div className="bg-sky-50/60 p-2.5 rounded-xl border border-sky-100/80 text-xs space-y-1 overflow-hidden">
-                          <span className="text-[9px] font-black uppercase text-sky-700 block">Custom Field Answers</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
+                        <div className="space-y-1.5 overflow-hidden">
+                          <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
+                          <div className="flex flex-wrap gap-1.5">
                             {Object.entries(item.customFieldsData).map(([key, val]) => (
                               val ? (
-                                <div key={key} className="truncate">
-                                  <span className="text-slate-500 font-semibold capitalize">{key.replace(/_/g, ' ')}: </span>
-                                  <strong className="text-slate-800">{String(val)}</strong>
+                                <div key={key} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
+                                  <span className="text-slate-500 font-semibold capitalize shrink-0">{key.replace(/_/g, ' ')}:</span>
+                                  <strong className="text-slate-800 font-extrabold truncate">{String(val)}</strong>
                                 </div>
                               ) : null
                             ))}
@@ -698,54 +787,90 @@ const WorkJournal = () => {
 
                       {/* Manager Feedback / Requested Changes Banner */}
                       {item.status === 'needs_changes' && (
-                        <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl text-amber-950 text-xs space-y-1">
-                          <div className="flex items-center gap-1.5 font-extrabold text-amber-900 text-[11px]">
-                            <AlertCircle size={14} className="text-amber-600 shrink-0" />
+                        <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-xl text-amber-950 text-xs space-y-1">
+                          <div className="flex items-center gap-1.5 font-extrabold text-amber-900 text-[10px] uppercase tracking-wide">
+                            <AlertCircle size={12} className="text-amber-600 shrink-0" />
                             <span>Manager Requested Changes</span>
                           </div>
-                          {item.managerFeedback && <p className="text-[11px] font-medium text-amber-800">"{item.managerFeedback}"</p>}
+                          {item.managerFeedback && <p className="text-[11px] font-medium text-amber-800 italic">"{item.managerFeedback}"</p>}
                         </div>
                       )}
                     </div>
 
-                    <div className="space-y-3 pt-3 border-t border-slate-200/80 text-[11px] overflow-hidden">
+                    {/* Timeline, evidence and actions footer */}
+                    <div className="space-y-3 pt-3.5 border-t border-slate-100 text-[11px] overflow-hidden">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-500 min-w-0">
-                        <span className="shrink-0">Completed: <strong className="text-slate-700">{formatDateDDMMYYYY(item.completedDate)}</strong></span>
-                        {item.evidenceRef && (
-                          <span
-                            className="font-mono bg-slate-200/70 px-2 py-1 rounded text-[10px] text-slate-700 font-bold max-w-full truncate block"
-                            title={`${item.evidenceType}: ${item.evidenceRef}`}
-                          >
-                            {item.evidenceType}: {item.evidenceRef}
-                          </span>
-                        )}
+                        <span className="flex items-center gap-1 shrink-0 font-medium">
+                          📅 Completed: <strong className="text-slate-700">{formatDateDDMMYYYY(item.completedDate)}</strong>
+                        </span>
+                        {item.evidenceRef && (() => {
+                          const isUrl = /^(https?:\/\/|www\.)/i.test(item.evidenceRef);
+                          const hrefVal = isUrl ? (item.evidenceRef.startsWith('http') ? item.evidenceRef : `https://${item.evidenceRef}`) : null;
+
+                          if (isUrl) {
+                            return (
+                              <a
+                                href={hrefVal}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded text-[10px] text-sky-700 font-extrabold max-w-full truncate block transition-colors cursor-pointer"
+                                title={`Open link: ${item.evidenceRef}`}
+                              >
+                                🔗 {item.evidenceType}: {item.evidenceRef}
+                              </a>
+                            );
+                          }
+
+                          if (item.evidenceUrl) {
+                            return (
+                              <button
+                                onClick={() => setLightboxImage(item.evidenceUrl)}
+                                className="font-mono bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded text-[10px] text-slate-650 hover:text-sky-700 font-bold max-w-full truncate block transition-colors cursor-pointer text-left"
+                                title={`Click to view proof: ${item.evidenceRef}`}
+                              >
+                                🔗 {item.evidenceType}: {item.evidenceRef}
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <span
+                              className="font-mono bg-slate-50 border border-slate-200/80 px-2 py-0.5 rounded text-[10px] text-slate-650 font-bold max-w-full truncate block"
+                              title={`${item.evidenceType}: ${item.evidenceRef}`}
+                            >
+                              🔗 {item.evidenceType}: {item.evidenceRef}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {item.managerFeedback && item.status !== 'needs_changes' && (
-                        <div className="bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-slate-700 space-y-0.5">
-                          <span className="text-[9px] font-extrabold uppercase text-slate-500 block">Manager Comment</span>
-                          <p className="italic font-medium">"{item.managerFeedback}"</p>
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-150 text-slate-700 space-y-0.5">
+                          <span className="text-[9px] font-extrabold uppercase text-slate-400 block tracking-wide">Manager Comment</span>
+                          <p className="italic font-medium text-slate-650">"{item.managerFeedback}"</p>
                         </div>
                       )}
 
-                      {!item.isLocked && (item.status === 'needs_changes' || item.status === 'submitted') && (
-                        <button
-                          onClick={() => handleEditClick(item)}
-                          className="w-full py-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl font-bold text-xs text-sky-800 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <span>✏️ Edit & Resubmit Work Log</span>
-                        </button>
-                      )}
+                      <div className="flex flex-col gap-2">
+                        {!item.isLocked && (item.status === 'needs_changes' || item.status === 'submitted') && (
+                          <button
+                            onClick={() => handleEditClick(item)}
+                            className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 border border-sky-200 rounded-xl font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            <span>✏️ Edit & Resubmit Work Log</span>
+                          </button>
+                        )}
 
-                      {item.evidenceUrl && (
-                        <button
-                          onClick={() => setLightboxImage(item.evidenceUrl)}
-                          className="w-full py-2 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl font-bold text-xs text-sky-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                        >
-                          <Image size={14} />
-                          <span>View Attachment Proof 🔍</span>
-                        </button>
-                      )}
+                        {item.evidenceUrl && (
+                          <button
+                            onClick={() => setLightboxImage(item.evidenceUrl)}
+                            className="w-full py-2 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl font-extrabold text-xs text-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer hover:border-slate-350"
+                          >
+                            <Image size={13} className="text-slate-400" />
+                            <span>View Attachment Proof 🔍</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -910,120 +1035,170 @@ const WorkJournal = () => {
                             return (
                               <div
                                 key={rev._id}
-                                className={`p-3.5 rounded-xl border text-xs space-y-2.5 transition-colors overflow-hidden ${
+                                className={`p-5 rounded-2xl border transition-all duration-300 space-y-4 flex flex-col justify-between overflow-hidden group ${
                                   rev.status === 'approved' || rev.isLocked
-                                    ? 'bg-emerald-50/40 border-emerald-200/80'
-                                    : 'bg-white border-slate-200/90 shadow-3xs'
+                                    ? 'bg-emerald-50/20 border-emerald-200/70'
+                                    : 'bg-white border-slate-200/80 hover:border-sky-300 hover:shadow-md hover:shadow-sky-500/5'
                                 }`}
                               >
-                                {/* Top Row */}
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
-                                      {rev.category}
-                                    </span>
-                                    <span className="text-[11px] font-black text-slate-900 break-words">{rev.title}</span>
-                                    <span className="text-[10px] text-slate-500 font-medium shrink-0">
-                                      • Project: <strong className="text-slate-700">{rev.project || 'General'}</strong> {rev.hoursSpent ? `(${rev.hoursSpent} hrs)` : ''}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-[10px] text-slate-400 font-medium">
-                                      Completed {formatDateDDMMYYYY(rev.completedDate)}
-                                    </span>
+                                <div className="space-y-3.5">
+                                  {/* Category Tag & Status Badge */}
+                                  <div className="flex justify-between items-center gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border shrink-0 ${getCategoryBadgeStyle(rev.category)}`}>
+                                        {rev.category}
+                                      </span>
+                                    </div>
                                     {getStatusBadge(rev.status, rev.isLocked)}
                                   </div>
+
+                                  {/* Log Title & Project Info */}
+                                  <div className="space-y-1.5 min-w-0">
+                                    <h4 className="font-extrabold text-slate-800 text-sm leading-snug break-words group-hover:text-slate-900 transition-colors">
+                                      {rev.title}
+                                    </h4>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/60">
+                                        📁 {rev.project || 'General'}
+                                      </span>
+                                      {rev.hoursSpent && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-250/60 font-mono">
+                                          ⏱️ {rev.hoursSpent} hrs
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Summary Description Box */}
+                                  {(rev.resultSummary || rev.description) && (
+                                    <div className="bg-slate-50/70 p-3.5 rounded-xl border border-slate-100 text-[11.5px] text-slate-650 space-y-1 overflow-hidden">
+                                      <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Work Summary & Result</span>
+                                      <p className="leading-relaxed font-medium break-words text-slate-700">{rev.resultSummary || rev.description}</p>
+                                    </div>
+                                  )}
+
+                                  {/* Custom Fields answers */}
+                                  {rev.customFieldsData && Object.keys(rev.customFieldsData).length > 0 && (
+                                    <div className="space-y-1.5 overflow-hidden">
+                                      <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {Object.entries(rev.customFieldsData).map(([k, v]) => (
+                                          v ? (
+                                            <div key={k} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
+                                              <span className="text-slate-500 font-semibold capitalize shrink-0">{k.replace(/_/g, ' ')}:</span>
+                                              <strong className="text-slate-800 font-extrabold truncate">{String(v)}</strong>
+                                            </div>
+                                          ) : null
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
 
-                                {/* Summary & Evidence Proof Link */}
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 bg-slate-50/80 p-2.5 rounded-xl border border-slate-100 overflow-hidden">
-                                  <p className="text-[11px] text-slate-700 font-medium leading-normal flex-1 break-words min-w-0">
-                                    <strong className="text-slate-900">Summary:</strong> {rev.resultSummary || rev.description || 'No summary provided.'}
-                                  </p>
+                                {/* Timeline, evidence and actions footer */}
+                                <div className="space-y-3.5 pt-3.5 border-t border-slate-100 text-[11px] overflow-hidden">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-500 min-w-0">
+                                    <span className="flex items-center gap-1 shrink-0 font-medium">
+                                      📅 Completed: <strong className="text-slate-700">{formatDateDDMMYYYY(rev.completedDate)}</strong>
+                                    </span>
+                                    {rev.evidenceRef && (() => {
+                                      const isUrl = /^(https?:\/\/|www\.)/i.test(rev.evidenceRef);
+                                      const hrefVal = isUrl ? (rev.evidenceRef.startsWith('http') ? rev.evidenceRef : `https://${rev.evidenceRef}`) : null;
 
-                                  {rev.evidenceUrl ? (
+                                      if (isUrl) {
+                                        return (
+                                          <a
+                                            href={hrefVal}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-mono bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded text-[10px] text-sky-700 font-extrabold max-w-full truncate block transition-colors cursor-pointer"
+                                            title={`Open link: ${rev.evidenceRef}`}
+                                          >
+                                            🔗 {rev.evidenceType}: {rev.evidenceRef}
+                                          </a>
+                                        );
+                                      }
+
+                                      if (rev.evidenceUrl) {
+                                        return (
+                                          <button
+                                            onClick={() => setLightboxImage(rev.evidenceUrl)}
+                                            className="font-mono bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-2 py-0.5 rounded text-[10px] text-slate-650 hover:text-sky-700 font-bold max-w-full truncate block transition-colors cursor-pointer text-left"
+                                            title={`Click to view proof: ${rev.evidenceRef}`}
+                                          >
+                                            🔗 {rev.evidenceType}: {rev.evidenceRef}
+                                          </button>
+                                        );
+                                      }
+
+                                      return (
+                                        <span
+                                          className="font-mono bg-slate-50 border border-slate-200/80 px-2 py-0.5 rounded text-[10px] text-slate-650 font-bold max-w-full truncate block"
+                                          title={`${rev.evidenceType}: ${rev.evidenceRef}`}
+                                        >
+                                          🔗 {rev.evidenceType}: {rev.evidenceRef}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+
+                                  {/* Evidence Upload attachment proof button if present */}
+                                  {rev.evidenceUrl && (
                                     <button
                                       onClick={() => setLightboxImage(rev.evidenceUrl)}
-                                      className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-sky-700 font-extrabold rounded-lg text-[10px] flex items-center gap-1 cursor-pointer shrink-0 shadow-3xs"
+                                      className="w-full py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl font-extrabold text-[10px] text-slate-700 flex items-center justify-center gap-1 transition-colors cursor-pointer hover:border-slate-350"
                                     >
-                                      <Image size={12} />
-                                      <span>View Screenshot Proof 🔍</span>
+                                      <Image size={12} className="text-slate-400" />
+                                      <span>View Attachment Proof Screenshot 🔍</span>
                                     </button>
-                                  ) : rev.evidenceRef ? (
-                                    <span
-                                      className="font-mono text-[10px] text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 shrink-0 max-w-xs truncate block"
-                                      title={`${rev.evidenceType}: ${rev.evidenceRef}`}
-                                    >
-                                      {rev.evidenceType}: {rev.evidenceRef}
-                                    </span>
-                                  ) : null}
+                                  )}
+
+                                  {/* Manager Review Action inputs */}
+                                  {rev.status === 'approved' || rev.isLocked ? (
+                                    <div className="bg-emerald-50/50 p-2.5 rounded-xl border border-emerald-150 text-emerald-950 text-xs">
+                                      <div className="flex items-center gap-1.5 font-extrabold text-emerald-900 text-[10px] uppercase tracking-wide">
+                                        <CheckCircle2 size={12} className="text-emerald-600 shrink-0" />
+                                        <span>Verified & Locked as Permanent Evidence</span>
+                                      </div>
+                                      {rev.managerFeedback && <p className="text-[11px] font-medium text-emerald-800 italic mt-0.5">"{rev.managerFeedback}"</p>}
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col gap-2 pt-1 border-t border-slate-100">
+                                      <input
+                                        type="text"
+                                        placeholder="Add optional manager feedback/correction requests..."
+                                        value={isEditing ? reviewComment : (rev.managerFeedback || '')}
+                                        onChange={(e) => {
+                                          setReviewingId(rev._id);
+                                          setReviewComment(e.target.value);
+                                        }}
+                                        className="bg-slate-50 border border-slate-200 px-3 py-2 rounded-xl text-xs text-slate-800 outline-none focus:border-sky-500 font-medium w-full"
+                                      />
+
+                                      <div className="grid grid-cols-3 gap-2">
+                                        <button
+                                          onClick={() => handleReviewAction(rev._id, 'needs_changes')}
+                                          className="py-2 bg-amber-50 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border border-amber-200 font-extrabold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                                        >
+                                          ⚠️ Request Changes
+                                        </button>
+                                        <button
+                                          onClick={() => handleReviewAction(rev._id, 'rejected')}
+                                          className="py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 font-extrabold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                                        >
+                                          ❌ Reject
+                                        </button>
+                                        <button
+                                          onClick={() => handleReviewAction(rev._id, 'approved')}
+                                          className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs transition-colors cursor-pointer text-center flex items-center justify-center gap-1 shadow-xs"
+                                        >
+                                          <Check size={13} />
+                                          <span>Approve & Lock</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-
-                                {rev.customFieldsData && Object.keys(rev.customFieldsData).length > 0 && (
-                                  <div className="bg-sky-50/70 p-2.5 rounded-xl border border-sky-100/90 text-xs space-y-1">
-                                    <span className="text-[9px] font-black uppercase text-sky-800 block">Department Answers</span>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-                                      {Object.entries(rev.customFieldsData).map(([k, v]) => (
-                                        v ? (
-                                          <div key={k} className="truncate">
-                                            <span className="text-slate-500 font-semibold capitalize">{k.replace(/_/g, ' ')}: </span>
-                                            <strong className="text-slate-900">{String(v)}</strong>
-                                          </div>
-                                        ) : null
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Manager Feedback / Actions Row */}
-                                {rev.status === 'approved' || rev.isLocked ? (
-                                  <div className="flex items-center justify-between text-[11px] text-emerald-900 pt-1">
-                                    <div className="flex items-center gap-1.5">
-                                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                                      <span className="font-bold">Verified & Locked</span>
-                                      {rev.managerFeedback && <span className="text-emerald-700 italic"> — "{rev.managerFeedback}"</span>}
-                                    </div>
-                                    <span className="text-[9px] font-black text-emerald-800 uppercase bg-emerald-100/80 px-2 py-0.5 rounded border border-emerald-300 shrink-0">
-                                      Permanent Evidence
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                                    <input
-                                      type="text"
-                                      placeholder="Add optional manager feedback..."
-                                      value={isEditing ? reviewComment : (rev.managerFeedback || '')}
-                                      onChange={(e) => {
-                                        setReviewingId(rev._id);
-                                        setReviewComment(e.target.value);
-                                      }}
-                                      className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs text-slate-800 outline-none focus:border-sky-500 font-medium flex-1"
-                                    />
-
-                                    <div className="flex items-center gap-2 justify-end shrink-0">
-                                      <button
-                                        onClick={() => handleReviewAction(rev._id, 'needs_changes')}
-                                        className="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                                      >
-                                        Request Changes
-                                      </button>
-                                      <button
-                                        onClick={() => handleReviewAction(rev._id, 'rejected')}
-                                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold rounded-xl text-xs transition-colors cursor-pointer"
-                                      >
-                                        Reject
-                                      </button>
-                                      <button
-                                        onClick={() => handleReviewAction(rev._id, 'approved')}
-                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                                      >
-                                        <Check size={14} />
-                                        <span>Approve & Lock</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             );
                           })}

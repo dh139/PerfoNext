@@ -66,6 +66,7 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         gender: user.gender || 'male',
+        workMode: user.workMode || 'Work From office',
         profilePhoto: user.profilePhoto || null,
         department: user.departmentId ? user.departmentId.departmentName : null,
         departmentId: user.departmentId ? user.departmentId._id : null,
@@ -106,16 +107,12 @@ const refresh = async (req, res) => {
       return res.status(403).json({ message: 'Account is inactive.' });
     }
 
-    // Generate new set of tokens (rotation)
+    // Generate new access token (keep existing refresh token to prevent multi-tab race conditions)
     const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-
-    user.refreshToken = newRefreshToken;
-    await user.save();
 
     res.json({
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken
+      refreshToken: refreshToken
     });
   } catch (error) {
     console.error('Refresh token error:', error);
@@ -153,7 +150,7 @@ const logout = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, mobile, password, departmentId, designationId, managerId, role, gender } = req.body;
+    const { firstName, lastName, email, mobile, password, departmentId, designationId, managerId, role, gender, workMode } = req.body;
 
     const targetRole = role || 'employee';
 
@@ -178,6 +175,10 @@ const register = async (req, res) => {
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already registered.' });
+    }
+
+    if (!/^\d{10}$/.test(mobile.trim())) {
+      return res.status(400).json({ message: 'Mobile number must be exactly 10 digits long (numbers only).' });
     }
 
     const existingMobile = await User.findOne({ mobile: mobile.trim() });
@@ -212,6 +213,7 @@ const register = async (req, res) => {
       joiningDate: new Date(),
       role: targetRole,
       gender: gender || 'male',
+      workMode: workMode || 'Work From office',
       employmentStatus: 'active'
     });
 

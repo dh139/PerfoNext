@@ -15,12 +15,12 @@ const reviewScoreSchema = new mongoose.Schema(
       index: true
     },
     categoryScores: {
-      workQuality: { type: Number, default: 0 },
-      productivity: { type: Number, default: 0 },
-      technical: { type: Number, default: 0 },
       communication: { type: Number, default: 0 },
       ownership: { type: Number, default: 0 },
-      learning: { type: Number, default: 0 }
+      leadership: { type: Number, default: 0 },
+      teamwork: { type: Number, default: 0 },
+      learning: { type: Number, default: 0 },
+      problemSolving: { type: Number, default: 0 }
     },
     finalScore: {
       type: Number,

@@ -145,6 +145,9 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
             <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30 tracking-wider">
               Overview Dashboard
             </span>
+            <span className="text-[10px] text-slate-400 font-medium">
+              {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
           </div>
           <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
             Welcome back, {user?.firstName}!
