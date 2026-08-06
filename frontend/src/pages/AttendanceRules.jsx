@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Clock, Settings, Sun, Moon, Coffee, AlarmClock,
   TrendingUp, Save, RotateCcw, Info, ChevronDown, ChevronUp,
-  CheckCircle, XCircle, History, Loader2, Shield, Smartphone,
+  ChevronLeft, CheckCircle, XCircle, History, Loader2, Shield, Smartphone,
   MapPin, Wifi, Zap, Timer, Users, CalendarX
 } from 'lucide-react';
 import api from '../utils/api';
@@ -114,6 +115,7 @@ const StatPill = ({ label, value, color }) => (
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AttendanceRulesPage() {
+  const navigate = useNavigate();
   const [settings, setSettings] = useState(null);
   const [rules, setRules] = useState(null);
   const [history, setHistory] = useState([]);
@@ -244,6 +246,13 @@ export default function AttendanceRulesPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 text-xs text-slate-800">
+      <button
+        onClick={() => navigate('/settings')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer border border-slate-200/60 uppercase tracking-wider w-fit"
+      >
+        <ChevronLeft size={12} />
+        <span>Back to Settings</span>
+      </button>
 
       {/* ── Page Dark Header Banner (Anti-AI-Slop Command Desk) ────────────── */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white relative overflow-hidden">

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { Building, Plus, Trash2, Save, RotateCcw, Eye, Sparkles, CheckCircle2, AlertCircle, FileText, ListFilter, HelpCircle, Edit3, Check, X } from 'lucide-react';
+import { Building, Plus, Trash2, Save, RotateCcw, Eye, Sparkles, CheckCircle2, AlertCircle, FileText, ListFilter, HelpCircle, Edit3, Check, X, ChevronLeft } from 'lucide-react';
 import { toast } from '../store/toastStore';
 
 const WorkJournalTemplates = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('');
@@ -268,6 +270,13 @@ const WorkJournalTemplates = () => {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <button
+        onClick={() => navigate('/settings')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer border border-slate-200/60 uppercase tracking-wider w-fit"
+      >
+        <ChevronLeft size={12} />
+        <span>Back to Settings</span>
+      </button>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-xl">
         <div>

@@ -369,6 +369,110 @@ const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes) =
   });
 };
 
+const sendLeaveSubmittedEmail = async (hrEmail, employeeName, leaveTitle, fromDate, toDate, reason) => {
+  const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
+  const toStr = new Date(toDate).toLocaleDateString('en-GB');
+  const subject = `New Leave Request Submitted: ${employeeName}`;
+  const text = `Hello HR,\n\nA new leave request has been submitted by ${employeeName}.\n\nDetails:\n- Title: ${leaveTitle}\n- Dates: ${fromStr} to ${toStr}\n- Reason: ${reason}\n\nPlease log in to PerfoNext to action this request.\n\nBest regards,\nPerfoNext Team`;
+  const html = getEmailWrapper(
+    'New Leave Application',
+    `
+      <p style="margin-top: 0;">Hello HR Team,</p>
+      <p>A new leave application has been submitted by employee <strong>${employeeName}</strong>. Please review the details below:</p>
+      
+      <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Employee:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${employeeName}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Title:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${leaveTitle}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Duration:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${fromStr} to ${toStr}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0; vertical-align: top;">Reason:</td>
+            <td style="color: #1e293b; font-style: italic; font-size: 13px; padding: 4px 0;">"${reason}"</td>
+          </tr>
+        </table>
+      </div>
+      <p>Please log in to the PerfoNext portal to approve or reject this request.</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. Leave submission email simulated for HR ${hrEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: hrEmail,
+    subject,
+    text,
+    html
+  });
+};
+
+const sendLeaveReviewedEmail = async (employeeEmail, employeeName, leaveTitle, fromDate, toDate, status, rejectionReason) => {
+  const fromStr = new Date(fromDate).toLocaleDateString('en-GB');
+  const toStr = new Date(toDate).toLocaleDateString('en-GB');
+  const isApproved = status === 'approved';
+  const statusLabel = isApproved ? 'APPROVED' : 'REJECTED';
+  const subject = `Leave Request ${statusLabel}: "${leaveTitle}"`;
+  const text = `Hello ${employeeName},\n\nYour leave request "${leaveTitle}" has been ${statusLabel}.\n\nDetails:\n- Dates: ${fromStr} to ${toStr}\n${!isApproved && rejectionReason ? `- Rejection Reason: ${rejectionReason}\n` : ''}\nBest regards,\nPerfoNext Team`;
+  const html = getEmailWrapper(
+    `Leave Request ${statusLabel}`,
+    `
+      <p style="margin-top: 0;">Hello <strong>${employeeName}</strong>,</p>
+      <p>Your leave request has been reviewed and actioned by the HR department.</p>
+      
+      <div style="background-color: ${isApproved ? '#f0fdf4' : '#fff1f2'}; border: 1px solid ${isApproved ? '#bbf7d0' : '#fecdd3'}; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
+          <tr>
+            <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Subject:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${leaveTitle}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Dates:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${fromStr} to ${toStr}</td>
+          </tr>
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Decision:</td>
+            <td style="color: ${isApproved ? '#15803d' : '#be123c'}; font-weight: bold; font-size: 13px; padding: 4px 0; text-transform: uppercase;">${statusLabel}</td>
+          </tr>
+          ${!isApproved && rejectionReason ? `
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0; vertical-align: top;">HR Remarks:</td>
+            <td style="color: #1e293b; font-style: italic; font-size: 13px; padding: 4px 0;">"${rejectionReason}"</td>
+          </tr>
+          ` : ''}
+        </table>
+      </div>
+      <p>If you have any questions, please contact the HR department.</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. Leave review email simulated for ${employeeEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: employeeEmail,
+    subject,
+    text,
+    html
+  });
+};
+
 module.exports = {
   sendOtpEmail,
   sendWelcomeEmail,
@@ -377,6 +481,8 @@ module.exports = {
   sendFinalReportGeneratedEmail,
   sendIndividualExtensionEmail,
   sendPipCreatedEmail,
-  sendPipStatusUpdatedEmail
+  sendPipStatusUpdatedEmail,
+  sendLeaveSubmittedEmail,
+  sendLeaveReviewedEmail
 };
 

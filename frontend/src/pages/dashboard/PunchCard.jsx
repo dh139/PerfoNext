@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock, RefreshCw, Hourglass, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Clock, RefreshCw, Hourglass, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
 
@@ -17,6 +17,7 @@ const PunchCard = () => {
   const [isHoliday, setIsHoliday] = useState(false);
   const [holidayName, setHolidayName] = useState(null);
   const [isWeekend, setIsWeekend] = useState(false);
+  const [showPunchOutWarning, setShowPunchOutWarning] = useState(false);
 
   // ── Tick every 30 seconds to update live working time & status ──
   useEffect(() => {
@@ -67,6 +68,14 @@ const PunchCard = () => {
     if (!todayPunch?.punchIn) return 0;
     if (todayPunch.punchOut) return todayPunch.workingMinutes || 0;
     return Math.max(0, Math.round((nowMs - new Date(todayPunch.punchIn).getTime()) / 60000));
+  };
+
+  const getActualLateMinutes = () => {
+    if (!todayPunch?.punchIn) return 0;
+    const punchInTime = new Date(todayPunch.punchIn);
+    const officeStartTime = parseTimeStr(settings?.officeStartTime || '09:00 AM', punchInTime);
+    const diffMins = Math.round((punchInTime.getTime() - officeStartTime.getTime()) / 60000);
+    return Math.max(0, diffMins);
   };
 
   const formatDuration = (mins) => {
@@ -125,8 +134,27 @@ const PunchCard = () => {
     }
   };
 
-  const handlePunchOut = async () => {
+  const handlePunchOutClick = () => {
+    const presentMins = (settings?.presentHours || 8) * 60;
+    let isEarlyExitPresent = false;
+    if (settings?.allowEarlyExit && settings?.earlyExitTime) {
+      const earlyExitLimit = parseTimeStr(settings.earlyExitTime);
+      if (nowMs >= earlyExitLimit.getTime()) {
+        isEarlyExitPresent = true;
+      }
+    }
+    const isCompleted = currentNetMins >= presentMins || isEarlyExitPresent;
+
+    if (!isCompleted) {
+      setShowPunchOutWarning(true);
+    } else {
+      performPunchOut();
+    }
+  };
+
+  const performPunchOut = async () => {
     try {
+      setShowPunchOutWarning(false);
       const res = await api.post('/api/attendance/punch-out');
       setTodayPunch(res.data.punch);
       toast.success('Punched Out successfully. Good work today!');
@@ -273,8 +301,8 @@ const PunchCard = () => {
         <div>
           <span className="text-[9px] text-slate-400 font-bold uppercase block">Late By / OT</span>
           <span className="text-slate-800 text-[13px] font-bold">
-            {todayPunch?.lateMinutes > 0
-              ? `${todayPunch.lateMinutes}m Late`
+            {getActualLateMinutes() > 0
+              ? `${getActualLateMinutes()}m Late`
               : todayPunch?.overtimeMinutes > 0
               ? `${formatDuration(todayPunch.overtimeMinutes)} OT`
               : '--'}
@@ -355,7 +383,7 @@ const PunchCard = () => {
           </button>
         ) : !hasPunchedOut ? (
           <button
-            onClick={handlePunchOut}
+            onClick={handlePunchOutClick}
             className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold text-xs py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer text-center"
           >
             Punch Out
@@ -447,6 +475,54 @@ const PunchCard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ── EARLY PUNCH OUT CONFIRMATION MODAL ── */}
+      {showPunchOutWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="bg-amber-500 px-5 py-4 text-white flex items-center justify-between">
+              <h3 className="text-xs sm:text-sm font-bold tracking-wide flex items-center gap-2">
+                <AlertCircle size={16} />
+                <span>Early Punch Out Warning</span>
+              </h3>
+              <button
+                onClick={() => setShowPunchOutWarning(false)}
+                className="text-white/80 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-slate-650 leading-relaxed font-semibold">
+                Your net working hours are currently <strong className="text-slate-800">{formatDuration(currentNetMins)}</strong> (Target: {settings?.presentHours || 8}h). 
+              </p>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-[11px] text-amber-800 font-bold leading-relaxed">
+                ⚠️ If you do punch out then this counted as half day.
+              </div>
+              <p className="text-[11px] text-slate-450 font-medium">
+                Are you sure you want to proceed with Punching Out?
+              </p>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowPunchOutWarning(false)}
+                  className="border border-slate-250 hover:bg-slate-50 text-slate-650 font-extrabold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={performPunchOut}
+                  className="bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-[10px] uppercase tracking-wider px-5 py-2 rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  Yes
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

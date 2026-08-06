@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, Layers, Trash2 } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Layers, Trash2, ChevronLeft } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 import ConfirmModal from '../components/ConfirmModal';
 import { toast } from '../store/toastStore';
 
 const OrgStructure = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -110,6 +112,13 @@ const OrgStructure = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      <button
+        onClick={() => navigate('/settings')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer border border-slate-200/60 uppercase tracking-wider w-fit"
+      >
+        <ChevronLeft size={12} />
+        <span>Back to Settings</span>
+      </button>
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600" />
@@ -121,7 +130,7 @@ const OrgStructure = () => {
         {/* Department Panel */}
         <div className="space-y-6">
           {/* Creator Form */}
-          {user?.role !== 'executive' && (
+          {['admin', 'hr', 'executive'].includes(user?.role) && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Layers size={16} className="text-sky-700" />
@@ -173,7 +182,7 @@ const OrgStructure = () => {
                       <span className="font-bold text-slate-800">{d.departmentName}</span>
                       <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 ml-2">{d.status}</span>
                     </div>
-                    {user?.role === 'admin' && (
+                    {['admin', 'hr', 'executive'].includes(user?.role) && (
                       <button
                         onClick={() => handleDeleteDept(d._id, d.departmentName)}
                         className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100"
@@ -193,7 +202,7 @@ const OrgStructure = () => {
         {/* Designation Panel */}
         <div className="space-y-6">
           {/* Creator Form */}
-          {user?.role !== 'executive' && (
+          {['admin', 'hr', 'executive'].includes(user?.role) && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Layers size={16} className="text-sky-700" />

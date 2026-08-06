@@ -14,6 +14,7 @@ const pipController = require('../controllers/pipController');
 const promotionController = require('../controllers/promotionController');
 const recognitionController = require('../controllers/recognitionController');
 const { upload, verifyFileMagicBytes } = require('../middlewares/upload');
+const leaveController = require('../controllers/leaveController');
 const {
   validateLogin,
   validateRegister,
@@ -61,14 +62,14 @@ router.delete('/users/:id', verifyToken, authorizeRoles('admin', 'hr', 'executiv
 
 // Department Management
 router.get('/departments', verifyToken, userController.getDepartments);
-router.post('/departments', verifyToken, authorizeRoles('admin', 'hr'), userController.createDepartment);
-router.patch('/departments/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateDepartment);
-router.delete('/departments/:id', verifyToken, authorizeRoles('admin'), userController.deleteDepartment);
+router.post('/departments', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.createDepartment);
+router.patch('/departments/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.updateDepartment);
+router.delete('/departments/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.deleteDepartment);
 
 // Designation Management
 router.get('/designations', verifyToken, userController.getDesignations);
-router.post('/designations', verifyToken, authorizeRoles('admin', 'hr'), userController.createDesignation);
-router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr'), userController.updateDesignation);
+router.post('/designations', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.createDesignation);
+router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.updateDesignation);
 
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);
@@ -199,5 +200,10 @@ router.get('/attendance/holidays', verifyToken, holidayController.getHolidays);
 router.post('/attendance/holidays', verifyToken, authorizeRoles('executive', 'admin'), holidayController.createHoliday);
 router.put('/attendance/holidays/:id', verifyToken, authorizeRoles('executive', 'admin'), holidayController.updateHoliday);
 router.delete('/attendance/holidays/:id', verifyToken, authorizeRoles('executive', 'admin'), holidayController.deleteHoliday);
-
+// Leave Requests
+router.post('/leaves', verifyToken, leaveController.submitLeave);
+router.get('/leaves', verifyToken, leaveController.getMyLeaves);
+router.get('/leaves/pending', verifyToken, authorizeRoles('hr', 'admin'), leaveController.getPendingLeaves);
+router.get('/leaves/all', verifyToken, authorizeRoles('hr', 'admin', 'executive'), leaveController.getAllLeaves);
+router.post('/leaves/:id/review', verifyToken, authorizeRoles('hr', 'admin'), leaveController.reviewLeave);
 module.exports = router;

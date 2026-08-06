@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Calendar, Plus, Edit2, Trash2, Loader2, CheckCircle, XCircle,
   Flag, Building2, Star, Landmark, ChevronLeft, ChevronRight, Search
@@ -168,6 +169,7 @@ function DeleteConfirm({ name, onConfirm, onCancel }) {
 
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function HolidayCalendarPage() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const canEdit = user?.role === 'admin' || user?.role === 'executive';
 
@@ -248,6 +250,13 @@ export default function HolidayCalendarPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16 text-xs text-slate-800">
+      <button
+        onClick={() => navigate(['admin', 'hr', 'executive'].includes(user?.role) ? '/settings' : '/')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer border border-slate-200/60 uppercase tracking-wider w-fit"
+      >
+        <ChevronLeft size={12} />
+        <span>Back to {['admin', 'hr', 'executive'].includes(user?.role) ? 'Settings' : 'Dashboard'}</span>
+      </button>
 
       {/* ── Modals ────────────────────────────────────────────────────── */}
       {modal && <HolidayModal mode={modal.mode} holiday={modal.holiday} onClose={() => setModal(null)} onSave={handleSave} />}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import {
   AlertCircle,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 
 const AuditLogs = () => {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -170,6 +172,13 @@ const AuditLogs = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      <button
+        onClick={() => navigate('/settings')}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-extrabold text-slate-500 hover:text-slate-700 bg-slate-100/80 hover:bg-slate-200/80 rounded-xl transition-all cursor-pointer border border-slate-200/60 uppercase tracking-wider w-fit"
+      >
+        <ChevronLeft size={12} />
+        <span>Back to Settings</span>
+      </button>
       {/* Header Banner */}
       <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

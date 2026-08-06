@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Settings,
   CalendarDays,
+  CalendarRange,
   Clock
 } from 'lucide-react';
 
@@ -202,6 +203,10 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                 <Award size={16} />
                 <span>Awards & Accolades</span>
               </Link>
+              <Link to="/leaves" className={linkClass('/leaves')} onClick={handleNavClick}>
+                <CalendarRange size={16} />
+                <span>Leave Center</span>
+              </Link>
               <Link to="/settings/holidays" className={linkClass('/settings/holidays')} onClick={handleNavClick}>
                 <CalendarDays size={16} />
                 <span>Holiday Calendar</span>
@@ -325,32 +330,14 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                     <span>Review Cycles</span>
                   </Link>
                 )}
-                {user?.role === 'executive' && (
-                  <Link to="/management/work-journal-forms" className={linkClass('/management/work-journal-forms')} onClick={handleNavClick}>
-                    <FileText size={16} />
-                    <span>Daily Work Log Templates</span>
-                  </Link>
-                )}
                 <Link to="/reports/completion" className={linkClass('/reports/completion')} onClick={handleNavClick}>
                   <ClipboardList size={16} />
                   <span>Completion Report</span>
                 </Link>
                 {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
-                  <>
-                    <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
-                      <Users size={16} />
-                      <span>Users Database</span>
-                    </Link>
-                    <Link to="/admin/org" className={linkClass('/admin/org')} onClick={handleNavClick}>
-                      <Shield size={16} />
-                      <span>Org Structure</span>
-                    </Link>
-                  </>
-                )}
-                {(user?.role === 'admin' || user?.role === 'executive') && (
-                  <Link to="/admin/audit" className={linkClass('/admin/audit')} onClick={handleNavClick}>
-                    <FileText size={16} />
-                    <span>Audit Trails</span>
+                  <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
+                    <Users size={16} />
+                    <span>Users Database</span>
                   </Link>
                 )}
               </div>
@@ -375,34 +362,13 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           </>
         )}
 
-        {/* ⚙️ Settings (CEO / Admin) */}
-        {(user?.role === 'executive' || user?.role === 'admin') && (
+        {/* ⚙️ Settings (CEO / HR / Admin) */}
+        {['executive', 'admin', 'hr'].includes(user?.role) && (
           <div className="pt-2 border-t border-slate-800/80 my-2">
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className="w-full flex items-center justify-between px-3 py-2 text-slate-400 hover:text-slate-100 font-extrabold text-[10px] uppercase tracking-wider rounded-xl hover:bg-slate-800/60 transition-colors cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <Settings size={14} className="text-sky-400" />
-                <span>Settings</span>
-              </div>
-              {settingsOpen ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
-            </button>
-
-            {settingsOpen && (
-              <div className="pl-2 space-y-1 mt-1 border-l-2 border-slate-800 ml-3">
-                <Link to="/settings/attendance-rules" className={linkClass('/settings/attendance-rules')} onClick={handleNavClick}>
-                  <Clock size={16} />
-                  <span>Attendance Rules</span>
-                </Link>
-                <Link to="/settings/holidays" className={linkClass('/settings/holidays')} onClick={handleNavClick}>
-                  <CalendarDays size={16} />
-                  <span>Holiday Calendar</span>
-                </Link>
-             
-              </div>
-            )}
+            <Link to="/settings" className={linkClass('/settings')} onClick={handleNavClick}>
+              <Settings size={16} className="text-sky-400" />
+              <span>Settings</span>
+            </Link>
           </div>
         )}
 

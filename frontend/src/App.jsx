@@ -31,6 +31,8 @@ import WorkJournal from './pages/WorkJournal';
 import WorkJournalTemplates from './pages/WorkJournalTemplates';
 import AttendanceRules from './pages/AttendanceRules';
 import HolidayCalendar from './pages/HolidayCalendar';
+import SettingsOverview from './pages/SettingsOverview';
+import LeaveWorkspace from './pages/LeaveWorkspace';
 import useAuthStore from './store/authStore';
 
 function App() {
@@ -82,6 +84,7 @@ function App() {
           <Route path="/feedback" element={<FeedbackCenter />} />
           <Route path="/skills" element={<SkillMatrix />} />
           <Route path="/certifications" element={<Certifications />} />
+          <Route path="/leaves" element={<LeaveWorkspace />} />
 
           {/* Ecosystem Integrations */}
           <Route path="/integrations" element={<IntegrationsWorkspace />} />
@@ -113,6 +116,7 @@ function App() {
             <Route path="/management/work-journal-forms" element={<WorkJournalTemplates />} />
             <Route path="/admin/org" element={<OrgStructure />} />
             <Route path="/admin/audit" element={<AuditLogs />} />
+            <Route path="/settings" element={<SettingsOverview />} />
           </Route>
 
           {/* Sub-group: Executive / Admin only — Attendance Settings */}
