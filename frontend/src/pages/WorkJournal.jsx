@@ -55,6 +55,9 @@ const WorkJournal = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [projectSearch, setProjectSearch] = useState('');
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [projectStatusSearch, setProjectStatusSearch] = useState('');
+  const [expandedProjects, setExpandedProjects] = useState({});
+  const [projectStatusPage, setProjectStatusPage] = useState(1);
   const PAGE_SIZE = 10;
 
   const [activeTab, setActiveTab] = useState('my_logs'); // my_logs, manager_desk, timeline
@@ -131,12 +134,55 @@ const WorkJournal = () => {
 
   // Timeline State
   const [timelineData, setTimelineData] = useState({});
+  const [projectStatuses, setProjectStatuses] = useState({});
+  const [orgWideLogs, setOrgWideLogs] = useState([]);
+
+  const fetchProjectStatuses = async () => {
+    try {
+      const res = await api.get('/api/work-journal/project-statuses');
+      const dict = {};
+      res.data.forEach(p => {
+        dict[p.projectName] = p.status;
+      });
+      setProjectStatuses(dict);
+    } catch (err) {
+      console.error('Failed to load project statuses:', err);
+    }
+  };
+
+  const fetchOrgWideLogs = async () => {
+    try {
+      const res = await api.get('/api/work-journal/pending-manager?all=true');
+      setOrgWideLogs(res.data || []);
+    } catch (err) {
+      console.error('Failed to load org-wide logs:', err);
+    }
+  };
+
+  const handleUpdateProjectStatus = async (projectName, newStatus) => {
+    try {
+      await api.post('/api/work-journal/project-status', { projectName, status: newStatus });
+      setProjectStatuses(prev => ({
+        ...prev,
+        [projectName]: newStatus
+      }));
+      toast.success(`Project "${projectName}" status updated to ${newStatus}.`);
+      fetchOrgWideLogs(); // Refresh logs to get updated status stats
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update project status.');
+    }
+  };
 
   useEffect(() => {
     fetchJournalData();
     fetchJournalStats();
+    fetchProjectStatuses();
     if (['manager', 'hr', 'admin', 'executive'].includes(user?.role)) {
       fetchPendingManagerDesk();
+    }
+    if (['admin', 'hr', 'executive'].includes(user?.role)) {
+      fetchOrgWideLogs();
     }
     fetchTimeline();
   }, []);
@@ -421,6 +467,83 @@ const WorkJournal = () => {
   const totalApprovedCount = pendingReviews.filter(r => r.status === 'approved' || r.isLocked).length;
   const totalPendingItemIds = pendingReviews.filter(r => r.status === 'submitted').map(r => r._id);
 
+  const getProjectStats = () => {
+    let logs = items;
+    if (['admin', 'hr', 'executive'].includes(user?.role)) {
+      logs = orgWideLogs;
+    } else if (user?.role === 'manager') {
+      logs = pendingReviews;
+    }
+    
+    // Group logs by project
+    const projectGroups = {};
+    logs.forEach(log => {
+      const projName = (log.project || '').trim() || 'Unassigned';
+      if (!projectGroups[projName]) {
+        projectGroups[projName] = [];
+      }
+      projectGroups[projName].push(log);
+    });
+
+    return Object.entries(projectGroups).map(([projectName, projLogs]) => {
+      const totalLogs = projLogs.length;
+      const totalHours = projLogs.reduce((sum, l) => sum + (Number(l.hoursSpent) || 0), 0);
+      const verifiedLogs = projLogs.filter(l => l.status === 'approved').length;
+      const pendingLogs = projLogs.filter(l => l.status === 'submitted').length;
+      const needsChanges = projLogs.filter(l => l.status === 'needs_changes').length;
+      const rejectedLogs = projLogs.filter(l => l.status === 'rejected').length;
+      
+      // Contributors mapping
+      const contributorsMap = {};
+      projLogs.forEach(l => {
+        if (l.employeeId) {
+          const empId = l.employeeId._id || l.employeeId;
+          const name = l.employeeId.firstName 
+            ? `${l.employeeId.firstName} ${l.employeeId.lastName}` 
+            : 'You';
+          const avatar = l.employeeId.gender || 'male';
+          contributorsMap[empId] = { name, avatar };
+        } else {
+          contributorsMap['me'] = { name: 'You', avatar: user?.gender || 'male' };
+        }
+      });
+      const contributors = Object.values(contributorsMap);
+
+      // Last activity time
+      const dates = projLogs.map(l => new Date(l.completedDate || l.createdAt).getTime()).filter(Boolean);
+      const lastActivityTime = dates.length > 0 ? Math.max(...dates) : null;
+      const lastActivity = lastActivityTime ? new Date(lastActivityTime) : null;
+
+      // Category breakdown
+      const categories = {};
+      projLogs.forEach(l => {
+        categories[l.category] = (categories[l.category] || 0) + 1;
+      });
+
+      // Status determined by manual configuration, defaulting to 'Active'
+      const projStatus = projectStatuses[projectName] || 'Active';
+
+      return {
+        projectName,
+        totalLogs,
+        totalHours,
+        verifiedLogs,
+        pendingLogs,
+        needsChanges,
+        rejectedLogs,
+        contributors,
+        lastActivity,
+        categories,
+        projStatus,
+        logs: projLogs
+      };
+    }).sort((a, b) => {
+      const timeA = a.lastActivity ? a.lastActivity.getTime() : 0;
+      const timeB = b.lastActivity ? b.lastActivity.getTime() : 0;
+      return timeB - timeA;
+    });
+  };
+
   return (
     <div className="space-y-6 text-xs text-slate-800 animate-fade-in">
       {/* Top Header Card */}
@@ -536,6 +659,18 @@ const WorkJournal = () => {
           <Clock size={16} />
           <span>Evidence Timeline</span>
         </button>
+
+        {['manager', 'hr', 'admin', 'executive'].includes(user?.role) && (
+          <button
+            onClick={() => setActiveTab('project_status')}
+            className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
+              activeTab === 'project_status' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent hover:text-slate-800'
+            }`}
+          >
+            <Folder size={16} className="text-indigo-600" />
+            <span>Overall Project Status</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: MY DAILY LOGS */}
@@ -769,21 +904,33 @@ const WorkJournal = () => {
                       )}
 
                       {/* Custom Fields answers */}
-                      {item.customFieldsData && Object.keys(item.customFieldsData).length > 0 && (
-                        <div className="space-y-1.5 overflow-hidden">
-                          <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(item.customFieldsData).map(([key, val]) => (
-                              val ? (
-                                <div key={key} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
-                                  <span className="text-slate-500 font-semibold capitalize shrink-0">{key.replace(/_/g, ' ')}:</span>
-                                  <strong className="text-slate-800 font-extrabold truncate">{String(val)}</strong>
-                                </div>
-                              ) : null
-                            ))}
+                      {(() => {
+                        let fields = item.customFieldsData;
+                        if (typeof fields === 'string') {
+                          try {
+                            fields = JSON.parse(fields);
+                          } catch (e) {
+                            fields = {};
+                          }
+                        }
+                        if (!fields || Object.keys(fields).length === 0) return null;
+                        
+                        return (
+                          <div className="space-y-1.5 overflow-hidden">
+                            <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {Object.entries(fields).map(([key, val]) => (
+                                val ? (
+                                  <div key={key} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
+                                    <span className="text-slate-500 font-semibold capitalize shrink-0">{key.replace(/_/g, ' ')}:</span>
+                                    <strong className="text-slate-800 font-extrabold truncate">{String(val)}</strong>
+                                  </div>
+                                ) : null
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Manager Feedback / Requested Changes Banner */}
                       {item.status === 'needs_changes' && (
@@ -1078,21 +1225,33 @@ const WorkJournal = () => {
                                   )}
 
                                   {/* Custom Fields answers */}
-                                  {rev.customFieldsData && Object.keys(rev.customFieldsData).length > 0 && (
-                                    <div className="space-y-1.5 overflow-hidden">
-                                      <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {Object.entries(rev.customFieldsData).map(([k, v]) => (
-                                          v ? (
-                                            <div key={k} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
-                                              <span className="text-slate-500 font-semibold capitalize shrink-0">{k.replace(/_/g, ' ')}:</span>
-                                              <strong className="text-slate-800 font-extrabold truncate">{String(v)}</strong>
-                                            </div>
-                                          ) : null
-                                        ))}
+                                  {(() => {
+                                    let fields = rev.customFieldsData;
+                                    if (typeof fields === 'string') {
+                                      try {
+                                        fields = JSON.parse(fields);
+                                      } catch (e) {
+                                        fields = {};
+                                      }
+                                    }
+                                    if (!fields || Object.keys(fields).length === 0) return null;
+                                    
+                                    return (
+                                      <div className="space-y-1.5 overflow-hidden">
+                                        <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wide">Custom Field Answers</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {Object.entries(fields).map(([k, v]) => (
+                                            v ? (
+                                              <div key={k} className="bg-sky-50/40 border border-sky-100/50 rounded-lg px-2.5 py-1 text-[10px] text-sky-800 flex items-center gap-1 max-w-full">
+                                                <span className="text-slate-500 font-semibold capitalize shrink-0">{k.replace(/_/g, ' ')}:</span>
+                                                <strong className="text-slate-800 font-extrabold truncate">{String(v)}</strong>
+                                              </div>
+                                            ) : null
+                                          ))}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                 </div>
 
                                 {/* Timeline, evidence and actions footer */}
@@ -1256,6 +1415,327 @@ const WorkJournal = () => {
           )}
         </div>
       )}
+
+      {/* TAB 4: OVERALL PROJECT STATUS SHEET */}
+      {activeTab === 'project_status' && (() => {
+        const statsData = getProjectStats();
+        const filteredStats = statsData.filter(proj => 
+          proj.projectName.toLowerCase().includes(projectStatusSearch.toLowerCase()) ||
+          proj.contributors.some(c => c.name.toLowerCase().includes(projectStatusSearch.toLowerCase()))
+        );
+
+        const PROJECT_STATUS_PAGE_SIZE = 10;
+        const totalProjectsPages = Math.ceil(filteredStats.length / PROJECT_STATUS_PAGE_SIZE) || 1;
+        const safeProjectPage = Math.max(1, Math.min(projectStatusPage, totalProjectsPages));
+        const paginatedStats = filteredStats.slice(
+          (safeProjectPage - 1) * PROJECT_STATUS_PAGE_SIZE,
+          safeProjectPage * PROJECT_STATUS_PAGE_SIZE
+        );
+
+        const totalProjectsCount = statsData.length;
+        const totalHoursAcrossProjects = statsData.reduce((sum, p) => sum + p.totalHours, 0);
+        const activeProjectsCount = statsData.filter(p => p.projStatus === 'Active').length;
+        
+        // Count unique contributors overall
+        const uniqueContrSet = new Set();
+        statsData.forEach(p => p.contributors.forEach(c => uniqueContrSet.add(c.name)));
+        const totalUniqueContributors = uniqueContrSet.size;
+
+        return (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                  <span>Overall Project Status Sheet</span>
+                  <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
+                    {filteredStats.length} Projects Listed
+                  </span>
+                </h3>
+                <p className="text-slate-500 text-xs">Aggregated status and activity metric tracking across all projects and team members.</p>
+              </div>
+
+              {/* Project Status Search Bar */}
+              <div className="relative w-full sm:w-64">
+                <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search project or contributor..."
+                  value={projectStatusSearch}
+                  onChange={(e) => setProjectStatusSearch(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-xs outline-none focus:border-sky-500 font-medium"
+                />
+              </div>
+            </div>
+
+            {/* Micro Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                <span className="text-[9px] uppercase font-bold text-slate-450 block">Total Projects</span>
+                <span className="text-lg font-black text-slate-800 mt-1 block">{totalProjectsCount}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                <span className="text-[9px] uppercase font-bold text-slate-450 block">Total Hours Logged</span>
+                <span className="text-lg font-black text-sky-700 mt-1 block">{totalHoursAcrossProjects} Hrs</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                <span className="text-[9px] uppercase font-bold text-slate-450 block">Active Projects</span>
+                <span className="text-lg font-black text-emerald-600 mt-1 block">{activeProjectsCount}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                <span className="text-[9px] uppercase font-bold text-slate-450 block">Unique Contributors</span>
+                <span className="text-lg font-black text-indigo-650 mt-1 block">{totalUniqueContributors} Team Members</span>
+              </div>
+            </div>
+
+            {/* Status Table */}
+            {filteredStats.length === 0 ? (
+              <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-100">
+                <p className="text-slate-400 italic font-medium">No projects found matching search query.</p>
+              </div>
+            ) : (<>
+              <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-black uppercase text-slate-400">
+                      <th className="py-3 px-4 w-10 text-center">Select</th>
+                      <th className="py-3 px-4">Project Name</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4">Total Time Logged</th>
+                      <th className="py-3 px-4">Verification Ratios</th>
+                      <th className="py-3 px-4">Last Activity</th>
+                      <th className="py-3 px-4">Contributors</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150">
+                    {paginatedStats.map(proj => {
+                      const isExpanded = !!expandedProjects[proj.projectName];
+                      const totalVerifications = proj.verifiedLogs + proj.pendingLogs + proj.needsChanges + proj.rejectedLogs;
+                      const verifiedPercent = totalVerifications > 0 ? Math.round((proj.verifiedLogs / totalVerifications) * 100) : 0;
+
+                      return (
+                        <React.Fragment key={proj.projectName}>
+                          <tr 
+                            onClick={() => {
+                              setExpandedProjects(prev => ({
+                                ...prev,
+                                [proj.projectName]: !prev[proj.projectName]
+                              }));
+                            }}
+                            className="hover:bg-slate-50/50 transition-colors cursor-pointer group font-semibold text-slate-800"
+                          >
+                            <td className="py-3 px-4 text-center">
+                              <span className="inline-flex items-center justify-center p-1 rounded bg-slate-150 text-slate-500 group-hover:bg-sky-500 group-hover:text-white transition-colors">
+                                {isExpanded ? (
+                                  <ChevronUp size={12} />
+                                ) : (
+                                  <ChevronDown size={12} />
+                                )}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-extrabold text-slate-900 text-xs">
+                              {proj.projectName}
+                            </td>
+                            <td className="py-3 px-4">
+                              {['manager', 'hr', 'admin', 'executive'].includes(user?.role) ? (
+                                <select
+                                  value={proj.projStatus}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleUpdateProjectStatus(proj.projectName, e.target.value)}
+                                  className={`px-2 py-0.5 rounded-lg text-[9px] font-extrabold border bg-white cursor-pointer outline-none ${
+                                    proj.projStatus === 'Active'
+                                      ? 'text-emerald-700 border-emerald-200 bg-emerald-50/20'
+                                      : proj.projStatus === 'Completed'
+                                      ? 'text-sky-700 border-sky-200 bg-sky-50/20'
+                                      : proj.projStatus === 'Stale'
+                                      ? 'text-amber-700 border-amber-200 bg-amber-50/20'
+                                      : 'text-slate-650 border-slate-200 bg-slate-50/20'
+                                  }`}
+                                >
+                                  <option value="Active">Active</option>
+                                  <option value="Stale">Stale</option>
+                                  <option value="Inactive">Inactive</option>
+                                  <option value="Completed">Completed</option>
+                                </select>
+                              ) : (
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${
+                                  proj.projStatus === 'Active'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : proj.projStatus === 'Completed'
+                                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                    : proj.projStatus === 'Stale'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-550 border-slate-200'
+                                }`}>
+                                  {proj.projStatus}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-extrabold text-sky-850">{proj.totalHours} hrs</span>
+                              <span className="text-[10px] text-slate-450 block">{proj.totalLogs} logs logged</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[9.5px]">
+                                  <span className="text-emerald-700 font-extrabold">{proj.verifiedLogs} Verified</span>
+                                  <span className="text-slate-450 font-bold">{verifiedPercent}% ratio</span>
+                                </div>
+                                <div className="w-24 bg-slate-100 rounded-full h-1.5 overflow-hidden border border-slate-200/50">
+                                  <div 
+                                    className="bg-emerald-500 h-full transition-all duration-300"
+                                    style={{ width: `${verifiedPercent}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-slate-500 font-medium">
+                              {proj.lastActivity 
+                                ? proj.lastActivity.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                : 'No activity'
+                              }
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex -space-x-1.5 overflow-hidden">
+                                {proj.contributors.slice(0, 3).map((contrib, index) => (
+                                  <div 
+                                    key={index}
+                                    title={contrib.name}
+                                    className="w-6 h-6 rounded-full border border-white bg-slate-200 text-[10px] font-black text-slate-700 flex items-center justify-center shrink-0 shadow-2xs"
+                                  >
+                                    {contrib.name.charAt(0)}
+                                  </div>
+                                ))}
+                                {proj.contributors.length > 3 && (
+                                  <div className="w-6 h-6 rounded-full border border-white bg-slate-800 text-[8.5px] font-black text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                    +{proj.contributors.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expanded Detail Card */}
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan="7" className="p-4 bg-slate-50/50 border-t border-slate-200/60">
+                                <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs space-y-5">
+                                  {/* Stats Sub Header */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    <div>
+                                      <h5 className="font-extrabold text-[10.5px] text-slate-500 uppercase tracking-wider mb-2">Category Contribution</h5>
+                                      <div className="flex flex-wrap gap-2">
+                                        {Object.entries(proj.categories).map(([cat, count]) => (
+                                          <span key={cat} className="px-2 py-0.5 rounded-lg bg-slate-50 text-[10px] font-bold border border-slate-250/70 text-slate-750 flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                            {cat}: <strong className="text-slate-850 font-black">{count}</strong>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <div className="lg:col-span-2">
+                                      <h5 className="font-extrabold text-[10.5px] text-slate-500 uppercase tracking-wider mb-2">Active Contributors ({proj.contributors.length})</h5>
+                                      <div className="flex flex-wrap gap-2.5">
+                                        {proj.contributors.map((c, idx) => {
+                                          const contribLogs = proj.logs.filter(l => {
+                                            if (l.employeeId) {
+                                              const name = `${l.employeeId.firstName} ${l.employeeId.lastName}`;
+                                              return name === c.name;
+                                            }
+                                            return c.name === 'You';
+                                          });
+                                          const contribHrs = contribLogs.reduce((sum, l) => sum + (Number(l.hoursSpent) || 0), 0);
+                                          
+                                          return (
+                                            <span key={idx} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-800">
+                                              <span className="w-4 h-4 rounded-full bg-sky-100 text-[8.5px] font-black text-sky-700 flex items-center justify-center">
+                                                {c.name.charAt(0)}
+                                              </span>
+                                              {c.name}
+                                              <span className="bg-sky-50 border border-sky-100 text-sky-850 text-[8px] font-black px-1.5 py-0.2 rounded-md">
+                                                {contribHrs} hrs
+                                              </span>
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Inner logs list */}
+                                  <div className="space-y-3">
+                                    <h5 className="font-extrabold text-[10.5px] text-slate-500 uppercase tracking-wider">Project Log Registry ({proj.logs.length} entries)</h5>
+                                    <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                      <table className="w-full text-[10.5px] text-left border-collapse bg-white">
+                                        <thead>
+                                          <tr className="border-b border-slate-200 bg-slate-50 text-[9px] uppercase tracking-wider font-extrabold text-slate-400">
+                                            <th className="py-2.5 px-3">Title</th>
+                                            <th className="py-2.5 px-3">Category</th>
+                                            <th className="py-2.5 px-3">Contributor</th>
+                                            <th className="py-2.5 px-3">Hours</th>
+                                            <th className="py-2.5 px-3">Date Completed</th>
+                                            <th className="py-2.5 px-3">Status</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 font-semibold text-slate-750">
+                                          {proj.logs.map(log => {
+                                            const cName = log.employeeId
+                                              ? `${log.employeeId.firstName} ${log.employeeId.lastName}`
+                                              : 'You';
+                                            return (
+                                              <tr key={log._id} className="hover:bg-slate-50/40">
+                                                <td className="py-2.5 px-3 font-bold text-slate-900">{log.title}</td>
+                                                <td className="py-2.5 px-3">{log.category}</td>
+                                                <td className="py-2.5 px-3 text-slate-600">{cName}</td>
+                                                <td className="py-2.5 px-3 font-extrabold text-sky-800">{log.hoursSpent} hrs</td>
+                                                <td className="py-2.5 px-3 text-slate-500 font-medium">
+                                                  {log.completedDate 
+                                                    ? new Date(log.completedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                                    : 'N/A'
+                                                  }
+                                                </td>
+                                                <td className="py-2.5 px-3">
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase border ${
+                                                    log.status === 'approved'
+                                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                      : log.status === 'submitted'
+                                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                      : log.status === 'needs_changes'
+                                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                  }`}>
+                                                    {log.status === 'approved' ? 'Verified' : log.status === 'needs_changes' ? 'Changes Needed' : log.status}
+                                                  </span>
+                                                </td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Pagination */}
+              <TablePagination
+                page={safeProjectPage}
+                totalPages={totalProjectsPages}
+                totalCount={filteredStats.length}
+                pageSize={PROJECT_STATUS_PAGE_SIZE}
+                onPageChange={(p) => setProjectStatusPage(p)}
+              />
+              </>)}
+          </div>
+        );
+      })()}
 
       {/* Modal: Add or Edit Daily Work Log */}
       {showAddModal && (

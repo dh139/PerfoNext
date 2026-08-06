@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users, ShieldCheck, Layers, Briefcase, Clock, Trophy, Calendar, RefreshCw,
-  Search, ChevronLeft, ChevronRight, Eye, AlertTriangle, CheckCircle2, Plus, User
+  Search, ChevronLeft, ChevronRight, Eye, AlertTriangle, CheckCircle2, Plus, User, Bell
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
@@ -19,7 +19,8 @@ const ExecutiveDashboard = ({ data, user }) => {
     topManagersRanking = [],
     allEmployeeScores = [],
     allManagerScores = [],
-    recentAudits = []
+    recentAudits = [],
+    notifications = []
   } = data || {};
 
   const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'tree', 'grading', 'leaderboard', 'cycles', 'attendance'
@@ -281,102 +282,139 @@ const ExecutiveDashboard = ({ data, user }) => {
           </div>
         </div>
 
-        {/* Command Suite Grid */}
-        <div className="space-y-4">
-          <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            
-            {/* Card 1: Org Tree */}
-            <div 
-              onClick={() => setActiveTab('tree')}
-              className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
-              <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
-                <Layers size={22} />
-              </div>
-              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Org Tree Hierarchy</h3>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Visualize the enterprise reporting lines, departments, and active employee node mappings.</p>
-              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
-                <span>Enter Visualizer</span>
-                <span>&rarr;</span>
-              </div>
-            </div>
+        {/* Command Suite + Recent Alerts */}
+        <div className="flex flex-col lg:flex-row gap-6">
 
-            {/* Card 2: Direct Subordinates */}
-            <div 
-              onClick={() => setActiveTab('grading')}
-              className="bg-white border border-slate-200/80 hover:border-emerald-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
-              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-2xs relative">
-                <Users size={22} />
-                {needsCeoGradeCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-bounce shadow">
-                    {needsCeoGradeCount}
-                  </span>
+          {/* Command Cards Grid */}
+          <div className="flex-1 space-y-4">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+              {/* Card 1: Org Tree */}
+              <div 
+                onClick={() => setActiveTab('tree')}
+                className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                  <Layers size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Org Tree Hierarchy</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Visualize the enterprise reporting lines, departments, and active employee node mappings.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Enter Visualizer</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 2: Direct Subordinates */}
+              <div 
+                onClick={() => setActiveTab('grading')}
+                className="bg-white border border-slate-200/80 hover:border-emerald-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-2xs relative">
+                  <Users size={22} />
+                  {needsCeoGradeCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-bounce shadow">
+                      {needsCeoGradeCount}
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-emerald-600 transition-colors">Direct Subordinates</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Evaluate performance cycles, submit grades, and track completion of your leadership reports.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Open Evaluation Desk</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 3: Leaderboards */}
+              <div 
+                onClick={() => setActiveTab('leaderboard')}
+                className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xs">
+                  <Trophy size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Performance Leaderboards</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Rank departments and managers, highlight top performers and identify improvement areas.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>View Rankings</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 4: Review Cycles */}
+              <div 
+                onClick={() => setActiveTab('cycles')}
+                className="bg-white border border-slate-200/80 hover:border-amber-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-2xs">
+                  <Calendar size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-amber-600 transition-colors">Review Cycles</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Track global cycle progress, check templates status, and review active cycle timelines.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-amber-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>Track Progress</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+              {/* Card 5: Attendance Analytics */}
+              <div 
+                onClick={() => setActiveTab('attendance')}
+                className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden md:col-span-2"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+                <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
+                  <Clock size={22} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Attendance Analytics</h3>
+                <p className="text-slate-400 text-[11px] leading-relaxed">Analyze daily punches, identify late arrivals, and monitor average clock-in/out speeds.</p>
+                <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
+                  <span>View Attendance</span>
+                  <span>&rarr;</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Recent Alerts Sidebar */}
+          <div className="w-full lg:w-80 shrink-0">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-4">Recent Alerts</h2>
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
+                    <Bell size={16} />
+                  </div>
+                  <h3 className="font-extrabold text-slate-850 text-sm">Recent Alerts</h3>
+                </div>
+                <Link to="/notifications" className="text-[10px] font-black text-sky-600 hover:underline">
+                  View All
+                </Link>
+              </div>
+              <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin max-h-[520px]">
+                {notifications.length === 0 ? (
+                  <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
+                ) : (
+                  notifications.map((n) => (
+                    <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1.5 rounded-lg transition-colors">
+                      <p className="text-slate-700 leading-normal font-semibold">{n.message}</p>
+                      <span className="text-[9px] text-slate-400 font-bold block mt-1">
+                        {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+                  ))
                 )}
               </div>
-              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-emerald-600 transition-colors">Direct Subordinates</h3>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Evaluate performance cycles, submit grades, and track completion of your leadership reports.</p>
-              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-emerald-600 group-hover:translate-x-1.5 transition-transform">
-                <span>Open Evaluation Desk</span>
-                <span>&rarr;</span>
-              </div>
             </div>
-
-            {/* Card 3: Leaderboards */}
-            <div 
-              onClick={() => setActiveTab('leaderboard')}
-              className="bg-white border border-slate-200/80 hover:border-indigo-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-2xs">
-                <Trophy size={22} />
-              </div>
-              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-indigo-600 transition-colors">Performance Leaderboards</h3>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Rank departments and managers, highlight top performers and identify improvement areas.</p>
-              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-indigo-600 group-hover:translate-x-1.5 transition-transform">
-                <span>View Rankings</span>
-                <span>&rarr;</span>
-              </div>
-            </div>
-
-            {/* Card 4: Review Cycles */}
-            <div 
-              onClick={() => setActiveTab('cycles')}
-              className="bg-white border border-slate-200/80 hover:border-amber-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
-              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-4 group-hover:bg-amber-600 group-hover:text-white transition-all shadow-2xs">
-                <Calendar size={22} />
-              </div>
-              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-amber-600 transition-colors">Review Cycles</h3>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Track global cycle progress, check templates status, and review active cycle timelines.</p>
-              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-amber-600 group-hover:translate-x-1.5 transition-transform">
-                <span>Track Progress</span>
-                <span>&rarr;</span>
-              </div>
-            </div>
-
-            {/* Card 5: Attendance Analytics */}
-            <div 
-              onClick={() => setActiveTab('attendance')}
-              className="bg-white border border-slate-200/80 hover:border-sky-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
-            >
-              <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
-              <div className="w-12 h-12 bg-sky-50 rounded-2xl flex items-center justify-center text-sky-600 mb-4 group-hover:bg-sky-600 group-hover:text-white transition-all shadow-2xs">
-                <Clock size={22} />
-              </div>
-              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-sky-600 transition-colors">Attendance Analytics</h3>
-              <p className="text-slate-400 text-[11px] leading-relaxed">Analyze daily punches, identify late arrivals, and monitor average clock-in/out speeds.</p>
-              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-sky-600 group-hover:translate-x-1.5 transition-transform">
-                <span>View Attendance</span>
-                <span>&rarr;</span>
-              </div>
-            </div>
-
           </div>
+
         </div>
       </div>
     );

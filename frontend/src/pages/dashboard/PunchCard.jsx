@@ -90,9 +90,10 @@ const PunchCard = () => {
   const getLiveStatus = () => {
     if (!todayPunch?.punchIn) return null; // not punched yet — no live status
 
-    const lunchDeduct = settings?.lunchDeductionEnabled ? (settings?.lunchDeductionMinutes || 0) : 0;
     const elapsedRaw = getLiveElapsedMinutes();
-    const effectiveMinutes = Math.max(0, elapsedRaw - lunchDeduct);
+    const lunchDeduct = settings?.lunchDeductionEnabled ? (settings?.lunchDeductionMinutes || 0) : 0;
+    const activeLunchDeduction = (settings?.lunchDeductionEnabled && elapsedRaw >= 300) ? lunchDeduct : 0;
+    const effectiveMinutes = Math.max(0, elapsedRaw - activeLunchDeduction);
 
     const presentMins = (settings?.presentHours || 8) * 60;
     const halfDayMins = (settings?.halfDayHours || 4) * 60;

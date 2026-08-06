@@ -132,13 +132,7 @@ const uploadCertification = async (req, res) => {
       extractedText
     });
 
-    // Auto-sync into Work Journal Evidence Repository
-    try {
-      const { syncCertificateEvidence } = require('../services/autoEvidenceService');
-      await syncCertificateEvidence(cert);
-    } catch (e) {
-      console.error('Auto-evidence sync error:', e);
-    }
+
 
     // Invalidate AI report cache to trigger fresh AI insight generation with new certificate
     await AIReport.deleteMany({ employeeId: targetEmployeeId });

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, Users, ClipboardList, Clock, FileText,
   CheckCircle2, RefreshCw, Activity, ArrowUpRight,
-  AlertCircle, Star, TrendingUp, ChevronRight
+  AlertCircle, Star, TrendingUp, ChevronRight, Bell
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
@@ -18,7 +18,8 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
     pendingManagerReviews = [],
     pendingSelfAssessmentsFromSubordinates = [],
     teamScores = [],
-    pendingSelfAssessments = []
+    pendingSelfAssessments = [],
+    notifications = []
   } = data || {};
 
   const totalEmployees = teamCount || teamSize || 0;
@@ -429,6 +430,36 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
         {/* RIGHT COLUMN: Personal Shift Workspace (1/3 width) */}
         <div className="flex flex-col gap-5 self-start w-full">
           <PunchCard />
+
+          {/* Recent Alerts — stacked below PunchCard */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
+                  <Bell size={16} />
+                </div>
+                <h3 className="font-extrabold text-slate-850 text-sm">Recent Alerts</h3>
+              </div>
+              <Link to="/notifications" className="text-[10px] font-black text-sky-600 hover:underline">
+                View All
+              </Link>
+            </div>
+
+            <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+              {notifications.length === 0 ? (
+                <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
+              ) : (
+                notifications.map((n) => (
+                  <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1.5 rounded-lg transition-colors">
+                    <p className="text-slate-700 leading-normal font-semibold">{n.message}</p>
+                    <span className="text-[9px] text-slate-400 font-bold block mt-1">
+                      {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
 
       </div>

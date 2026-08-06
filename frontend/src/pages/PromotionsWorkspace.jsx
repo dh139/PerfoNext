@@ -37,7 +37,10 @@ const PromotionsWorkspace = () => {
       setPromotions(promoRes.data);
 
       if (user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') {
-        const empRes = await api.get('/api/users?role=employee');
+        // Executive can recommend any user; others limited to employees
+        const empRes = user?.role === 'executive'
+          ? await api.get('/api/users')
+          : await api.get('/api/users?role=employee');
         let empData = empRes.data || [];
 
         if (user?.role === 'manager') {
@@ -76,10 +79,16 @@ const PromotionsWorkspace = () => {
     if (emp) {
       setCurrentDesignation(emp.designationId);
       
-      // Fetch employee scores to display as supporting evidence
+      // Fetch employee scores to display as supporting evidence (only latest)
       try {
         const scoreRes = await api.get(`/api/review-scores?employeeId=${empId}`);
-        setSupportingCycles(scoreRes.data);
+        let scores = scoreRes.data || [];
+        scores.sort((a, b) => {
+          const monthA = a.reviewCycleId?.reviewMonth || '';
+          const monthB = b.reviewCycleId?.reviewMonth || '';
+          return monthB.localeCompare(monthA);
+        });
+        setSupportingCycles(scores.slice(0, 1));
       } catch (err) {
         console.error(err);
       }
@@ -196,7 +205,7 @@ const PromotionsWorkspace = () => {
             </p>
           </div>
 
-          {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin') && (
+          {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
             <button
               onClick={() => {
                 if (employees.length > 0) handleEmployeeChange(employees[0]._id);

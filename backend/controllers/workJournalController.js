@@ -1,5 +1,6 @@
 const WorkJournal = require('../models/WorkJournal');
 const User = require('../models/User');
+const ProjectStatus = require('../models/ProjectStatus');
 const { logAction } = require('../utils/logger');
 
 /**
@@ -141,6 +142,15 @@ const updateWorkJournalItem = async (req, res) => {
     }
 
     const updateData = { ...req.body };
+    if (updateData.customFieldsData) {
+      try {
+        updateData.customFieldsData = typeof updateData.customFieldsData === 'string'
+          ? JSON.parse(updateData.customFieldsData)
+          : updateData.customFieldsData;
+      } catch (e) {
+        updateData.customFieldsData = {};
+      }
+    }
     if (item.status === 'approved' || item.status === 'needs_changes') {
       updateData.status = 'submitted';
       updateData.isLocked = false;
@@ -190,21 +200,41 @@ const getPendingManagerItems = async (req, res) => {
     const mongoose = require('mongoose');
     const userId = req.user.id;
 
-    // Fetch direct reportees where managerId is this user's ID
-    const directReports = await User.find({
-      $or: [
-        { managerId: userId },
-        { managerId: new mongoose.Types.ObjectId(userId) }
-      ],
-      employmentStatus: 'active'
-    }).select('_id');
+    let reporteeIds = [];
 
-    let reporteeIds = directReports.map(u => u._id);
+    const showAll = req.query.all === 'true' && ['admin', 'hr', 'executive'].includes(req.user.role);
 
-    // Admin/Executive org-wide fallback if they don't have direct reportees assigned
-    if (reporteeIds.length === 0 && ['admin', 'executive'].includes(req.user.role)) {
+    if (showAll) {
       const allUsers = await User.find({ employmentStatus: 'active' }).select('_id');
       reporteeIds = allUsers.map(u => u._id);
+    } else {
+      let query = {
+        employmentStatus: 'active'
+      };
+
+      if (req.user.role === 'executive') {
+        // CEO gets all managers, HR managers, and anyone explicitly reporting to them
+        query.$or = [
+          { managerId: userId },
+          { managerId: new mongoose.Types.ObjectId(userId) },
+          { role: { $in: ['manager', 'hr'] } }
+        ];
+      } else {
+        // Standard manager gets only their explicit reportees
+        query.$or = [
+          { managerId: userId },
+          { managerId: new mongoose.Types.ObjectId(userId) }
+        ];
+      }
+
+      const directReports = await User.find(query).select('_id');
+      reporteeIds = directReports.map(u => u._id);
+
+      // Admin org-wide fallback if they don't have direct reportees assigned
+      if (reporteeIds.length === 0 && req.user.role === 'admin') {
+        const allUsers = await User.find({ employmentStatus: 'active' }).select('_id');
+        reporteeIds = allUsers.map(u => u._id);
+      }
     }
 
     const pendingItems = await WorkJournal.find({
@@ -493,6 +523,45 @@ const batchReviewWorkJournalItems = async (req, res) => {
   }
 };
 
+const getProjectStatuses = async (req, res) => {
+  try {
+    const statuses = await ProjectStatus.find().populate('updatedBy', 'firstName lastName');
+    res.json(statuses);
+  } catch (error) {
+    console.error('getProjectStatuses error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
+const updateProjectStatus = async (req, res) => {
+  try {
+    const { projectName, status } = req.body;
+    if (!projectName || !status) {
+      return res.status(400).json({ message: 'projectName and status are required.' });
+    }
+
+    if (!['Active', 'Inactive', 'Stale', 'Completed'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be Active, Inactive, Stale, or Completed.' });
+    }
+
+    // Upsert the status for this project name
+    const projectStatus = await ProjectStatus.findOneAndUpdate(
+      { projectName: projectName.trim() },
+      { 
+        projectName: projectName.trim(), 
+        status, 
+        updatedBy: req.user.id 
+      },
+      { new: true, upsert: true }
+    );
+
+    res.json(projectStatus);
+  } catch (error) {
+    console.error('updateProjectStatus error:', error);
+    res.status(500).json({ message: 'Internal server error.' });
+  }
+};
+
 module.exports = {
   getWorkJournalItems,
   createWorkJournalItem,
@@ -506,5 +575,7 @@ module.exports = {
   getWeeklyReflections,
   createWeeklyReflection,
   getMonthlyReflections,
-  createMonthlyReflection
+  createMonthlyReflection,
+  getProjectStatuses,
+  updateProjectStatus
 };

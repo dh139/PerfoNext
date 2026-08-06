@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus, Users, Layers, Calendar, ShieldCheck, Clock, Trophy, Search, ChevronLeft, ChevronRight,
-  RefreshCw, Eye, AlertTriangle, CheckCircle2, Activity, User
+  RefreshCw, Eye, AlertTriangle, CheckCircle2, Activity, User, Bell
 } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
@@ -21,7 +21,8 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
     lowestManagersRanking = [],
     allEmployeeScores = [],
     allManagerScores = [],
-    recentAudits = []
+    recentAudits = [],
+    notifications = []
   } = data || {};
 
   const [activeTab, setActiveTab] = useState('hub'); // 'hub', 'cycles', 'direct_reports', 'leaderboard', 'audits', 'attendance'
@@ -425,6 +426,35 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
             <div className="lg:col-span-1 space-y-4">
               <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Personal Shift Control</h2>
               <PunchCard />
+
+              {/* Recent Alerts */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
+                      <Bell size={16} />
+                    </div>
+                    <h3 className="font-extrabold text-slate-850 text-sm">Recent Alerts</h3>
+                  </div>
+                  <Link to="/notifications" className="text-[10px] font-black text-sky-600 hover:underline">
+                    View All
+                  </Link>
+                </div>
+                <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+                  {notifications.length === 0 ? (
+                    <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1.5 rounded-lg transition-colors">
+                        <p className="text-slate-700 leading-normal font-semibold">{n.message}</p>
+                        <span className="text-[9px] text-slate-400 font-bold block mt-1">
+                          {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -661,8 +691,37 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
 
           {/* Punch Card & Org Stats Row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 flex flex-col gap-5">
               <PunchCard />
+
+              {/* Recent Alerts */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
+                      <Bell size={16} />
+                    </div>
+                    <h3 className="font-extrabold text-slate-850 text-sm">Recent Alerts</h3>
+                  </div>
+                  <Link to="/notifications" className="text-[10px] font-black text-sky-600 hover:underline">
+                    View All
+                  </Link>
+                </div>
+                <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+                  {notifications.length === 0 ? (
+                    <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
+                  ) : (
+                    notifications.map((n) => (
+                      <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1.5 rounded-lg transition-colors">
+                        <p className="text-slate-700 leading-normal font-semibold">{n.message}</p>
+                        <span className="text-[9px] text-slate-400 font-bold block mt-1">
+                          {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">

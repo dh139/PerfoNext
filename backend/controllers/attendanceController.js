@@ -512,6 +512,19 @@ const reviewRegularization = async (req, res) => {
     await punch.save();
     await logAction({ req, userId: req.user.id, action: `REGULARIZATION_${status.toUpperCase()}`, module: 'Attendance', status: 'SUCCESS', entityType: 'AttendancePunch', entityId: punch._id });
 
+    // Notify the employee about the outcome
+    const punchDateStr = new Date(punch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const reviewerName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || 'Your manager';
+    const notifMessage = status === 'approved'
+      ? `Your attendance regularization request for ${punchDateStr} has been approved by ${reviewerName}.`
+      : `Your attendance regularization request for ${punchDateStr} has been rejected by ${reviewerName}.`;
+
+    await Notification.create({
+      userId: punch.employeeId,
+      message: notifMessage,
+      type: status === 'approved' ? 'regularization_approved' : 'regularization_rejected'
+    });
+
     res.json({ message: `Regularization ${status} successfully.`, punch });
   } catch (error) {
     console.error('reviewRegularization error:', error);

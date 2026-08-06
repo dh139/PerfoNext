@@ -5,13 +5,22 @@ const User = require('../models/User');
 
 // Helper to calculate total working days in a given month,
 // excluding configured weekends. Falls back to Sat+Sun if settings unavailable.
-function getWeekdayCount(monthStr, configWeekends, holidayDates) {
+function getWeekdayCount(monthStr, configWeekends, holidayDates, joiningDate) {
   const [year, month] = monthStr.split('-').map(Number);
   const now = new Date();
   const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
 
-  const startDate = new Date(year, month - 1, 1);
+  let startDate = new Date(year, month - 1, 1);
   const endDate = isCurrentMonth ? now : new Date(year, month, 0);
+
+  // If joiningDate is in this month, start counting from joiningDate!
+  if (joiningDate) {
+    const joinDateObj = new Date(joiningDate);
+    if (joinDateObj.getFullYear() === year && (joinDateObj.getMonth() + 1) === month) {
+      startDate = new Date(year, month - 1, joinDateObj.getDate());
+    }
+  }
+
   const weekends = configWeekends || [0, 6];
   const holidays = holidayDates || new Set();
 
@@ -21,6 +30,24 @@ function getWeekdayCount(monthStr, configWeekends, holidayDates) {
     if (!weekends.includes(d.getDay()) && !holidays.has(dateStr)) count++;
   }
   return Math.max(1, count);
+}
+
+function getMonthsBetweenDates(startDate, endDate) {
+  const months = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  const curr = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  
+  while (curr <= last) {
+    const year = curr.getFullYear();
+    const month = String(curr.getMonth() + 1).padStart(2, '0');
+    months.push(`${year}-${month}`);
+    curr.setMonth(curr.getMonth() + 1);
+  }
+  
+  return months;
 }
 
 // ==================== ATTENDANCE INTEGRATION ====================
@@ -56,11 +83,19 @@ const getAttendance = async (req, res) => {
 
     const punches = await AttendancePunch.find(punchQuery).lean();
 
-    // Get list of unique months to calculate summaries for
-    const uniqueMonths = month ? [month] : Array.from(new Set(punches.map(p => p.month)));
-    if (uniqueMonths.length === 0) {
-      const now = new Date();
-      uniqueMonths.push(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    // Collect all months to calculate holidays for across users' active tenures
+    const allQueryMonths = new Set();
+    const now = new Date();
+    users.forEach(user => {
+      const joiningDate = user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+      const userMonths = getMonthsBetweenDates(joiningDate, now);
+      userMonths.forEach(m => allQueryMonths.add(m));
+    });
+    
+    // Intersect with requested month if provided
+    let uniqueMonthsList = Array.from(allQueryMonths);
+    if (month) {
+      uniqueMonthsList = uniqueMonthsList.filter(m => m === month);
     }
 
     const records = [];
@@ -79,7 +114,7 @@ const getAttendance = async (req, res) => {
     try {
       const Holiday = require('../models/Holiday');
       const activeHolidays = await Holiday.find({
-        ...(uniqueMonths.length > 0 ? { month: { $in: uniqueMonths } } : {})
+        ...(uniqueMonthsList.length > 0 ? { month: { $in: uniqueMonthsList } } : {})
       }).lean();
       activeHolidays.forEach(h => {
         if (h.date) holidayDates.add(h.date);
@@ -88,24 +123,20 @@ const getAttendance = async (req, res) => {
 
     // For every user and month, compile dynamic monthly summaries
     users.forEach(user => {
-      uniqueMonths.forEach(m => {
+      const joiningDate = user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+      const userMonths = getMonthsBetweenDates(joiningDate, now);
+      const targetMonths = month ? userMonths.filter(m => m === month) : userMonths;
+
+      targetMonths.forEach(m => {
         const userMonthPunches = punches.filter(p => p.employeeId.toString() === user._id.toString() && p.month === m);
         
-        // Skip past months where this user has no punch records. The current month is always included.
-        const now = new Date();
-        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        
-        if (m !== currentMonthStr && userMonthPunches.length === 0) {
-          return;
-        }
-
         let daysPresent = 0;
         userMonthPunches.forEach(p => {
           if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') daysPresent += 1;
           else if (p.status === 'Half Day') daysPresent += 0.5;
         });
 
-        const totalWorkingDays = getWeekdayCount(m, configWeekends, holidayDates);
+        const totalWorkingDays = getWeekdayCount(m, configWeekends, holidayDates, joiningDate);
         const attendancePercentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
 
         records.push({
