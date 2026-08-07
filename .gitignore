@@ -28,6 +28,7 @@ Thumbs.db
 ui-ux-pro-max-skill/
 hallmark/
 EPTS_QA_AUDIT_REPORT.md
+package.json
 # Ignore Utility Scripts
 backend/scripts/
 
