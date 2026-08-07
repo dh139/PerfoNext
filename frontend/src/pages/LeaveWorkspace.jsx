@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { toast } from '../store/toastStore';
+import TablePagination from '../components/TablePagination';
 import { 
   CalendarRange, 
   Plus, 
@@ -43,6 +44,12 @@ const LeaveWorkspace = () => {
   const [loading, setLoading] = useState(false);
   const [actioning, setActioning] = useState(false);
 
+  // Pagination states
+  const PAGE_SIZE = 10;
+  const [dashboardPage, setDashboardPage] = useState(1);
+  const [myPage, setMyPage] = useState(1);
+  const [pendingPage, setPendingPage] = useState(1);
+
   // Filters for Management Dashboard
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -72,6 +79,11 @@ const LeaveWorkspace = () => {
       setActiveTab(isManagement ? 'dashboard' : 'my');
     }
   }, [user]);
+
+  // Reset dashboard page on filter change
+  useEffect(() => {
+    setDashboardPage(1);
+  }, [searchTerm, statusFilter, deptFilter]);
 
   // Load data based on active tab and role
   useEffect(() => {
@@ -253,6 +265,21 @@ const LeaveWorkspace = () => {
     return matchSearch && matchStatus && matchDept;
   });
 
+  const totalDashboardPages = Math.ceil(filteredAllLeaves.length / PAGE_SIZE) || 1;
+  const safeDashboardPage = Math.min(dashboardPage, totalDashboardPages);
+  const dashboardStartIndex = (safeDashboardPage - 1) * PAGE_SIZE;
+  const paginatedAllLeaves = filteredAllLeaves.slice(dashboardStartIndex, dashboardStartIndex + PAGE_SIZE);
+
+  const totalMyPages = Math.ceil(myLeaves.length / PAGE_SIZE) || 1;
+  const safeMyPage = Math.min(myPage, totalMyPages);
+  const myStartIndex = (safeMyPage - 1) * PAGE_SIZE;
+  const paginatedMyLeaves = myLeaves.slice(myStartIndex, myStartIndex + PAGE_SIZE);
+
+  const totalPendingPages = Math.ceil(pendingLeaves.length / PAGE_SIZE) || 1;
+  const safePendingPage = Math.min(pendingPage, totalPendingPages);
+  const pendingStartIndex = (safePendingPage - 1) * PAGE_SIZE;
+  const paginatedPendingLeaves = pendingLeaves.slice(pendingStartIndex, pendingStartIndex + PAGE_SIZE);
+
   // Calculate Metrics
   const totalRequests = allLeaves.length;
   const approvedRequests = allLeaves.filter(l => l.status === 'approved').length;
@@ -423,7 +450,8 @@ const LeaveWorkspace = () => {
                 <p className="text-xs">No records matching selected filter criteria.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -436,7 +464,7 @@ const LeaveWorkspace = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {filteredAllLeaves.map(leave => (
+                    {paginatedAllLeaves.map(leave => (
                       <tr key={leave._id} className="hover:bg-slate-50/30">
                         <td className="py-3 px-4 flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold shrink-0">
@@ -452,7 +480,7 @@ const LeaveWorkspace = () => {
                         </td>
                         <td className="py-3 px-4 max-w-xs space-y-0.5">
                           <p className="font-bold text-slate-800">{leave.title}</p>
-                          <p className="text-slate-450 line-clamp-1 italic">"{leave.reason}"</p>
+                          <p className="text-slate-455 line-clamp-1 italic">"{leave.reason}"</p>
                         </td>
                         <td className="py-3 px-4 font-semibold text-slate-600">
                           {formatDate(leave.fromDate)} &rarr; {formatDate(leave.toDate)}
@@ -470,7 +498,15 @@ const LeaveWorkspace = () => {
                   </tbody>
                 </table>
               </div>
-            )}
+
+              <TablePagination
+                page={safeDashboardPage}
+                totalPages={totalDashboardPages}
+                totalCount={filteredAllLeaves.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={(p) => setDashboardPage(p)}
+              />
+            </>)}
           </div>
         </div>
       )}
@@ -493,7 +529,8 @@ const LeaveWorkspace = () => {
               <p className="text-xs">No leave requests found. Click "Apply for Leave" above to submit one.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
@@ -505,7 +542,7 @@ const LeaveWorkspace = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {myLeaves.map(leave => (
+                  {paginatedMyLeaves.map(leave => (
                     <tr key={leave._id} className="hover:bg-slate-50/40">
                       <td className="py-3.5 px-4 space-y-1">
                         <p className="font-bold text-slate-800">{leave.title}</p>
@@ -534,7 +571,15 @@ const LeaveWorkspace = () => {
                 </tbody>
               </table>
             </div>
-          )}
+
+            <TablePagination
+              page={safeMyPage}
+              totalPages={totalMyPages}
+              totalCount={myLeaves.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => setMyPage(p)}
+            />
+          </>)}
         </div>
       )}
 
@@ -554,7 +599,8 @@ const LeaveWorkspace = () => {
               <p className="text-xs">All caught up! No pending leave requests to action.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
@@ -566,7 +612,7 @@ const LeaveWorkspace = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {pendingLeaves.map(leave => (
+                  {paginatedPendingLeaves.map(leave => (
                     <tr key={leave._id} className="hover:bg-slate-50/40">
                       <td className="py-3.5 px-4 flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 font-bold">
@@ -618,7 +664,15 @@ const LeaveWorkspace = () => {
                 </tbody>
               </table>
             </div>
-          )}
+
+            <TablePagination
+              page={safePendingPage}
+              totalPages={totalPendingPages}
+              totalCount={pendingLeaves.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={(p) => setPendingPage(p)}
+            />
+          </>)}
         </div>
       )}
 
