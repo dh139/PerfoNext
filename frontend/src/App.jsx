@@ -33,6 +33,7 @@ import AttendanceRules from './pages/AttendanceRules';
 import HolidayCalendar from './pages/HolidayCalendar';
 import SettingsOverview from './pages/SettingsOverview';
 import LeaveWorkspace from './pages/LeaveWorkspace';
+import EmployeeLogsReport from './pages/EmployeeLogsReport';
 import useAuthStore from './store/authStore';
 
 function App() {
@@ -107,6 +108,11 @@ function App() {
           <Route element={<ProtectedRoute allowedRoles={['manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/reports/department" element={<DepartmentReports />} />
             <Route path="/reports/completion" element={<CompletionReport />} />
+          </Route>
+
+          {/* Sub-group: Manager, Executive, Admin */}
+          <Route element={<ProtectedRoute allowedRoles={['manager', 'executive', 'admin']} />}>
+            <Route path="/reports/employee-logs" element={<EmployeeLogsReport />} />
           </Route>
 
           {/* Sub-group: HR, Admin, Executive */}

@@ -13,7 +13,105 @@ const OrgStructure = () => {
   const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [pendingDeleteDept, setPendingDeleteDept] = useState(null); // { id, name } or null
+
+  // Editing state
+  const [editingDept, setEditingDept] = useState(null);
+  const [editingDes, setEditingDes] = useState(null);
+
+  // Deletion pending state
+  const [pendingDeleteDept, setPendingDeleteDept] = useState(null);
+  const [pendingDeleteDesg, setPendingDeleteDesg] = useState(null);
+
+  // Department creation/edit input state
+  const [deptName, setDeptName] = useState('');
+  const [deptDesc, setDeptDesc] = useState('');
+
+  // Designation creation/edit input state
+  const [desName, setDesName] = useState('');
+  const [desDeptId, setDesDeptId] = useState('');
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const deptRes = await api.get('/api/departments');
+      setDepartments(deptRes.data || []);
+
+      const desRes = await api.get('/api/designations');
+      setDesignations(desRes.data || []);
+      
+      if (deptRes.data && deptRes.data.length > 0 && !desDeptId) {
+        setDesDeptId(deptRes.data[0]._id);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Failed to fetch department structure.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleCreateDept = async (e) => {
+    e.preventDefault();
+    if (!deptName.trim()) return;
+
+    try {
+      setError('');
+      if (editingDept) {
+        await api.patch(`/api/departments/${editingDept._id}`, {
+          departmentName: deptName.trim(),
+          description: deptDesc.trim()
+        });
+        toast.success('Department updated successfully.');
+        setEditingDept(null);
+      } else {
+        await api.post('/api/departments', {
+          departmentName: deptName.trim(),
+          description: deptDesc.trim(),
+          status: 'active'
+        });
+        toast.success('Department created successfully.');
+      }
+      setDeptName('');
+      setDeptDesc('');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Failed to save department.');
+    }
+  };
+
+  const handleCreateDes = async (e) => {
+    e.preventDefault();
+    if (!desName.trim() || !desDeptId) return;
+
+    try {
+      setError('');
+      if (editingDes) {
+        await api.patch(`/api/designations/${editingDes._id}`, {
+          designationName: desName.trim(),
+          departmentId: desDeptId
+        });
+        toast.success('Designation updated successfully.');
+        setEditingDes(null);
+      } else {
+        await api.post('/api/designations', {
+          designationName: desName.trim(),
+          departmentId: desDeptId,
+          status: 'active'
+        });
+        toast.success('Designation created successfully.');
+      }
+      setDesName('');
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Failed to save designation.');
+    }
+  };
 
   const handleDeleteDept = (id, name) => {
     setPendingDeleteDept({ id, name });
@@ -34,78 +132,41 @@ const OrgStructure = () => {
     }
   };
 
-  // Department creation state
-  const [deptName, setDeptName] = useState('');
-  const [deptDesc, setDeptDesc] = useState('');
-
-  // Designation creation state
-  const [desName, setDesName] = useState('');
-  const [desDeptId, setDesDeptId] = useState('');
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const deptRes = await api.get('/api/departments');
-      setDepartments(deptRes.data);
-
-      const desRes = await api.get('/api/designations');
-      setDesignations(desRes.data);
-      if (deptRes.data.length > 0) setDesDeptId(deptRes.data[0]._id);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch department structure.');
-    } finally {
-      setLoading(false);
-    }
+  const handleDeleteDesg = (id, name) => {
+    setPendingDeleteDesg({ id, name });
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleCreateDept = async (e) => {
-    e.preventDefault();
-    if (!deptName.trim()) return;
-
+  const confirmDeleteDesg = async () => {
+    if (!pendingDeleteDesg) return;
+    const { id } = pendingDeleteDesg;
+    setPendingDeleteDesg(null);
     try {
       setError('');
-      await api.post('/api/departments', {
-        departmentName: deptName.trim(),
-        description: deptDesc.trim(),
-        status: 'active'
-      });
-      setDeptName('');
-      setDeptDesc('');
+      const res = await api.delete(`/api/designations/${id}`);
+      toast.success(res.data.message || 'Designation deleted successfully.');
       fetchData();
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.message || 'Failed to create department.');
+      toast.error(err.response?.data?.message || 'Failed to delete designation.');
     }
   };
 
-  const handleCreateDes = async (e) => {
-    e.preventDefault();
-    if (!desName.trim() || !desDeptId) return;
+  const startEditDept = (dept) => {
+    setEditingDept(dept);
+    setDeptName(dept.departmentName);
+    setDeptDesc(dept.description || '');
+  };
 
-    try {
-      setError('');
-      await api.post('/api/designations', {
-        designationName: desName.trim(),
-        departmentId: desDeptId,
-        status: 'active'
-      });
-      setDesName('');
-      fetchData();
-    } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Failed to create designation.');
-    }
+  const startEditDes = (desg) => {
+    setEditingDes(desg);
+    setDesName(desg.designationName);
+    setDesDeptId(desg.departmentId?._id || desg.departmentId || '');
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-[50vh]">
-        <div className="w-8 h-8 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-sky-655 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -119,6 +180,7 @@ const OrgStructure = () => {
         <ChevronLeft size={12} />
         <span>Back to Settings</span>
       </button>
+      
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-center gap-2">
           <AlertCircle size={16} className="text-rose-600" />
@@ -129,12 +191,12 @@ const OrgStructure = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 text-xs">
         {/* Department Panel */}
         <div className="space-y-6">
-          {/* Creator Form */}
+          {/* Creator/Editor Form */}
           {['admin', 'hr', 'executive'].includes(user?.role) && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Layers size={16} className="text-sky-700" />
-                <span>Register Department</span>
+                <span>{editingDept ? 'Edit Department' : 'Register Department'}</span>
               </h3>
               
               <form onSubmit={handleCreateDept} className="space-y-3">
@@ -145,7 +207,7 @@ const OrgStructure = () => {
                     value={deptName}
                     onChange={(e) => setDeptName(e.target.value)}
                     placeholder="e.g. Quality Assurance"
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
                     required
                   />
                 </div>
@@ -157,16 +219,38 @@ const OrgStructure = () => {
                     value={deptDesc}
                     onChange={(e) => setDeptDesc(e.target.value)}
                     placeholder="Summarize functions..."
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-650 resize-none"
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-650 resize-none font-semibold"
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-sky-700 hover:bg-sky-850 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
-                >
-                  Create Department
-                </button>
+                {editingDept ? (
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDept(null);
+                        setDeptName('');
+                        setDeptDesc('');
+                      }}
+                      className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-2 rounded-xl cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold py-2 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all duration-200"
+                    >
+                      Update
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all duration-200"
+                  >
+                    Create Department
+                  </button>
+                )}
               </form>
             </div>
           )}
@@ -183,16 +267,25 @@ const OrgStructure = () => {
                       <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 ml-2">{d.status}</span>
                     </div>
                     {['admin', 'hr', 'executive'].includes(user?.role) && (
-                      <button
-                        onClick={() => handleDeleteDept(d._id, d.departmentName)}
-                        className="text-rose-600 hover:text-rose-800 p-1 rounded hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100"
-                        title="Delete Department & Cascade Employees"
-                      >
-                        <Trash2 size={12} />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => startEditDept(d)}
+                          className="text-sky-600 hover:text-sky-850 p-1.5 rounded hover:bg-sky-50 transition-colors cursor-pointer border border-sky-100 bg-white shadow-2xs"
+                          title="Edit Department"
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDept(d._id, d.departmentName)}
+                          className="text-rose-600 hover:text-rose-800 p-1.5 rounded hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100 bg-white shadow-2xs"
+                          title="Delete Department & Cascade Employees"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     )}
                   </div>
-                  {d.description && <p className="text-[10px] text-slate-500 mt-1">{d.description}</p>}
+                  {d.description && <p className="text-[10px] text-slate-500 mt-1 font-semibold">{d.description}</p>}
                 </div>
               ))}
             </div>
@@ -201,12 +294,12 @@ const OrgStructure = () => {
 
         {/* Designation Panel */}
         <div className="space-y-6">
-          {/* Creator Form */}
+          {/* Creator/Editor Form */}
           {['admin', 'hr', 'executive'].includes(user?.role) && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <Layers size={16} className="text-sky-700" />
-                <span>Register Designation Role</span>
+                <span>{editingDes ? 'Edit Designation Role' : 'Register Designation Role'}</span>
               </h3>
 
               <form onSubmit={handleCreateDes} className="space-y-3">
@@ -218,7 +311,7 @@ const OrgStructure = () => {
                       value={desName}
                       onChange={(e) => setDesName(e.target.value)}
                       placeholder="e.g. Lead QA Engineer"
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800"
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
                       required
                     />
                   </div>
@@ -228,7 +321,7 @@ const OrgStructure = () => {
                     <select
                       value={desDeptId}
                       onChange={(e) => setDesDeptId(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700"
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-bold cursor-pointer"
                       required
                     >
                       {departments.map(d => (
@@ -238,12 +331,33 @@ const OrgStructure = () => {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-sky-700 hover:bg-sky-855 text-white font-semibold py-2.5 px-4 rounded-xl cursor-pointer shadow-md transition-colors"
-                >
-                  Create Designation
-                </button>
+                {editingDes ? (
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDes(null);
+                        setDesName('');
+                      }}
+                      className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold py-2 rounded-xl cursor-pointer transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold py-2 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all duration-200"
+                    >
+                      Update
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold py-2.5 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all duration-200"
+                  >
+                    Create Designation
+                  </button>
+                )}
               </form>
             </div>
           )}
@@ -256,9 +370,29 @@ const OrgStructure = () => {
                 <div key={d._id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex justify-between items-center">
                   <div>
                     <span className="font-bold text-slate-800">{d.designationName}</span>
-                    <p className="text-[9px] text-slate-400 mt-0.5">Dept: {d.departmentId?.departmentName || 'Unknown'}</p>
+                    <p className="text-[9px] text-slate-400 mt-0.5 font-semibold">Dept: {d.departmentId?.departmentName || 'Unknown'}</p>
                   </div>
-                  <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{d.status}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] uppercase font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">{d.status}</span>
+                    {['admin', 'hr', 'executive'].includes(user?.role) && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => startEditDes(d)}
+                          className="text-sky-600 hover:text-sky-850 p-1.5 rounded hover:bg-sky-50 transition-colors cursor-pointer border border-sky-100 bg-white shadow-2xs"
+                          title="Edit Designation"
+                        >
+                          <Edit2 size={11} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDesg(d._id, d.designationName)}
+                          className="text-rose-600 hover:text-rose-800 p-1.5 rounded hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100 bg-white shadow-2xs"
+                          title="Delete Designation Role"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -274,6 +408,16 @@ const OrgStructure = () => {
         danger
         onConfirm={confirmDeleteDept}
         onCancel={() => setPendingDeleteDept(null)}
+      />
+
+      <ConfirmModal
+        open={!!pendingDeleteDesg}
+        title="Delete Designation Role?"
+        message={pendingDeleteDesg ? `Delete the designation role '${pendingDeleteDesg.name}'? This is only allowed while no employees are assigned to it — reassign or remove them first if this fails.` : ''}
+        confirmLabel="Delete"
+        danger
+        onConfirm={confirmDeleteDesg}
+        onCancel={() => setPendingDeleteDesg(null)}
       />
     </div>
   );

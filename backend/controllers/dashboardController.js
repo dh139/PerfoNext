@@ -266,7 +266,7 @@ const getDashboardData = async (req, res) => {
       const totalEmployees = await User.countDocuments({ employmentStatus: 'active' });
       const totalDepartments = await Department.countDocuments();
       const totalTemplates = await ReviewCycle.countDocuments();
-      const totalManagers = await User.countDocuments({ role: { $in: ['manager', 'hr', 'admin'] }, employmentStatus: 'active' });
+      const totalManagers = await User.countDocuments({ role: 'manager', employmentStatus: 'active' });
 
       const stats = {
         totalUsers: totalEmployees,

@@ -57,6 +57,7 @@ const WorkJournal = () => {
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [projectStatusSearch, setProjectStatusSearch] = useState('');
   const [expandedProjects, setExpandedProjects] = useState({});
+  const [projectStatusFilter, setProjectStatusFilter] = useState('all');
   const [projectStatusPage, setProjectStatusPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -175,22 +176,33 @@ const WorkJournal = () => {
   };
 
   useEffect(() => {
-    fetchJournalData();
-    fetchJournalStats();
+    if (!user) return;
+
+    // Switch to manager desk for admin/executive since they have no personal logs
+    if (['admin', 'executive'].includes(user.role)) {
+      setActiveTab('manager_desk');
+    }
+
+    const isSpecial = ['admin', 'executive'].includes(user.role);
+    if (!isSpecial) {
+      fetchJournalData();
+      fetchJournalStats();
+      fetchTimeline();
+    }
     fetchProjectStatuses();
-    if (['manager', 'hr', 'admin', 'executive'].includes(user?.role)) {
+    if (['manager', 'hr', 'admin', 'executive'].includes(user.role)) {
       fetchPendingManagerDesk();
     }
-    if (['admin', 'hr', 'executive'].includes(user?.role)) {
+    if (['admin', 'hr', 'executive'].includes(user.role)) {
       fetchOrgWideLogs();
     }
-    fetchTimeline();
-  }, []);
+  }, [user]);
 
   const fetchJournalData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/work-journal');
+      const url = user?._id ? `/api/work-journal?employeeId=${user._id}` : '/api/work-journal';
+      const res = await api.get(url);
       setItems(res.data || []);
     } catch (err) {
       console.error(err);
@@ -202,7 +214,8 @@ const WorkJournal = () => {
 
   const fetchJournalStats = async () => {
     try {
-      const res = await api.get('/api/work-journal/stats');
+      const url = user?._id ? `/api/work-journal/stats?employeeId=${user._id}` : '/api/work-journal/stats';
+      const res = await api.get(url);
       setStats(res.data || {});
     } catch (err) {
       console.error(err);
@@ -220,7 +233,8 @@ const WorkJournal = () => {
 
   const fetchTimeline = async () => {
     try {
-      const res = await api.get('/api/work-journal/timeline');
+      const url = user?._id ? `/api/work-journal/timeline?employeeId=${user._id}` : '/api/work-journal/timeline';
+      const res = await api.get(url);
       setTimelineData(res.data || {});
     } catch (err) {
       console.error(err);
@@ -547,91 +561,95 @@ const WorkJournal = () => {
   return (
     <div className="space-y-6 text-xs text-slate-800 animate-fade-in">
       {/* Top Header Card */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-400/30 tracking-wider flex items-center gap-1">
-                <CheckCircle2 size={11} /> Continuous Evidence Engine
-              </span>
+      {!['admin', 'executive'].includes(user?.role) && (
+        <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl border border-slate-800 relative overflow-hidden">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-400/30 tracking-wider flex items-center gap-1">
+                  <CheckCircle2 size={11} /> Continuous Evidence Engine
+                </span>
+              </div>
+              <h1 className="text-2xl font-black tracking-tight text-white">Daily Work Log & Evidence Center</h1>
+              <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+                Log your completed work daily with supporting proof. Approved work logs become verified evidence for performance reviews.
+              </p>
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-white">Daily Work Log & Evidence Center</h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Log your completed work daily with supporting proof. Approved work logs become verified evidence for performance reviews.
-            </p>
+
+            <button
+              onClick={() => {
+                setEditItemId(null);
+                setTitle('');
+                setProject('');
+                setCategory('Development');
+                setHoursSpent('');
+                setResultSummary('');
+                setEvidenceRef('');
+                setScreenshotFile(null);
+                setImagePreviewUrl('');
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all shrink-0 cursor-pointer"
+            >
+              <Plus size={18} />
+              <span>Add Daily Work Log</span>
+            </button>
           </div>
 
-          <button
-            onClick={() => {
-              setEditItemId(null);
-              setTitle('');
-              setProject('');
-              setCategory('Development');
-              setHoursSpent('');
-              setResultSummary('');
-              setEvidenceRef('');
-              setScreenshotFile(null);
-              setImagePreviewUrl('');
-              setShowAddModal(true);
-            }}
-            className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all shrink-0 cursor-pointer"
-          >
-            <Plus size={18} />
-            <span>Add Daily Work Log</span>
-          </button>
-        </div>
+          {/* Quick Stat Badges */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-6 pt-5 border-t border-slate-800">
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Today's Logs</span>
+              <span className="text-lg font-black text-white">{stats.todayLogsCount || 0}</span>
+              <span className="text-[9px] text-slate-400 block">Logged today</span>
+            </div>
 
-        {/* Quick Stat Badges */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-6 pt-5 border-t border-slate-800">
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Today's Logs</span>
-            <span className="text-lg font-black text-white">{stats.todayLogsCount || 0}</span>
-            <span className="text-[9px] text-slate-400 block">Logged today</span>
-          </div>
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">This Month</span>
+              <span className="text-lg font-black text-sky-400">{stats.monthLogsCount || 0}</span>
+              <span className="text-[9px] text-sky-300 block">Monthly entries</span>
+            </div>
 
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">This Month</span>
-            <span className="text-lg font-black text-sky-400">{stats.monthLogsCount || 0}</span>
-            <span className="text-[9px] text-sky-300 block">Monthly entries</span>
-          </div>
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">This Quarter</span>
+              <span className="text-lg font-black text-indigo-400">{stats.quarterLogsCount || 0}</span>
+              <span className="text-[9px] text-indigo-300 block">Quarterly total</span>
+            </div>
 
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">This Quarter</span>
-            <span className="text-lg font-black text-indigo-400">{stats.quarterLogsCount || 0}</span>
-            <span className="text-[9px] text-indigo-300 block">Quarterly total</span>
-          </div>
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Pending Verification</span>
+              <span className="text-lg font-black text-amber-400">{stats.pendingCount || 0}</span>
+              <span className="text-[9px] text-amber-300 block">Awaiting manager</span>
+            </div>
 
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Pending Verification</span>
-            <span className="text-lg font-black text-amber-400">{stats.pendingCount || 0}</span>
-            <span className="text-[9px] text-amber-300 block">Awaiting manager</span>
-          </div>
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Approved Logs</span>
+              <span className="text-lg font-black text-emerald-400">{stats.approvedCount || 0}</span>
+              <span className="text-[9px] text-emerald-300 block">Verified & Locked</span>
+            </div>
 
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Approved Logs</span>
-            <span className="text-lg font-black text-emerald-400">{stats.approvedCount || 0}</span>
-            <span className="text-[9px] text-emerald-300 block">Verified & Locked</span>
-          </div>
-
-          <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
-            <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Hours Logged</span>
-            <span className="text-lg font-black text-purple-400">{stats.totalHoursSpent || 0} Hrs</span>
-            <span className="text-[9px] text-purple-300 block">Productive time</span>
+            <div className="bg-slate-800/50 p-3 rounded-2xl border border-slate-700/60">
+              <span className="text-[9px] font-extrabold uppercase text-slate-400 block">Hours Logged</span>
+              <span className="text-lg font-black text-purple-400">{stats.totalHoursSpent || 0} Hrs</span>
+              <span className="text-[9px] text-purple-350 block">Productive time</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Tabs Bar */}
       <div className="flex border-b border-slate-200 gap-6 text-xs font-extrabold text-slate-500">
-        <button
-          onClick={() => setActiveTab('my_logs')}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
-            activeTab === 'my_logs' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent hover:text-slate-800'
-          }`}
-        >
-          <FileText size={16} />
-          <span>My Daily Logs ({items.length})</span>
-        </button>
+        {!['admin', 'executive'].includes(user?.role) && (
+          <button
+            onClick={() => setActiveTab('my_logs')}
+            className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
+              activeTab === 'my_logs' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent hover:text-slate-800'
+            }`}
+          >
+            <FileText size={16} />
+            <span>My Daily Logs ({items.length})</span>
+          </button>
+        )}
 
         {['manager', 'hr', 'admin', 'executive'].includes(user?.role) && (
           <button
@@ -650,15 +668,17 @@ const WorkJournal = () => {
           </button>
         )}
 
-        <button
-          onClick={() => setActiveTab('timeline')}
-          className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
-            activeTab === 'timeline' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent hover:text-slate-800'
-          }`}
-        >
-          <Clock size={16} />
-          <span>Evidence Timeline</span>
-        </button>
+        {!['admin', 'executive'].includes(user?.role) && (
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
+              activeTab === 'timeline' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent hover:text-slate-800'
+            }`}
+          >
+            <Clock size={16} />
+            <span>Evidence Timeline</span>
+          </button>
+        )}
 
         {['manager', 'hr', 'admin', 'executive'].includes(user?.role) && (
           <button
@@ -674,7 +694,7 @@ const WorkJournal = () => {
       </div>
 
       {/* TAB 1: MY DAILY LOGS */}
-      {activeTab === 'my_logs' && (
+      {activeTab === 'my_logs' && !['admin', 'executive'].includes(user?.role) && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -1373,7 +1393,7 @@ const WorkJournal = () => {
       )}
 
       {/* TAB 3: VERIFIED WORK TIMELINE */}
-      {activeTab === 'timeline' && (
+      {activeTab === 'timeline' && !['admin', 'executive'].includes(user?.role) && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
           <div>
             <h3 className="font-extrabold text-sm text-slate-900">Verified Evidence Timeline</h3>
@@ -1419,10 +1439,12 @@ const WorkJournal = () => {
       {/* TAB 4: OVERALL PROJECT STATUS SHEET */}
       {activeTab === 'project_status' && (() => {
         const statsData = getProjectStats();
-        const filteredStats = statsData.filter(proj => 
-          proj.projectName.toLowerCase().includes(projectStatusSearch.toLowerCase()) ||
-          proj.contributors.some(c => c.name.toLowerCase().includes(projectStatusSearch.toLowerCase()))
-        );
+        const filteredStats = statsData.filter(proj => {
+          const matchesSearch = proj.projectName.toLowerCase().includes(projectStatusSearch.toLowerCase()) ||
+            proj.contributors.some(c => c.name.toLowerCase().includes(projectStatusSearch.toLowerCase()));
+          const matchesStatus = projectStatusFilter === 'all' || proj.projStatus === projectStatusFilter;
+          return matchesSearch && matchesStatus;
+        });
 
         const PROJECT_STATUS_PAGE_SIZE = 10;
         const totalProjectsPages = Math.ceil(filteredStats.length / PROJECT_STATUS_PAGE_SIZE) || 1;
@@ -1454,16 +1476,37 @@ const WorkJournal = () => {
                 <p className="text-slate-500 text-xs">Aggregated status and activity metric tracking across all projects and team members.</p>
               </div>
 
-              {/* Project Status Search Bar */}
-              <div className="relative w-full sm:w-64">
-                <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search project or contributor..."
-                  value={projectStatusSearch}
-                  onChange={(e) => setProjectStatusSearch(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-xs outline-none focus:border-sky-500 font-medium"
-                />
+              <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                {/* Status Dropdown Filter */}
+                <select
+                  value={projectStatusFilter}
+                  onChange={(e) => {
+                    setProjectStatusFilter(e.target.value);
+                    setProjectStatusPage(1); // Reset page on filter change
+                  }}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-sky-500 font-bold cursor-pointer"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Stale">Stale</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Completed">Completed</option>
+                </select>
+
+                {/* Project Status Search Bar */}
+                <div className="relative flex-1 sm:w-64">
+                  <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search project or contributor..."
+                    value={projectStatusSearch}
+                    onChange={(e) => {
+                      setProjectStatusSearch(e.target.value);
+                      setProjectStatusPage(1); // Reset page on search change
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-xs outline-none focus:border-sky-500 font-medium"
+                  />
+                </div>
               </div>
             </div>
 

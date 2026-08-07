@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Calendar, Layers, FileText, ClipboardList } from 'lucide-react';
+import { Clock, Calendar, Layers, FileText, ClipboardList, Users } from 'lucide-react';
 import useAuthStore from '../store/authStore';
 
 const SettingsOverview = () => {
@@ -117,6 +117,25 @@ const SettingsOverview = () => {
               <span>&rarr;</span>
             </div>
           </div>
+
+          {/* Card 6: Users Database */}
+          {['admin', 'hr', 'executive'].includes(role) && (
+            <div 
+              onClick={() => navigate('/admin/users')}
+              className="bg-white border border-slate-200/80 hover:border-violet-500/50 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1 duration-300 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-violet-500/5 rounded-full blur-xl group-hover:scale-150 transition-all pointer-events-none" />
+              <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center text-violet-600 mb-4 group-hover:bg-violet-600 group-hover:text-white transition-all shadow-2xs">
+                <Users size={22} />
+              </div>
+              <h3 className="font-extrabold text-sm text-slate-800 mb-1.5 group-hover:text-violet-600 transition-colors">Users Database</h3>
+              <p className="text-slate-400 text-[11px] leading-relaxed">Manage registered employee accounts, details, roles, profiles, and active access directories.</p>
+              <div className="mt-5 flex items-center gap-1.5 text-[10px] font-black text-violet-600 group-hover:translate-x-1.5 transition-transform">
+                <span>Manage Users Database</span>
+                <span>&rarr;</span>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

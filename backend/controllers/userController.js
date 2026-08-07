@@ -647,6 +647,45 @@ const deleteDepartment = async (req, res) => {
   }
 };
 
+const deleteDesignation = async (req, res) => {
+  try {
+    const designationId = req.params.id;
+    const designation = await Designation.findById(designationId);
+    if (!designation) {
+      return res.status(404).json({ message: 'Designation not found.' });
+    }
+
+    // Block deletion if any users are assigned to this designation
+    const assignedUsersCount = await User.countDocuments({ designationId });
+    if (assignedUsersCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete designation '${designation.designationName}'. There are ${assignedUsersCount} employee(s) assigned to this designation. Please reassign or remove them first.`
+      });
+    }
+
+    // Delete the designation
+    await Designation.findByIdAndDelete(designationId);
+
+    // Log action
+    await logAction({
+      userId: req.user.id,
+      action: 'designation_modification',
+      entityType: 'Designation',
+      entityId: designationId,
+      before: designation.toObject(),
+      after: null,
+      ipAddress: req.ip || ''
+    });
+
+    res.json({
+      message: `Designation '${designation.designationName}' has been deleted successfully.`
+    });
+  } catch (error) {
+    console.error('deleteDesignation error:', error);
+    res.status(500).json({ message: error.message || 'Internal server error.' });
+  }
+};
+
 const uploadProfilePhoto = async (req, res) => {
   try {
     if (!req.file) {
@@ -675,6 +714,7 @@ module.exports = {
   updateUser,
   deleteUser,
   deleteDepartment,
+  deleteDesignation,
   getMyProfile,
   updateMyProfile,
   getDepartments,

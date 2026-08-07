@@ -38,6 +38,17 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
   const [dateAttendanceSearch, setDateAttendanceSearch] = useState('');
   const [dateAttendancePage, setDateAttendancePage] = useState(1);
 
+  const formatTimeOnly = (dateStr) => {
+    if (!dateStr) return '--';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   const fetchAttendanceByDate = async (d) => {
     try {
       setLoadingDateAttendance(true);
@@ -586,9 +597,9 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500">
-                    <span className="text-emerald-600">✓ Present: {dateAttendance.records.filter(r => r.status === 'Present').length}</span>
+                    <span className="text-emerald-600">✓ Present: {dateAttendance.records.filter(r => ['Present', 'Regularized', 'Late', 'Incomplete'].includes(r.status)).length}</span>
                     <span className="text-amber-600">◑ Half Day: {dateAttendance.records.filter(r => r.status === 'Half Day').length}</span>
-                    <span className="text-rose-600">✗ Absent: {dateAttendance.records.filter(r => r.status === 'Absent').length}</span>
+                    <span className="text-rose-600">✗ Absent: {dateAttendance.records.filter(r => ['Absent', 'Auto Closed', 'Unusual'].includes(r.status)).length}</span>
                     <span className="text-slate-400">({filtered.length} shown)</span>
                   </div>
                   <div className="overflow-x-auto">
@@ -620,7 +631,13 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                               ) : '--'}
                             </td>
                             <td className="py-2.5 px-3">
-                              {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
+                              {!r.punchIn || ['Absent', 'Not Punched Yet', 'Leave'].includes(r.status) ? (
+                                <span className="text-slate-300">--</span>
+                              ) : r.lateMinutes > 0 ? (
+                                <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span>
+                              ) : (
+                                <span className="text-emerald-600">On time</span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3">
                               <div className="flex flex-col gap-1">
@@ -689,87 +706,50 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
             })()}
           </div>
 
-          {/* Punch Card & Org Stats Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1 flex flex-col gap-5">
-              <PunchCard />
-
-              {/* Recent Alerts */}
-              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
-                      <Bell size={16} />
-                    </div>
-                    <h3 className="font-extrabold text-slate-850 text-sm">Recent Alerts</h3>
-                  </div>
-                  <Link to="/notifications" className="text-[10px] font-black text-sky-600 hover:underline">
-                    View All
-                  </Link>
+          {/* Today's Attendance Stats (Full Width) */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm mb-6">
+            <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Today's Attendance Stats</h3>
+            {loadingHrSummary ? (
+              <div className="py-8 flex justify-center items-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500"></div>
+              </div>
+            ) : !hrSummary ? (
+              <p className="text-slate-400 font-medium">No metrics loaded.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Present</span>
+                  <span className="text-lg font-black text-emerald-600 mt-1 block">{hrSummary.present} Employees</span>
                 </div>
-                <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
-                  {notifications.length === 0 ? (
-                    <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
-                  ) : (
-                    notifications.map((n) => (
-                      <div key={n._id} className="text-xs border-b border-slate-100 pb-3 last:border-0 last:pb-0 hover:bg-slate-50/50 p-1.5 rounded-lg transition-colors">
-                        <p className="text-slate-700 leading-normal font-semibold">{n.message}</p>
-                        <span className="text-[9px] text-slate-400 font-bold block mt-1">
-                          {new Date(n.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </div>
-                    ))
-                  )}
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Late</span>
+                  <span className="text-lg font-black text-rose-600 mt-1 block">{hrSummary.late} Employees</span>
+                </div>
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Half Day</span>
+                  <span className="text-lg font-black text-amber-600 mt-1 block">{hrSummary.halfDay} Employees</span>
+                </div>
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Employees Active Working</span>
+                  <span className="text-lg font-black text-sky-600 mt-1 block">{hrSummary.workingCount} Active</span>
+                </div>
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Not Punched Yet</span>
+                  <span className="text-lg font-black text-slate-400 mt-1 block">{hrSummary.notPunchedCount} Staff</span>
+                </div>
+                <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
+                  <span className="text-[9px] text-slate-400 uppercase font-bold block">Pending Regularizations</span>
+                  <span className={`text-lg font-black mt-1 block ${hrSummary.pendingRegularizationCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-400'}`}>
+                    {hrSummary.pendingRegularizationCount} Requests
+                  </span>
                 </div>
               </div>
-            </div>
-
-            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-              <h3 className="font-extrabold text-slate-800 text-[13px] mb-4">Today's Attendance Stats</h3>
-              {loadingHrSummary ? (
-                <div className="py-8 flex justify-center items-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-sky-500"></div>
-                </div>
-              ) : !hrSummary ? (
-                <p className="text-slate-400 font-medium">No metrics loaded.</p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Present</span>
-                    <span className="text-lg font-black text-emerald-600 mt-1 block">{hrSummary.present} Employees</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Late</span>
-                    <span className="text-lg font-black text-rose-600 mt-1 block">{hrSummary.late} Employees</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Half Day</span>
-                    <span className="text-lg font-black text-amber-600 mt-1 block">{hrSummary.halfDay} Employees</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Employees Active Working</span>
-                    <span className="text-lg font-black text-sky-600 mt-1 block">{hrSummary.workingCount} Active</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Not Punched Yet</span>
-                    <span className="text-lg font-black text-slate-400 mt-1 block">{hrSummary.notPunchedCount} Staff</span>
-                  </div>
-                  <div className="bg-slate-50 p-4 border border-slate-100 rounded-xl">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold block">Pending Regularizations</span>
-                    <span className={`text-lg font-black mt-1 block ${hrSummary.pendingRegularizationCount > 0 ? 'text-amber-600 animate-pulse' : 'text-slate-400'}`}>
-                      {hrSummary.pendingRegularizationCount} Requests
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
 
-
-
-          {/* Org Lists Row */}
+          {/* Org Lists Row (Full Width 3-Col Grid) */}
           {!loadingHrSummary && hrSummary && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Working List */}
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
@@ -781,16 +761,16 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                 </h3>
                 <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                   {hrSummary.workingList?.length === 0 ? (
-                    <p className="text-slate-400 text-xs py-8 text-center font-medium">No employees actively clocked in right now.</p>
+                    <p className="text-slate-400 text-xs py-8 text-center font-medium">No employees clocked in right now.</p>
                   ) : (
                     hrSummary.workingList?.map((emp, i) => (
-                      <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                        <div>
-                          <span className="font-bold text-slate-800 block">{emp.name}</span>
-                          <span className="text-[9px] text-slate-400 block mt-0.5">Code: {emp.code}</span>
+                      <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-1.5 min-w-0">
+                        <div className="min-w-0">
+                          <span className="font-bold text-slate-800 block truncate text-xs">{emp.name}</span>
+                          <span className="text-[10px] text-slate-450 block font-mono mt-0.5">Code: {emp.code}</span>
                         </div>
-                        <span className="text-[10px] font-bold text-slate-500">
-                          In: {new Date(emp.punchIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 px-2 py-1 rounded shrink-0">
+                          In: {formatTimeOnly(emp.punchIn)}
                         </span>
                       </div>
                     ))
@@ -811,9 +791,9 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                     <p className="text-slate-400 text-xs py-8 text-center font-medium">All employees arrived on time today!</p>
                   ) : (
                     hrSummary.lateEmployees?.map((emp, i) => (
-                      <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
-                        <span className="font-bold text-slate-800">{emp.name}</span>
-                        <span className="bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded border border-rose-200 font-bold text-[10px]">
+                      <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-1.5 min-w-0">
+                        <span className="font-bold text-slate-800 truncate text-xs">{emp.name}</span>
+                        <span className="bg-rose-50 text-rose-700 px-2.5 py-0.5 rounded border border-rose-200 font-bold text-[10px] shrink-0">
                           {emp.lateMinutes}m late
                         </span>
                       </div>
@@ -835,7 +815,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                     <p className="text-slate-400 text-xs py-8 text-center font-medium">100% attendance recorded today.</p>
                   ) : (
                     hrSummary.absentEmployees?.map((name, i) => (
-                      <div key={i} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800">
+                      <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs truncate">
                         {name}
                       </div>
                     ))
@@ -845,7 +825,6 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
 
             </div>
           )}
-
         </div>
       )}
 

@@ -357,15 +357,14 @@ const submitRegularization = async (req, res) => {
       if (employee) {
         const targetUserIds = new Set();
 
-        // If the submitter is a manager or HR, target all CEOs (role: executive)
-        if (employee.role === 'manager' || employee.role === 'hr') {
+        if (employee.role === 'employee') {
+          // Employee request -> notify only HR manager
+          const hrManagers = await User.find({ role: 'hr' });
+          hrManagers.forEach(hr => targetUserIds.add(hr._id.toString()));
+        } else if (employee.role === 'manager' || employee.role === 'hr') {
+          // Manager or HR request -> notify only CEO (role: executive)
           const ceos = await User.find({ role: 'executive' });
           ceos.forEach(ceo => targetUserIds.add(ceo._id.toString()));
-        }
-
-        // Target the direct manager if assigned
-        if (employee.managerId) {
-          targetUserIds.add(employee.managerId.toString());
         }
 
         // Send notifications to all unique target IDs
@@ -405,15 +404,20 @@ const getPendingRegularizations = async (req, res) => {
     };
 
     if (req.user.role === 'manager') {
-      const reports = await User.find({ managerId: req.user.id }).select('_id');
-      const reportIds = reports.map(r => r._id);
-      filter.employeeId = { $in: reportIds, $ne: req.user.id };
+      // Reporting managers do not receive regularization requests (employee requests go to HR; manager requests go to CEO)
+      filter.employeeId = null;
     } else if (req.user.role === 'hr') {
-      const users = await User.find({ role: 'employee' }).select('_id');
-      filter.employeeId = { $in: users.map(u => u._id), $ne: req.user.id };
+      // HR managers receive requests only from standard employees
+      const employees = await User.find({ role: 'employee' }).select('_id');
+      filter.employeeId = { $in: employees.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'executive') {
-      const users = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
-      filter.employeeId = { $in: users.map(u => u._id), $ne: req.user.id };
+      // CEO / Executives receive requests only from managers and HR
+      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr'] } }).select('_id');
+      filter.employeeId = { $in: managersAndHr.map(u => u._id), $ne: req.user.id };
+    } else if (req.user.role === 'admin') {
+      // Admins can see everything
+      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
+      filter.employeeId = { $in: allUsers.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'employee') {
       return res.status(403).json({ message: 'Access denied.' });
     }
@@ -449,14 +453,16 @@ const reviewRegularization = async (req, res) => {
     const requester = await User.findById(punch.employeeId);
     if (!requester) return res.status(404).json({ message: 'Requester not found.' });
 
-    if (['manager', 'hr'].includes(requester.role) && req.user.role !== 'executive') {
-      return res.status(403).json({ message: 'Only the CEO can approve regularization for managers and HR.' });
-    }
-    if (requester.role === 'employee' && !['hr', 'manager', 'executive', 'admin'].includes(req.user.role)) {
-      return res.status(403).json({ message: 'Unauthorized.' });
-    }
-    if (req.user.role === 'manager' && requester.managerId?.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ message: 'You can only review regularization requests of your direct reportees.' });
+    if (['manager', 'hr'].includes(requester.role)) {
+      if (!['executive', 'admin'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Only the CEO can approve regularization for managers and HR.' });
+      }
+    } else if (requester.role === 'employee') {
+      if (!['hr', 'admin'].includes(req.user.role)) {
+        return res.status(403).json({ message: 'Employee regularization requests can only be approved by the HR Manager.' });
+      }
+    } else {
+      return res.status(403).json({ message: 'Unauthorized review role.' });
     }
 
     if (status === 'approved') {

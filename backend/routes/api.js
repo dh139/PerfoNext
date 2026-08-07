@@ -70,6 +70,7 @@ router.delete('/departments/:id', verifyToken, authorizeRoles('admin', 'hr', 'ex
 router.get('/designations', verifyToken, userController.getDesignations);
 router.post('/designations', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.createDesignation);
 router.patch('/designations/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.updateDesignation);
+router.delete('/designations/:id', verifyToken, authorizeRoles('admin', 'hr', 'executive'), userController.deleteDesignation);
 
 // Review Cycles
 router.get('/review-cycles', verifyToken, cycleController.getReviewCycles);

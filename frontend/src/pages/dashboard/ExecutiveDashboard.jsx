@@ -582,7 +582,13 @@ const ExecutiveDashboard = ({ data, user }) => {
                               ) : '--'}
                             </td>
                             <td className="py-2.5 px-3">
-                              {r.lateMinutes > 0 ? <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span> : <span className="text-emerald-600">On time</span>}
+                              {!r.punchIn || ['Absent', 'Not Punched Yet', 'Leave'].includes(r.status) ? (
+                                <span className="text-slate-300">--</span>
+                              ) : r.lateMinutes > 0 ? (
+                                <span className="text-rose-600 font-bold">{r.lateMinutes}m late</span>
+                              ) : (
+                                <span className="text-emerald-600">On time</span>
+                              )}
                             </td>
                             <td className="py-2.5 px-3">
                               <div className="flex flex-col gap-1">

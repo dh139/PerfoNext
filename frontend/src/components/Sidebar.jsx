@@ -334,33 +334,19 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
                   <ClipboardList size={16} />
                   <span>Completion Report</span>
                 </Link>
-                {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
-                  <Link to="/admin/users" className={linkClass('/admin/users')} onClick={handleNavClick}>
-                    <Users size={16} />
-                    <span>Users Database</span>
+                {(user?.role === 'executive' || user?.role === 'manager' || user?.role === 'admin') && (
+                  <Link to="/reports/employee-logs" className={linkClass('/reports/employee-logs')} onClick={handleNavClick}>
+                    <FileText size={16} />
+                    <span>Employee Logs Report</span>
                   </Link>
                 )}
+
               </div>
             )}
           </div>
         )}
 
-        {/* Admin & System Administration */}
-        {user?.role === 'admin' && (
-          <>
-            <div className="pt-4 pb-2 border-t border-slate-800/80 my-3">
-              <p className="px-4 text-[9px] font-bold text-slate-500 uppercase tracking-wider">System Administration</p>
-            </div>
-            <Link to="/admin/org" className={linkClass('/admin/org')}>
-              <Shield size={18} />
-              <span>Org Structure</span>
-            </Link>
-            <Link to="/admin/audit" className={linkClass('/admin/audit')}>
-              <FileText size={18} />
-              <span>Audit Trails</span>
-            </Link>
-          </>
-        )}
+
 
         {/* ⚙️ Settings (CEO / HR / Admin) */}
         {['executive', 'admin', 'hr'].includes(user?.role) && (

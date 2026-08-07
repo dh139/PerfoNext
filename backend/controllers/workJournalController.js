@@ -8,15 +8,42 @@ const { logAction } = require('../utils/logger');
  */
 const getWorkJournalItems = async (req, res) => {
   try {
-    const employeeId = req.query.employeeId || req.user.id;
+    let employeeId = req.query.employeeId;
+    const isMgmt = ['admin', 'hr', 'manager', 'executive'].includes(req.user.role);
 
-    // Security: Employee can only view their own work journal unless manager/HR/admin
-    if (req.user.role === 'employee' && employeeId.toString() !== req.user.id.toString()) {
+    if (!employeeId) {
+      if (!isMgmt) {
+        employeeId = req.user.id;
+      }
+    }
+
+    // Security: Employee can only view their own work journal unless manager/HR/admin/executive
+    if (req.user.role === 'employee' && employeeId && employeeId.toString() !== req.user.id.toString()) {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
     const { status, category, project, impactScore, search, startDate, endDate } = req.query;
-    const query = { employeeId };
+    const query = {};
+
+    if (employeeId && employeeId !== 'all') {
+      if (req.user.role === 'manager') {
+        const targetUser = await User.findById(employeeId);
+        const managerUser = await User.findById(req.user.id);
+        if (targetUser && managerUser && targetUser.departmentId && managerUser.departmentId && targetUser.departmentId.toString() !== managerUser.departmentId.toString()) {
+          return res.status(403).json({ message: 'Access denied. You can only view logs of users in your department.' });
+        }
+      }
+      query.employeeId = employeeId;
+    } else {
+      if (req.user.role === 'manager') {
+        const managerUser = await User.findById(req.user.id);
+        if (managerUser && managerUser.departmentId) {
+          const deptUsers = await User.find({ departmentId: managerUser.departmentId }).select('_id');
+          const deptUserIds = deptUsers.map(u => u._id);
+          query.employeeId = { $in: deptUserIds };
+        }
+      }
+    }
 
     if (startDate || endDate) {
       query.completedDate = {};
@@ -47,6 +74,14 @@ const getWorkJournalItems = async (req, res) => {
     }
 
     const items = await WorkJournal.find(query)
+      .populate({
+        path: 'employeeId',
+        select: 'firstName lastName email role employeeCode departmentId',
+        populate: {
+          path: 'departmentId',
+          select: 'departmentName'
+        }
+      })
       .populate('reviewedBy', 'firstName lastName email role')
       .sort({ completedDate: -1, createdAt: -1 });
 

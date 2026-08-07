@@ -394,6 +394,7 @@ const UserManagement = () => {
                   <th className="p-3">Dept & Designation</th>
                   <th className="p-3">Level & Experience</th>
                   <th className="p-3">Reporting Line</th>
+                  <th className="p-3">Work Mode</th>
                   <th className="p-3 text-center">Status</th>
                   <th className="p-3 pr-4 text-right">Actions</th>
                 </tr>
@@ -431,6 +432,17 @@ const UserManagement = () => {
                     <td className="p-3"><p className="font-bold text-slate-700">{u.departmentId?.departmentName || '-'}</p><p className="text-[10px] text-slate-500">{u.designationId?.designationName || '-'}</p></td>
                     <td className="p-3">{getLevelAndExperienceBadge(u)}</td>
                     <td className="p-3">{u.managerId ? `${u.managerId.firstName} ${u.managerId.lastName}` : '-'}</td>
+                    <td className="p-3">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[9px] uppercase border font-extrabold ${
+                        u.workMode === 'Remote' 
+                          ? 'bg-purple-50 text-purple-700 border-purple-200' 
+                          : u.workMode === 'Hybrid'
+                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          : 'bg-blue-50 text-blue-750 border-blue-200'
+                      }`}>
+                        {u.workMode === 'Work From office' ? 'WFO' : (u.workMode || 'WFO')}
+                      </span>
+                    </td>
                     <td className="p-3 text-center">
                       <span className={`inline-flex items-center gap-1 font-bold px-2.5 py-0.5 rounded-full text-[9px] uppercase border ${u.employmentStatus === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                         {u.employmentStatus === 'active' ? <CheckCircle2 size={10} /> : <XCircle size={10} />} {u.employmentStatus}
