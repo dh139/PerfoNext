@@ -3,7 +3,6 @@ const ReviewCycle = require('../models/ReviewCycle');
 const AIReport = require('../models/AIReport');
 const User = require('../models/User');
 const fs = require('fs');
-const pdf = require('pdf-parse');
 
 const getCertifications = async (req, res) => {
   try {
@@ -109,19 +108,6 @@ const uploadCertification = async (req, res) => {
 
     const fileUrl = `/uploads/${req.file.filename}`;
 
-    // Extract text content from PDF if uploaded certificate is a PDF
-    let extractedText = '';
-    if (req.file.mimetype === 'application/pdf' && fs.existsSync(req.file.path)) {
-      try {
-        const dataBuffer = fs.readFileSync(req.file.path);
-        const parser = new pdf.PDFParse({});
-        await parser.load(dataBuffer);
-        extractedText = await parser.getText() || '';
-      } catch (err) {
-        console.error('PDF text extraction failed:', err);
-      }
-    }
-
     const cert = await Certification.create({
       employeeId: targetEmployeeId,
       name,
@@ -129,7 +115,7 @@ const uploadCertification = async (req, res) => {
       issueDate,
       expiryDate: expiryDate || null,
       fileUrl,
-      extractedText
+      extractedText: ''
     });
 
 
@@ -186,19 +172,7 @@ const updateCertification = async (req, res) => {
     if (req.file) {
       cert.fileUrl = `/uploads/${req.file.filename}`;
 
-      // Extract text content if PDF
-      let extractedText = '';
-      if (req.file.mimetype === 'application/pdf' && fs.existsSync(req.file.path)) {
-        try {
-          const dataBuffer = fs.readFileSync(req.file.path);
-          const parser = new pdf.PDFParse({});
-          await parser.load(dataBuffer);
-          extractedText = await parser.getText() || '';
-        } catch (err) {
-          console.error('PDF text extraction failed:', err);
-        }
-      }
-      cert.extractedText = extractedText;
+      cert.extractedText = '';
     }
 
     await cert.save();

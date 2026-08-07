@@ -282,7 +282,7 @@ const PipWorkspace = () => {
           {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && (
             <button
               onClick={() => handleInitiatePip(null)}
-              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
             >
               <Plus size={18} />
               <span>Initiate New PIP</span>
@@ -491,7 +491,7 @@ const PipWorkspace = () => {
             {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && (
               <button
                 onClick={() => handleInitiatePip(null)}
-                className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-xl cursor-pointer shadow-md transition-all flex items-center gap-1.5 shrink-0"
               >
                 <Plus size={14} />
                 <span>Initiate PIP</span>
@@ -1064,7 +1064,7 @@ const PipWorkspace = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-semibold px-5 py-2 rounded-xl shadow-xs cursor-pointer transition-colors text-xs"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 text-xs"
                 >
                   Initiate Plan
                 </button>
@@ -1098,7 +1098,7 @@ const PipWorkspace = () => {
           modalSubtitle = 'Provide final HR action/resolution notes to conclude this performance plan.';
           inputLabel = 'Provide Final HR Resolution Details';
           placeholderText = "Provide details on the final outcome (e.g. employee termination per policy, role reassignment, cycle extension, etc.)...";
-          submitBtnClass = 'bg-sky-600 hover:bg-sky-700';
+          submitBtnClass = 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700';
           submitBtnText = 'Resolve & Close Plan';
         }
 

@@ -367,7 +367,7 @@ const Certifications = () => {
               className={`flex items-center gap-1.5 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer ${
                 !activeCycleExists
                   ? 'bg-slate-800 text-slate-500 border border-slate-700 opacity-60 cursor-not-allowed'
-                  : 'bg-sky-500 hover:bg-sky-400 text-slate-950'
+                  : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold shadow-md hover:shadow-lg transition-all duration-200'
               }`}
             >
               <Plus size={16} />
@@ -741,7 +741,7 @@ const Certifications = () => {
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                 >
                   {uploading ? (
                     <>

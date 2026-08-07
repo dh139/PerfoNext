@@ -13,7 +13,6 @@ const WorkJournal = require('../models/WorkJournal');
 const WorkJournalTemplate = require('../models/WorkJournalTemplate');
 const fs = require('fs');
 const path = require('path');
-const pdf = require('pdf-parse');
 
 // Helper to calculate months in range
 const getMonthsInRange = (startDate, endDate) => {
@@ -201,24 +200,7 @@ const generateAndSaveInsights = async (employeeId, cycleId) => {
     status: { $in: ['approved', 'verified'] }
   }).sort('-completedDate');
 
-  // Auto-heal certifications pdf text extraction
-  for (const c of certifications) {
-    if (!c.extractedText || !c.extractedText.trim()) {
-      const filename = path.basename(c.fileUrl);
-      const absolutePath = path.join(__dirname, '../uploads', filename);
-      if (fs.existsSync(absolutePath) && filename.toLowerCase().endsWith('.pdf')) {
-        try {
-          const dataBuffer = fs.readFileSync(absolutePath);
-          const parser = new pdf.PDFParse({});
-          await parser.load(dataBuffer);
-          c.extractedText = await parser.getText() || '';
-          await Certification.findByIdAndUpdate(c._id, { extractedText: c.extractedText });
-        } catch (err) {
-          console.error(`Retroactive PDF text extraction failed for cert ${c._id}:`, err);
-        }
-      }
-    }
-  }
+  // PDF text extraction is disabled.
 
   const deptId = employee.departmentId?._id || employee.departmentId;
   const journalTemplate = deptId ? await WorkJournalTemplate.findOne({ departmentId: deptId }) : null;

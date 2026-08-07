@@ -211,7 +211,7 @@ const PromotionsWorkspace = () => {
                 if (employees.length > 0) handleEmployeeChange(employees[0]._id);
                 setShowCreateModal(true);
               }}
-              className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all cursor-pointer shrink-0"
             >
               <Plus size={18} />
               <span>Recommend Promotion</span>
@@ -660,7 +660,7 @@ const PromotionsWorkspace = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="bg-sky-700 hover:bg-sky-800 disabled:opacity-50 text-white font-semibold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors flex items-center gap-2"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? 'Submitting...' : 'Submit Recommendation'}
                 </button>

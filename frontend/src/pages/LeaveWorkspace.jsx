@@ -80,7 +80,7 @@ const LeaveWorkspace = () => {
     if (isManagement) {
       fetchAllLeaves();
     }
-    if (isHR) {
+    if (isHR || user?.role === 'executive') {
       fetchPendingLeaves();
     }
   }, [user]);
@@ -317,7 +317,7 @@ const LeaveWorkspace = () => {
             <span>Leave Dashboard</span>
           </button>
 
-          {isHR && (
+          {(isHR || user?.role === 'executive') && (
             <button
               onClick={() => setActiveTab('hr')}
               className={`px-5 py-2 text-xs font-extrabold rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
@@ -325,7 +325,7 @@ const LeaveWorkspace = () => {
               }`}
             >
               <ListTodo size={14} />
-              <span>HR Approval Desk</span>
+              <span>{user?.role === 'executive' ? 'CEO Approval Desk' : 'HR Approval Desk'}</span>
               {pendingLeaves.length > 0 && (
                 <span className="w-5 h-5 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
                   {pendingLeaves.length}
@@ -526,8 +526,8 @@ const LeaveWorkspace = () => {
                         {leave.status === 'rejected' && leave.rejectionReason 
                           ? `Rejected: "${leave.rejectionReason}"` 
                           : leave.status === 'approved' 
-                          ? 'Approved by HR' 
-                          : 'Awaiting HR decision'}
+                          ? (['hr', 'manager'].includes(user?.role) ? 'Approved by CEO' : 'Approved by HR') 
+                          : (['hr', 'manager'].includes(user?.role) ? 'Awaiting CEO decision' : 'Awaiting HR decision')}
                       </td>
                     </tr>
                   ))}
@@ -538,8 +538,8 @@ const LeaveWorkspace = () => {
         </div>
       )}
 
-      {/* TAB CONTENT: HR APPROVAL DESK */}
-      {activeTab === 'hr' && isHR && (
+      {/* TAB CONTENT: HR/CEO APPROVAL DESK */}
+      {activeTab === 'hr' && (isHR || user?.role === 'executive') && (
         <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <h2 className="font-extrabold text-sm text-slate-800">Pending Approvals Desk</h2>

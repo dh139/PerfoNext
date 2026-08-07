@@ -399,7 +399,7 @@ const SkillMatrix = () => {
                   setNewSkillDesgId('');
                   setShowSkillModal(true);
                 }}
-                className="flex items-center gap-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-2xl shadow-lg transition-all cursor-pointer"
               >
                 <Plus size={16} />
                 <span>Add Skill Competency</span>
@@ -875,7 +875,7 @@ const SkillMatrix = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-sky-700 hover:bg-sky-850 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-colors"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200"
                 >
                   Save Skill
                 </button>

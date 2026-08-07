@@ -691,7 +691,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         attendanceRecordsCount: attendancePunches.length
       };
 
-      const { finalScore, rating, workLogScore, competencyScore, attendanceScore, certScore, awardScore } = calculateReviewScores(managerReview, extraMetrics);
+      const { finalScore, rating } = calculateReviewScores(managerReview, extraMetrics);
 
       let reviewScore = await ReviewScore.findOne({ reviewCycleId, employeeId });
       const before = reviewScore ? reviewScore.toObject() : null;

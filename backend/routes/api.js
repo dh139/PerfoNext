@@ -203,7 +203,7 @@ router.delete('/attendance/holidays/:id', verifyToken, authorizeRoles('executive
 // Leave Requests
 router.post('/leaves', verifyToken, leaveController.submitLeave);
 router.get('/leaves', verifyToken, leaveController.getMyLeaves);
-router.get('/leaves/pending', verifyToken, authorizeRoles('hr', 'admin'), leaveController.getPendingLeaves);
+router.get('/leaves/pending', verifyToken, authorizeRoles('hr', 'admin', 'executive'), leaveController.getPendingLeaves);
 router.get('/leaves/all', verifyToken, authorizeRoles('hr', 'admin', 'executive'), leaveController.getAllLeaves);
-router.post('/leaves/:id/review', verifyToken, authorizeRoles('hr', 'admin'), leaveController.reviewLeave);
+router.post('/leaves/:id/review', verifyToken, authorizeRoles('hr', 'admin', 'executive'), leaveController.reviewLeave);
 module.exports = router;

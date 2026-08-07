@@ -129,8 +129,7 @@ function HolidayModal({ mode, holiday, onClose, onSave }) {
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 font-black rounded-xl disabled:opacity-60 cursor-pointer transition-all text-slate-950"
-              style={{ background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', boxShadow: '0 4px 12px rgba(14,165,233,0.2)' }}
+              className="flex items-center gap-2 px-5 py-2.5 font-bold rounded-xl disabled:opacity-60 cursor-pointer transition-all bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
               {mode === 'create' ? 'Add Holiday' : 'Save Changes'}
@@ -277,8 +276,7 @@ export default function HolidayCalendarPage() {
           {canEdit && (
             <button
               onClick={() => setModal({ mode: 'create', holiday: null })}
-              className="flex items-center gap-2 px-5 py-2.5 font-black rounded-xl shrink-0 cursor-pointer transition-all text-slate-950 text-xs self-stretch md:self-auto justify-center"
-              style={{ background: 'linear-gradient(135deg, #38bdf8, #0ea5e9)', boxShadow: '0 4px 16px rgba(14,165,233,0.3)' }}
+              className="flex items-center gap-2 px-5 py-2.5 font-bold rounded-xl shrink-0 cursor-pointer transition-all bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg text-xs self-stretch md:self-auto justify-center"
             >
               <Plus size={16} />
               Add Holiday

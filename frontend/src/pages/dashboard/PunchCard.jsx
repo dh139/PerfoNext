@@ -78,6 +78,27 @@ const PunchCard = () => {
     return Math.max(0, diffMins);
   };
 
+  const getExpectedStatusOnPunchOut = () => {
+    const presentMins = (settings?.presentHours || 8) * 60;
+    const halfDayMins = (settings?.halfDayHours || 4) * 60;
+
+    let isEarlyExitPresent = false;
+    if (settings?.allowEarlyExit && settings?.earlyExitTime) {
+      const earlyExitLimit = parseTimeStr(settings.earlyExitTime);
+      if (nowMs >= earlyExitLimit.getTime()) {
+        isEarlyExitPresent = true;
+      }
+    }
+
+    if (currentNetMins >= presentMins || isEarlyExitPresent) {
+      return 'Present';
+    } else if (currentNetMins >= halfDayMins) {
+      return 'Half Day';
+    } else {
+      return 'Absent';
+    }
+  };
+
   const formatDuration = (mins) => {
     if (!mins && mins !== 0) return '00h 00m';
     const h = Math.floor(mins / 60);
@@ -500,7 +521,7 @@ const PunchCard = () => {
                 Your net working hours are currently <strong className="text-slate-800">{formatDuration(currentNetMins)}</strong> (Target: {settings?.presentHours || 8}h). 
               </p>
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-[11px] text-amber-800 font-bold leading-relaxed">
-                ⚠️ If you do punch out then this counted as half day.
+                ⚠️ If you do punch out then this counted as {getExpectedStatusOnPunchOut() === 'Absent' ? 'Absent' : 'Half Day'}.
               </div>
               <p className="text-[11px] text-slate-450 font-medium">
                 Are you sure you want to proceed with Punching Out?

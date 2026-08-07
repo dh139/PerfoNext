@@ -25,31 +25,39 @@ const submitLeave = async (req, res) => {
       status: 'pending'
     });
 
-    // Fetch employee detail to get their name
+    // Fetch employee detail to get their name and role
     const employee = await User.findById(req.user.id);
     const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'An employee';
+    const employeeRole = employee ? employee.role : 'employee';
 
-    // Find all HR Managers and Administrators
-    const hrUsers = await User.find({ role: { $in: ['hr', 'admin'] } });
+    // Determine target notification users (hierarchy-based)
+    let targetUsers = [];
+    if (['hr', 'manager'].includes(employeeRole)) {
+      // HR and Reporting Managers are approved by CEO (role: executive)
+      targetUsers = await User.find({ role: 'executive' });
+    } else {
+      // Standard employees are approved by HR/Admin
+      targetUsers = await User.find({ role: { $in: ['hr', 'admin'] } });
+    }
 
-    // Send notifications & emails to HR/Admin users
-    for (const hr of hrUsers) {
+    // Send notifications & emails to reviewers
+    for (const user of targetUsers) {
       // In-app alert
       await Notification.create({
-        userId: hr._id,
+        userId: user._id,
         type: 'leave_submitted',
         message: `New leave request "${title.trim()}" submitted by ${employeeName}.`
-      }).catch(err => console.error('Failed to create HR in-app leave notification:', err));
+      }).catch(err => console.error('Failed to create in-app leave notification:', err));
 
       // Email alert
       await emailService.sendLeaveSubmittedEmail(
-        hr.email,
+        user.email,
         employeeName,
         title.trim(),
         fromDate,
         toDate,
         reason.trim()
-      ).catch(err => console.error(`Failed to send HR leave email to ${hr.email}:`, err));
+      ).catch(err => console.error(`Failed to send leave email to ${user.email}:`, err));
     }
 
     res.status(201).json(leave);
@@ -74,17 +82,26 @@ const getMyLeaves = async (req, res) => {
 };
 
 /**
- * Get all pending leave requests (HR only)
+ * Get all pending leave requests filtered by hierarchy (HR only sees employees, CEO only sees HR/Managers)
  */
 const getPendingLeaves = async (req, res) => {
   try {
-    if (req.user.role !== 'hr' && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Only HR can review leaves.' });
+    const reviewerRole = req.user.role;
+    if (!['hr', 'admin', 'executive'].includes(reviewerRole)) {
+      return res.status(403).json({ message: 'Access denied. Only HR, Admin, and CEO can review leaves.' });
     }
 
-    const leaves = await LeaveRequest.find({ status: 'pending' })
+    let leaves = await LeaveRequest.find({ status: 'pending' })
       .populate('employeeId', 'firstName lastName employeeCode role')
       .sort({ createdAt: -1 });
+
+    if (reviewerRole === 'executive') {
+      // CEO only sees HR and Manager applications
+      leaves = leaves.filter(l => l.employeeId && ['hr', 'manager'].includes(l.employeeId.role));
+    } else {
+      // HR and Admin only see employee applications
+      leaves = leaves.filter(l => l.employeeId && l.employeeId.role === 'employee');
+    }
 
     res.json(leaves);
   } catch (error) {
@@ -94,12 +111,13 @@ const getPendingLeaves = async (req, res) => {
 };
 
 /**
- * Approve or reject a leave request (HR only)
+ * Approve or reject a leave request
  */
 const reviewLeave = async (req, res) => {
   try {
-    if (req.user.role !== 'hr' && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied. Only HR can review leaves.' });
+    const reviewerRole = req.user.role;
+    if (!['hr', 'admin', 'executive'].includes(reviewerRole)) {
+      return res.status(403).json({ message: 'Access denied.' });
     }
 
     const { id } = req.params;
@@ -118,6 +136,27 @@ const reviewLeave = async (req, res) => {
       return res.status(400).json({ message: 'This leave request has already been reviewed.' });
     }
 
+    // Fetch employee details to verify role
+    const employee = await User.findById(leave.employeeId);
+    if (!employee) {
+      return res.status(404).json({ message: 'Employee not found.' });
+    }
+
+    const employeeRole = employee.role;
+
+    // Hierarchy validation:
+    // HR and Manager leaves must be reviewed by CEO ('executive')
+    // Employee leaves must be reviewed by HR/Admin ('hr', 'admin')
+    if (['hr', 'manager'].includes(employeeRole)) {
+      if (reviewerRole !== 'executive') {
+        return res.status(403).json({ message: 'Access denied. HR and Manager leaves can only be reviewed by the CEO.' });
+      }
+    } else {
+      if (reviewerRole !== 'hr' && reviewerRole !== 'admin') {
+        return res.status(403).json({ message: 'Access denied. Employee leaves can only be reviewed by HR Managers.' });
+      }
+    }
+
     leave.status = status;
     leave.approvedBy = req.user.id;
     if (status === 'rejected') {
@@ -126,10 +165,8 @@ const reviewLeave = async (req, res) => {
 
     await leave.save();
 
-    // Fetch employee details to get email & name
-    const employee = await User.findById(leave.employeeId);
-    const employeeName = employee ? `${employee.firstName} ${employee.lastName}` : 'Employee';
-    const employeeEmail = employee ? employee.email : '';
+    const employeeName = `${employee.firstName} ${employee.lastName}`;
+    const employeeEmail = employee.email;
 
     // Notify Employee
     const fromStr = new Date(leave.fromDate).toLocaleDateString('en-GB');

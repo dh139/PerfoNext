@@ -322,7 +322,7 @@ const UserManagement = () => {
             </div>
             <h1 className="text-xl lg:text-2xl font-black tracking-tight text-white">Enterprise User & Privilege Directory</h1>
           </div>
-          <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl shadow-lg transition-colors shrink-0 cursor-pointer">
+          <button onClick={handleOpenCreate} className="flex items-center gap-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-5 py-3 rounded-2xl shadow-lg transition-all shrink-0 cursor-pointer">
             <Plus size={18} /><span>Register Employee</span>
           </button>
         </div>
@@ -871,7 +871,7 @@ const UserManagement = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    className="px-6 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {isSubmitting ? (
                       <span className="flex items-center gap-2">
