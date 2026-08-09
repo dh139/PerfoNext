@@ -8,16 +8,21 @@ const User = require('../models/User');
 function getWeekdayCount(monthStr, configWeekends, holidayDates, joiningDate) {
   const [year, month] = monthStr.split('-').map(Number);
   const now = new Date();
-  const isCurrentMonth = (now.getFullYear() === year && (now.getMonth() + 1) === month);
+  const isCurrentMonth = (now.getUTCFullYear() === year && (now.getUTCMonth() + 1) === month);
 
-  let startDate = new Date(year, month - 1, 1);
-  const endDate = isCurrentMonth ? now : new Date(year, month, 0);
+  let startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+  let endDate;
+  if (isCurrentMonth) {
+    endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+  } else {
+    endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  }
 
   // If joiningDate is in this month, start counting from joiningDate!
   if (joiningDate) {
     const joinDateObj = new Date(joiningDate);
-    if (joinDateObj.getFullYear() === year && (joinDateObj.getMonth() + 1) === month) {
-      startDate = new Date(year, month - 1, joinDateObj.getDate());
+    if (joinDateObj.getUTCFullYear() === year && (joinDateObj.getUTCMonth() + 1) === month) {
+      startDate = new Date(Date.UTC(year, month - 1, joinDateObj.getUTCDate(), 0, 0, 0, 0));
     }
   }
 
@@ -25,9 +30,9 @@ function getWeekdayCount(monthStr, configWeekends, holidayDates, joiningDate) {
   const holidays = holidayDates || new Set();
 
   let count = 0;
-  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
     const dateStr = d.toISOString().split('T')[0];
-    if (!weekends.includes(d.getDay()) && !holidays.has(dateStr)) count++;
+    if (!weekends.includes(d.getUTCDay()) && !holidays.has(dateStr)) count++;
   }
   return Math.max(1, count);
 }

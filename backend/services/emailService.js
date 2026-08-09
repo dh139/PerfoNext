@@ -322,9 +322,23 @@ const sendPipCreatedEmail = async (toEmail, employeeName, startDate, endDate) =>
   });
 };
 
-const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes) => {
-  const isEscalate = status.toLowerCase() === 'escalated';
-  const statusLabel = isEscalate ? 'ESCALATED TO HR' : 'SUCCESSFULLY CLOSED';
+const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes, newEndDate) => {
+  const statusLower = status.toLowerCase();
+  
+  let statusLabel = 'SUCCESSFULLY CLOSED';
+  let isPositive = true;
+  let isExtension = false;
+  
+  if (statusLower === 'unsuccessful') {
+    statusLabel = 'CLOSED - UNSUCCESSFUL';
+    isPositive = false;
+  } else if (statusLower === 'escalated') {
+    statusLabel = 'ESCALATED TO HR';
+    isPositive = false;
+  } else if (statusLower === 'extended') {
+    statusLabel = 'EXTENDED';
+    isExtension = true;
+  }
   
   const subject = `Your Performance Improvement Plan (PIP) Status: ${statusLabel}`;
   const text = `Hello ${employeeName},\n\nYour Performance Improvement Plan (PIP) has been updated.\nStatus: ${statusLabel}\n\nDetails / Notes:\n"${notes || 'No notes provided.'}"\n\nBest regards,\nPerfoNext Team`;
@@ -335,12 +349,18 @@ const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes) =
       <p style="margin-top: 0;">Hello <strong>${employeeName}</strong>,</p>
       <p>Your Performance Improvement Plan (PIP) status has been updated by your evaluator.</p>
       
-      <div style="background-color: ${isEscalate ? '#fff1f2' : '#f0fdf4'}; border: 1px solid ${isEscalate ? '#fecdd3' : '#bbf7d0'}; border-radius: 12px; padding: 18px; margin: 24px 0;">
+      <div style="background-color: ${isExtension ? '#fffbeb' : (!isPositive ? '#fff1f2' : '#f0fdf4')}; border: 1px solid ${isExtension ? '#fde68a' : (!isPositive ? '#fecdd3' : '#bbf7d0')}; border-radius: 12px; padding: 18px; margin: 24px 0;">
         <table width="100%" cellpadding="6" cellspacing="0" style="border-collapse: collapse;">
           <tr>
             <td width="35%" style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">Current Status:</td>
-            <td style="color: ${isEscalate ? '#be123c' : '#15803d'}; font-weight: bold; font-size: 13px; padding: 4px 0; text-transform: uppercase;">${statusLabel}</td>
+            <td style="color: ${isExtension ? '#b45309' : (!isPositive ? '#be123c' : '#15803d')}; font-weight: bold; font-size: 13px; padding: 4px 0; text-transform: uppercase;">${statusLabel}</td>
           </tr>
+          ${newEndDate ? `
+          <tr>
+            <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0;">New End Date:</td>
+            <td style="color: #1e293b; font-weight: bold; font-size: 13px; padding: 4px 0;">${new Date(newEndDate).toLocaleDateString('en-GB')}</td>
+          </tr>
+          ` : ''}
           <tr>
             <td style="color: #64748b; font-weight: 600; font-size: 13px; padding: 4px 0; vertical-align: top;">Notes / Remarks:</td>
             <td style="color: #1e293b; font-style: italic; font-size: 13px; padding: 4px 0;">"${notes || 'No notes provided.'}"</td>
@@ -348,9 +368,13 @@ const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes) =
         </table>
       </div>
 
-      <p>${isEscalate 
+      <p>${statusLower === 'escalated' 
         ? 'Since the plan was escalated, the HR department will contact you shortly to schedule a review session.' 
-        : 'Congratulations on successfully completing the improvement plan. No further targets are active under this plan.'}</p>
+        : (statusLower === 'unsuccessful'
+          ? 'The improvement plan has been closed as unsuccessful. Your evaluator or HR department will contact you to discuss next steps.'
+          : (statusLower === 'extended'
+            ? 'Your Performance Improvement Plan has been extended to allow more time for goals completion and coaching.'
+            : 'Congratulations on successfully completing the improvement plan. No further targets are active under this plan.'))}</p>
     `
   );
 

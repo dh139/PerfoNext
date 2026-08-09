@@ -113,7 +113,7 @@ router.get('/audit-logs', verifyToken, authorizeRoles('admin', 'hr', 'executive'
 // PIP Routes
 router.get('/pips/suggestions', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), pipController.getPipSuggestions);
 router.get('/pips', verifyToken, pipController.getPips);
-router.post('/pips', verifyToken, authorizeRoles('admin', 'hr', 'executive'), pipController.createPip);
+router.post('/pips', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), pipController.createPip);
 router.patch('/pips/:id', verifyToken, pipController.updatePip);
 
 // Promotion Routes

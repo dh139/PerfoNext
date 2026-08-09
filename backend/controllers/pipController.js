@@ -27,8 +27,8 @@ const getPipSuggestions = async (req, res) => {
     const suggestions = [];
 
     for (const emp of employees) {
-      // Check if employee already has an active PIP
-      const activePip = await Pip.findOne({ employeeId: emp._id, status: 'active' });
+      // Check if employee already has an active or escalated PIP
+      const activePip = await Pip.findOne({ employeeId: emp._id, status: { $in: ['active', 'escalated'] } });
       if (activePip) {
         continue;
       }
@@ -88,7 +88,8 @@ const getPips = async (req, res) => {
         populate: { path: 'departmentId designationId' }
       })
       .populate({ path: 'managerId', select: 'firstName lastName email' })
-      .populate({ path: 'hrReviewerId', select: 'firstName lastName email' });
+      .populate({ path: 'hrReviewerId', select: 'firstName lastName email' })
+      .sort({ createdAt: -1 });
 
     res.json(pips);
   } catch (error) {
@@ -99,7 +100,7 @@ const getPips = async (req, res) => {
 
 const createPip = async (req, res) => {
   try {
-    const { employeeId, triggerReviewScoreId, startDate, endDate, goals, managerId, hrReviewerId } = req.body;
+    const { employeeId, triggerReviewScoreId, startDate, endDate, goals, managerId, hrReviewerId, reason } = req.body;
 
     const pip = await Pip.create({
       employeeId,
@@ -109,6 +110,7 @@ const createPip = async (req, res) => {
       goals: goals || [],
       managerId,
       hrReviewerId,
+      reason: reason || '',
       status: 'active'
     });
 
@@ -118,7 +120,7 @@ const createPip = async (req, res) => {
     // Notify employee
     await Notification.create({
       userId: employeeId,
-      type: 'review_assigned', // Reused code type
+      type: 'review_assigned',
       message: `You have been placed on a Performance Improvement Plan (PIP) starting ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}. Please review your goals.`
     });
 
@@ -146,7 +148,7 @@ const createPip = async (req, res) => {
 const updatePip = async (req, res) => {
   try {
     const { id } = req.params;
-    const { goals, status, closureNotes } = req.body;
+    const { goals, status, closureNotes, endDate } = req.body;
 
     const oldPip = await Pip.findById(id);
     if (!oldPip) {
@@ -158,20 +160,20 @@ const updatePip = async (req, res) => {
       if (oldPip.employeeId.toString() !== req.user.id) {
         return res.status(403).json({ message: 'Unauthorized. You can only update your own assigned PIP goals.' });
       }
-      if (status || closureNotes) {
-        return res.status(403).json({ message: 'Employees can only update goal progress, not close or escalate PIP status.' });
+      if (status || closureNotes || endDate) {
+        return res.status(403).json({ message: 'Employees can only update goal progress, not close, extend, or update PIP outcomes.' });
       }
     }
 
-    if (status) {
+    if (status || endDate || closureNotes) {
       const reviewerId = oldPip.hrReviewerId?.toString();
       const currentUserId = req.user.id?.toString();
-      const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
+      const isDesignatedReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
       const isLeadership = req.user.role === 'admin' || req.user.role === 'executive';
 
-      if (!isDesignatedHrReviewer && !isLeadership) {
+      if (!isDesignatedReviewer && !isLeadership) {
         return res.status(403).json({
-          message: 'Forbidden. Only the designated HR Overseer / Reviewer or leadership can close or escalate this PIP.'
+          message: 'Forbidden. Only the designated Reviewer or leadership can evaluate or close this PIP.'
         });
       }
     }
@@ -180,20 +182,34 @@ const updatePip = async (req, res) => {
     if (goals) updates.goals = goals;
     if (status) updates.status = status;
     if (closureNotes) updates.closureNotes = closureNotes;
+    if (endDate) updates.endDate = endDate;
 
     const updatedPip = await Pip.findByIdAndUpdate(id, updates, { new: true })
       .populate({ path: 'employeeId', select: 'firstName lastName email' });
 
-    // Notify employee on closure
-    if (status && oldPip.status !== status) {
+    // Notify employee on outcome update or date extension
+    const hasStatusChanged = status && oldPip.status !== status;
+    const hasEndDateChanged = endDate && new Date(oldPip.endDate).getTime() !== new Date(endDate).getTime();
+
+    if (hasStatusChanged || hasEndDateChanged) {
+      let notificationMessage = '';
+      let emailStatusLabel = status || oldPip.status;
+
+      if (hasEndDateChanged && (status === 'active' || oldPip.status === 'active')) {
+        notificationMessage = `Your Performance Improvement Plan (PIP) has been extended to ${new Date(endDate).toLocaleDateString()}. Notes: ${closureNotes || 'None'}`;
+        emailStatusLabel = 'extended';
+      } else {
+        notificationMessage = `Your Performance Improvement Plan (PIP) outcome is: ${(status || '').toUpperCase()}. Closure Notes: ${closureNotes || 'None'}`;
+      }
+
       await Notification.create({
         userId: updatedPip.employeeId._id,
         type: 'review_completed',
-        message: `Your Performance Improvement Plan (PIP) has been updated to: ${status.toUpperCase()}. closure notes: ${closureNotes || 'None'}`
+        message: notificationMessage
       });
 
       if (updatedPip.employeeId && updatedPip.employeeId.email) {
-        await sendPipStatusUpdatedEmail(updatedPip.employeeId.email, `${updatedPip.employeeId.firstName} ${updatedPip.employeeId.lastName}`, status, closureNotes)
+        await sendPipStatusUpdatedEmail(updatedPip.employeeId.email, `${updatedPip.employeeId.firstName} ${updatedPip.employeeId.lastName}`, emailStatusLabel, closureNotes, endDate)
           .catch(err => console.error('PIP status update email send failed:', err));
       }
     }

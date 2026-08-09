@@ -40,9 +40,14 @@ const pipSchema = new mongoose.Schema(
       required: true
     },
     goals: [pipGoalSchema],
+    reason: {
+      type: String,
+      default: '',
+      trim: true
+    },
     status: {
       type: String,
-      enum: ['active', 'closed', 'escalated'],
+      enum: ['active', 'successful', 'unsuccessful'],
       default: 'active',
       required: true,
       index: true

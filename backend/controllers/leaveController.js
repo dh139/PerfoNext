@@ -132,6 +132,10 @@ const reviewLeave = async (req, res) => {
       return res.status(404).json({ message: 'Leave request not found.' });
     }
 
+    if (leave.employeeId.toString() === req.user.id.toString()) {
+      return res.status(400).json({ message: 'You cannot approve or reject your own leave request.' });
+    }
+
     if (leave.status !== 'pending') {
       return res.status(400).json({ message: 'This leave request has already been reviewed.' });
     }

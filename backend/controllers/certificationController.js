@@ -89,8 +89,26 @@ const uploadCertification = async (req, res) => {
         roleMatches = userRole === 'employee';
       }
 
-      return deptMatches && roleMatches;
+      if (deptMatches && roleMatches) {
+        const cStart = new Date(c.startDate);
+        const cEnd = new Date(c.endDate);
+        cStart.setUTCHours(0, 0, 0, 0);
+        cEnd.setUTCHours(23, 59, 59, 999);
+        const certIssueDate = new Date(issueDate);
+        return certIssueDate >= cStart && certIssueDate <= cEnd;
+      }
+      return false;
     });
+
+    // Validate issueDate is after joiningDate
+    const joinDate = new Date(targetUser.joiningDate);
+    const certIssueDate = new Date(issueDate);
+    if (certIssueDate < joinDate) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      return res.status(400).json({ message: 'Certification issue date cannot be before your joining date.' });
+    }
 
     const isUserAdminOrCEO = req.user.role === 'admin' || req.user.role === 'executive';
     if (!isTargetCycleActive && !isUserAdminOrCEO) {
@@ -98,7 +116,7 @@ const uploadCertification = async (req, res) => {
         try { fs.unlinkSync(req.file.path); } catch (e) {}
       }
       return res.status(400).json({
-        message: `Cannot upload certification for ${targetUser.firstName} ${targetUser.lastName}. There is no active review cycle open for their department and role.`
+        message: `Cannot upload certification. The certification issue date (${issueDate}) must fall within the duration of an active review cycle open for your department and role.`
       });
     }
 

@@ -1,6 +1,7 @@
 const WorkJournal = require('../models/WorkJournal');
 const User = require('../models/User');
 const ProjectStatus = require('../models/ProjectStatus');
+const ReviewCycle = require('../models/ReviewCycle');
 const { logAction } = require('../utils/logger');
 
 /**
@@ -126,6 +127,38 @@ const createWorkJournalItem = async (req, res) => {
       return res.status(400).json({ message: 'Achievement title and category are required.' });
     }
 
+    // Closed Review Cycle Isolation Check
+    const targetDate = completedDate ? new Date(completedDate) : new Date();
+    const closedCycles = await ReviewCycle.find({ status: 'closed' });
+    const user = await User.findById(req.user.id);
+    const userDeptId = user?.departmentId?.toString();
+    const userRole = user?.role;
+
+    const isInClosedCycle = closedCycles.some(c => {
+      const cycleDeptId = c.departmentId?.toString();
+      const deptMatches = !cycleDeptId || (userDeptId && cycleDeptId === userDeptId);
+
+      let roleMatches = true;
+      if (c.targetRole === 'manager') {
+        roleMatches = userRole === 'manager' || userRole === 'hr';
+      } else if (c.targetRole === 'employee') {
+        roleMatches = userRole === 'employee';
+      }
+
+      if (deptMatches && roleMatches) {
+        const cStart = new Date(c.startDate);
+        const cEnd = new Date(c.endDate);
+        cStart.setUTCHours(0, 0, 0, 0);
+        cEnd.setUTCHours(23, 59, 59, 999);
+        return targetDate >= cStart && targetDate <= cEnd;
+      }
+      return false;
+    });
+
+    if (isInClosedCycle && req.user.role === 'employee') {
+      return res.status(400).json({ message: 'Cannot submit work logs for a date that falls within a closed review cycle.' });
+    }
+
     let finalEvidenceUrl = (evidenceUrl || '').trim();
     if (req.file) {
       finalEvidenceUrl = `/uploads/${req.file.filename}`;
@@ -147,7 +180,15 @@ const createWorkJournalItem = async (req, res) => {
       isLocked: false
     });
 
-    await logAction(req.user.id, 'CREATE_WORK_JOURNAL', 'WorkJournal', item._id, { title: item.title, category: item.category });
+    await logAction({
+      req,
+      userId: req.user.id,
+      action: 'CREATE_WORK_JOURNAL',
+      module: 'WorkJournal',
+      entityType: 'WorkJournal',
+      entityId: item._id,
+      after: { title: item.title, category: item.category }
+    });
 
     res.status(201).json(item);
   } catch (error) {
@@ -186,6 +227,39 @@ const updateWorkJournalItem = async (req, res) => {
         updateData.customFieldsData = {};
       }
     }
+
+    // Closed Review Cycle Isolation Check for Edits
+    const targetDate = updateData.completedDate ? new Date(updateData.completedDate) : new Date(item.completedDate);
+    const closedCycles = await ReviewCycle.find({ status: 'closed' });
+    const user = await User.findById(req.user.id);
+    const userDeptId = user?.departmentId?.toString();
+    const userRole = user?.role;
+
+    const isInClosedCycle = closedCycles.some(c => {
+      const cycleDeptId = c.departmentId?.toString();
+      const deptMatches = !cycleDeptId || (userDeptId && cycleDeptId === userDeptId);
+
+      let roleMatches = true;
+      if (c.targetRole === 'manager') {
+        roleMatches = userRole === 'manager' || userRole === 'hr';
+      } else if (c.targetRole === 'employee') {
+        roleMatches = userRole === 'employee';
+      }
+
+      if (deptMatches && roleMatches) {
+        const cStart = new Date(c.startDate);
+        const cEnd = new Date(c.endDate);
+        cStart.setUTCHours(0, 0, 0, 0);
+        cEnd.setUTCHours(23, 59, 59, 999);
+        return targetDate >= cStart && targetDate <= cEnd;
+      }
+      return false;
+    });
+
+    if (isInClosedCycle && req.user.role === 'employee') {
+      return res.status(400).json({ message: 'Cannot edit work logs for a date that falls within a closed review cycle.' });
+    }
+
     if (item.status === 'approved' || item.status === 'needs_changes') {
       updateData.status = 'submitted';
       updateData.isLocked = false;
@@ -330,10 +404,18 @@ const reviewWorkJournalItem = async (req, res) => {
 
     await item.save();
 
-    await logAction(req.user.id, 'REVIEW_WORK_JOURNAL', 'WorkJournal', item._id, {
-      title: item.title,
-      status: item.status,
-      employeeId: item.employeeId?._id
+    await logAction({
+      req,
+      userId: req.user.id,
+      action: 'REVIEW_WORK_JOURNAL',
+      module: 'WorkJournal',
+      entityType: 'WorkJournal',
+      entityId: item._id,
+      after: {
+        title: item.title,
+        status: item.status,
+        employeeId: item.employeeId?._id
+      }
     });
 
     res.json(item);

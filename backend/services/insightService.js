@@ -351,9 +351,9 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
 
     let totalDays = 0;
     const dTemp = new Date(startBound);
-    for (let d = dTemp; d <= endBound; d.setDate(d.getDate() + 1)) {
+    for (let d = dTemp; d <= endBound; d.setUTCDate(d.getUTCDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      if (!configWeekends.includes(d.getDay()) && !holidayDates.has(dateStr)) {
+      if (!configWeekends.includes(d.getUTCDay()) && !holidayDates.has(dateStr)) {
         totalDays++;
       }
     }
@@ -393,49 +393,6 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
     });
   }
 
-  // Calculate dynamic honest AI score in the backend
-  let workLogQualityScore = 5.0;
-  let loggingConsistency = 'Excellent';
-  let confidence = 'High';
-
-  if (actualLogsCount === 0) {
-    workLogQualityScore = 1.0;
-    loggingConsistency = 'Poor';
-    confidence = 'Low';
-  } else if (actualLogsCount <= 3) {
-    workLogQualityScore = 1.0;
-    loggingConsistency = 'Poor';
-    confidence = 'Low';
-  } else if (actualLogsCount <= 8) {
-    workLogQualityScore = 2.0;
-    loggingConsistency = 'Poor';
-    confidence = 'Medium';
-  } else if (actualLogsCount <= 20) {
-    workLogQualityScore = 3.0;
-    loggingConsistency = 'Moderate';
-    confidence = 'High';
-  } else if (actualLogsCount <= 45) {
-    workLogQualityScore = 4.0;
-    loggingConsistency = 'Good';
-    confidence = 'High';
-  }
-
-  let mgrCompAvg = 3.50;
-  if (managerReviews.length > 0) {
-    const mr = managerReviews[0];
-    if (mr.competencyRatings) {
-      const vals = Object.values(mr.competencyRatings).map(Number).filter(v => v > 0);
-      if (vals.length > 0) mgrCompAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    }
-  }
-
-  const attScore = Math.min(5.0, Math.max(1.0, (attendancePct / 100) * 5.0));
-  const certScore = certifications.length === 0 ? 3.0 : certifications.length === 1 ? 4.0 : 5.0;
-  const awardScore = awards.length === 0 ? 3.0 : awards.length === 1 ? 4.25 : 5.0;
-
-  const rawAiScore = (workLogQualityScore * 0.50) + (mgrCompAvg * 0.20) + (attScore * 0.10) + (certScore * 0.10) + (awardScore * 0.10);
-  const calculatedAiScore = Math.round(rawAiScore * 100) / 100;
-
   const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || '').trim();
   let modelName = (process.env.CHATGPT_MODEL || 'gpt-4o-mini').trim();
   
@@ -444,53 +401,86 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
     targetUrl = 'https://api.openai.com/v1/chat/completions';
   }
 
+  // Determine dynamic local fallback score using a holistic approach
+  let fallbackScore = 3.50;
+  let mgrCompAvg = 3.50;
+  if (managerReviews.length > 0) {
+    const mr = managerReviews[0];
+    if (mr.competencyRatings) {
+      const vals = Object.values(mr.competencyRatings).map(Number).filter(v => v > 0);
+      if (vals.length > 0) mgrCompAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    }
+  }
+  const attScore = Math.min(5.0, Math.max(1.0, (attendancePct / 100) * 5.0));
+  const certScore = certifications.length === 0 ? 3.0 : certifications.length === 1 ? 4.0 : 5.0;
+  const awardScore = awards.length === 0 ? 3.0 : awards.length === 1 ? 4.25 : 5.0;
+  
+  // Local fallback baseline: 40% Manager competency, 30% Work logs volume, 10% Attendance, 10% Certs, 10% Awards
+  const logsVolumeScore = actualLogsCount === 0 ? 1.5 : actualLogsCount <= 3 ? 2.5 : actualLogsCount <= 10 ? 3.5 : actualLogsCount <= 25 ? 4.5 : 5.0;
+  const rawFallback = (mgrCompAvg * 0.40) + (logsVolumeScore * 0.30) + (attScore * 0.10) + (certScore * 0.10) + (awardScore * 0.10);
+  fallbackScore = Math.round(rawFallback * 100) / 100;
+
   const systemPrompt = `You are PerfoNext AI Performance Intelligence, an enterprise HR Performance Auditor.
 
-Your primary objective is to deliver an HONEST, BRUTAL, EVIDENCE-BASED PERFORMANCE AUDIT for an employee based strictly on their verified Daily Work Logs, custom department questions/answers, Manager Comments, Attendance, Certifications, Awards, and Manager Competency Ratings.
+Your primary objective is to deliver an HONEST, EVIDENCE-BASED PERFORMANCE AUDIT for an employee based strictly on their verified Daily Work Logs, custom department questions/answers, Manager Comments, Attendance, Certifications, Awards, and Manager Competency Ratings.
 
 Evaluation Period:
 ${formatDateDDMMYYYY(startBound)} to ${formatDateDDMMYYYY(endBound)}
 
-CORE AUDIT DIRECTIVES & SCORING RULES:
+SCORING INSTRUCTIONS:
+- Determine the employee's overall performance score on a 5-point scale.
+- Return:
+  * aiScore: decimal between 1.00 and 5.00
+  * aiScoreDisplay: "/5.0"
+  * confidence: "High", "Medium", or "Low"
+  * aiScoreRationale: brief explanation of how the score was derived from the evidence
+  * strengths: array of evidence-grounded performance strengths
+  * improvements: array of evidence-grounded improvement areas
+  * sentiment: overall tone of the evidence ("Positive", "Neutral", or "Mixed")
+  * loggingConsistency: "Excellent", "Good", "Moderate", or "Poor"
+  * actionItems: concrete follow-up steps for the employee
 
-1. DAILY WORK LOGGING COMPLIANCE & PENALTY SCALE (MANDATORY):
-- Daily work logging is a MANDATORY daily operational requirement. 
-- You MUST evaluate loggingConsistency and penalize the overall aiScore strictly based on the number of ACTUAL daily work logs (excluding certifications/awards registered in the work journal):
-  * 0–3 actual logs: loggingConsistency = "Poor", Overall aiScore MUST be capped between 1.00 and 2.90. (E.g., if the employee has only 2 actual daily work logs in a whole year, they must receive a score in this range).
-  * 4–8 actual logs: loggingConsistency = "Poor", Overall aiScore MUST be capped between 3.00 and 3.40.
-  * 9–20 actual logs: loggingConsistency = "Moderate", Overall aiScore MUST be capped between 3.50 and 3.80.
-  * 21–45 actual logs: loggingConsistency = "Good", Overall aiScore can be up to 4.20.
-  * 46+ actual logs: loggingConsistency = "Excellent", Overall aiScore can be up to 5.00.
-- DO NOT blindly copy high manager competency ratings if logging compliance is poor. Call out this severe operational deficiency in the summary, strengths, improvements, and rationale.
+Consider ALL verified and relevant evidence available for the evaluation period, including:
+- Actual daily work logs, work quality, and outcomes
+- Manager competency ratings and feedback
+- Attendance and punctuality
+- Working hours / approved attendance records
+- Certifications, awards, and recognitions
 
-2. MANDATORY ATTENDANCE ANALYSIS (MANDATORY):
-- You MUST explicitly read and analyze the employee's Attendance & Punch Performance Metrics (Attendance Rate, Present Days, Late Days, Half Days, Absent Days, Average Login/Logout Times, Average Working Hours, and Overtime Hours).
-- Comment on their arrival punctuality (Late Days), working hours consistency (Average Working Hours), and overtime contribution.
-- You MUST reference their specific attendance percentage (e.g. "attendance rate of X%") and key punch stats (e.g. "Y late arrivals", "Z overtime hours") in BOTH the synthesized "summary" and "aiScoreRationale" fields. Do not just say "attendance was good".
+Do NOT use predetermined category weights or mandatory caps based on log counts.
+Instead, determine the relative importance of each factor dynamically based on:
+1. The quality and reliability of the evidence.
+2. The employee's role and responsibilities.
+3. The evaluation period.
+4. The amount of evidence available.
+5. The significance of the employee's achievements or deficiencies.
+6. Whether the evidence represents actual performance or merely administrative activity.
 
-3. EXPLICITLY ANALYZE CERTIFICATIONS & AWARDS:
-- You MUST explicitly reference verified professional certifications and awards in summary, strengths, and rationale.
+Give greater importance to evidence that is directly relevant to actual job performance.
+Do not automatically penalize an employee simply because there are fewer work logs if other reliable evidence demonstrates actual performance. However, if insufficient evidence exists to demonstrate performance, clearly reflect that limitation in the score and confidence.
+Do not treat certifications or awards as proof of day-to-day job performance by themselves. They should support the overall assessment but should not automatically produce a high score.
 
-4. CUSTOM DEPARTMENT QUESTIONS:
-- Read, analyze, and cite the custom department-specific fields (e.g. "Deal Value (RS)", "Client / Company Name", "Lead / Deal Stage") provided in the work logs to make the summary highly specific and detailed.
+Attendance should be evaluated using only valid/approved attendance records.
+Do NOT count records marked as "Unusual" as attendance-present evidence.
+Do NOT infer attendance from an incomplete or invalid punch record.
 
-5. ZERO GENERIC HR FLUFF:
-- Every strength and development area MUST cite specific evidence (work logs, certificates, awards, or attendance). NEVER use generic fluff.
+The score must represent an honest, evidence-based assessment rather than a mechanically calculated formula.
+Do not artificially increase or decrease the score to satisfy any predetermined target.
 
-6. DYNAMIC AI SCORE CONTEXT:
-- The overall "aiScore" is calculated as ${calculatedAiScore.toFixed(2)}/5.0. You MUST output exactly this score in the "aiScore" field in the output JSON.
+Explain briefly why the score was given and identify the strongest positive and negative evidence.
 
 Output JSON in this exact structure (raw JSON, no markdown formatting):
 {
   "summary": "<2-3 sentence executive summary written as an HR Business Partner describing actual work deliverables, custom department question answers, credentials, awards, attendance percentage, and manager ratings>",
-  "aiScore": ${calculatedAiScore.toFixed(2)},
-  "confidence": "${confidence}",
-  "aiScoreRationale": "<1-2 sentence AI audit rationale explaining how the AI score was derived from actual work log count, custom fields, manager competency ratings, attendance percentage, certs, and awards>",
-  "strengths": ["<Evidence-grounded strength 1>", "<Evidence-grounded strength 2>"],
-  "improvements": ["<Evidence-grounded improvement area 1>", "<Evidence-grounded improvement area 2>"],
-  "sentiment": "${actualLogsCount <= 5 ? 'Mixed' : (calculatedAiScore >= 4.0 ? 'Positive' : 'Neutral')}",
-  "loggingConsistency": "${loggingConsistency}",
-  "actionItems": ["<Action item 1>", "<Action item 2>"]
+  "aiScore": 3.50,
+  "aiScoreDisplay": "/5.0",
+  "confidence": "Medium",
+  "aiScoreRationale": "<explanation>",
+  "strengths": ["<strength 1>", "<strength 2>"],
+  "improvements": ["<improvement 1>", "<improvement 2>"],
+  "sentiment": "Neutral",
+  "loggingConsistency": "Moderate",
+  "actionItems": ["<action item 1>", "<action item 2>"]
 }`;
 
   // Call ChatGPT 5.6 Terra LLM API
@@ -557,7 +547,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
         employeeId,
         reviewCycleId: cycleId,
         summary: fallbackParsed.summary,
-        aiScore: calculatedAiScore,
+        aiScore: fallbackScore,
         confidence: fallbackParsed.confidence || 'Medium',
         aiScoreRationale: fallbackParsed.aiScoreRationale || '',
         strengths: fallbackParsed.strengths || [],
@@ -576,14 +566,20 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       { upsert: true }
     );
 
-    return { ...fallbackParsed, aiScore: calculatedAiScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: new Date() };
+    return { ...fallbackParsed, aiScore: fallbackScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: new Date() };
   }
 
   const resData = await response.json();
   const contentText = resData.choices[0]?.message?.content;
   const parsed = JSON.parse(contentText);
-
   const now = new Date();
+  
+  // Read aiScore directly from LLM response or fallback to local baseline calculation
+  const parsedScore = Number(parsed.aiScore);
+  const finalAiScore = (!isNaN(parsedScore) && parsedScore >= 1.0 && parsedScore <= 5.0) 
+    ? Math.round(parsedScore * 100) / 100 
+    : fallbackScore;
+
   // Save new completed AI report to MongoDB
   await AIReport.findOneAndUpdate(
     { employeeId, reviewCycleId: cycleId },
@@ -591,7 +587,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
       employeeId,
       reviewCycleId: cycleId,
       summary: parsed.summary,
-      aiScore: calculatedAiScore,
+      aiScore: finalAiScore,
       confidence: parsed.confidence || 'Medium',
       aiScoreRationale: parsed.aiScoreRationale || '',
       strengths: parsed.strengths || [],
@@ -610,7 +606,7 @@ Output JSON in this exact structure (raw JSON, no markdown formatting):
     { upsert: true }
   );
 
-  return { ...parsed, aiScore: calculatedAiScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
+  return { ...parsed, aiScore: finalAiScore, startDate: startBound, endDate: endBound, reviewMonth: cycle.reviewMonth, status: 'COMPLETED', generatedAt: now };
 };
 
 const formatDateDDMMYYYY = (dateInput) => {
@@ -700,9 +696,9 @@ const generateLocalFallback = async (employee, scores, managerReviews, certifica
     } catch (_) {}
 
     if (dTemp2 && !isNaN(dTemp2.getTime()) && dEnd2 && !isNaN(dEnd2.getTime())) {
-      for (let d = dTemp2; d <= dEnd2; d.setDate(d.getDate() + 1)) {
+      for (let d = dTemp2; d <= dEnd2; d.setUTCDate(d.getUTCDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
-        if (!configWeekends2.includes(d.getDay()) && !holidayDates2.has(dateStr)) {
+        if (!configWeekends2.includes(d.getUTCDay()) && !holidayDates2.has(dateStr)) {
           totalDays++;
         }
       }

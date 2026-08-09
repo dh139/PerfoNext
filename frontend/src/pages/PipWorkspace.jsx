@@ -3,7 +3,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { 
   AlertCircle, Plus, CheckCircle, Clock, XCircle, FileText, Send, User, ShieldAlert, CheckCircle2,
-  Search, Building2, Filter, RefreshCw, Briefcase, UserCheck, Calendar
+  Search, Building2, Filter, RefreshCw, Briefcase, UserCheck, Calendar, Trash2
 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import { getUserAvatarUrl } from '../utils/avatar';
@@ -28,17 +28,18 @@ const PipWorkspace = () => {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [reasonText, setReasonText] = useState('');
   const [goals, setGoals] = useState([{ description: '', targetDate: '', status: 'pending' }]);
   const [hrList, setHrList] = useState([]);
   const [selectedHrId, setSelectedHrId] = useState('');
 
-  // Custom Modal State for PIP Closure / Escalation
-  const [showClosureModal, setShowClosureModal] = useState(false);
-  const [closurePipId, setClosurePipId] = useState(null);
-  const [closureIsEscalate, setClosureIsEscalate] = useState(false);
-  const [closureNotesText, setClosureNotesText] = useState('');
-  const [closureIsResolveEscalation, setClosureIsResolveEscalation] = useState(false);
-  const [existingEscalationNotes, setExistingEscalationNotes] = useState('');
+  // Evaluation & Outcome Modal State
+  const [showEvaluateModal, setShowEvaluateModal] = useState(false);
+  const [evaluatePipId, setEvaluatePipId] = useState(null);
+  const [selectedOutcome, setSelectedOutcome] = useState('successful'); // 'successful', 'extended', 'unsuccessful'
+  const [extensionDate, setExtensionDate] = useState('');
+  const [evaluationComments, setEvaluationComments] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
   
   // Enterprise Combobox State for Employee Selection
   const [empComboboxOpen, setEmpComboboxOpen] = useState(false);
@@ -130,6 +131,7 @@ const PipWorkspace = () => {
 
     setStartDate('');
     setEndDate('');
+    setReasonText('');
     setGoals([{ description: '', targetDate: '', status: 'pending' }]);
     setShowCreateModal(true);
   };
@@ -140,8 +142,8 @@ const PipWorkspace = () => {
 
     const targetEmpId = selectedSug ? selectedSug.employee._id : selectedEmployeeId;
 
-    if (!startDate || !endDate || !selectedHrId || !targetEmpId) {
-      setError('Please fill out dates and select an employee and HR reviewer.');
+    if (!startDate || !endDate || !selectedHrId || !targetEmpId || !reasonText.trim()) {
+      setError('Please fill out dates, reason, and select an employee and reviewer.');
       return;
     }
 
@@ -156,6 +158,7 @@ const PipWorkspace = () => {
     const mgrId = empUser?.managerId?._id || empUser?.managerId || reqUserMgrFallback();
 
     try {
+      setActionLoading(true);
       await api.post('/api/pips', {
         employeeId: targetEmpId,
         triggerReviewScoreId: selectedSug?.triggerScores?.[0]?._id || null,
@@ -163,7 +166,8 @@ const PipWorkspace = () => {
         endDate,
         goals,
         managerId: mgrId || user?.id,
-        hrReviewerId: selectedHrId
+        hrReviewerId: selectedHrId,
+        reason: reasonText
       });
 
       setShowCreateModal(false);
@@ -172,6 +176,8 @@ const PipWorkspace = () => {
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || 'Failed to initiate PIP.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -194,52 +200,57 @@ const PipWorkspace = () => {
     }
   };
 
-  const handleClosePip = (pipId, isEscalate) => {
-    setClosurePipId(pipId);
-    setClosureIsEscalate(isEscalate);
-    setClosureIsResolveEscalation(false);
-    setExistingEscalationNotes('');
-    setClosureNotesText('');
-    setShowClosureModal(true);
+  const handleEvaluatePip = (pipId) => {
+    const pip = pips.find(p => p._id === pipId);
+    setEvaluatePipId(pipId);
+    setSelectedOutcome('successful');
+    setExtensionDate(pip ? new Date(pip.endDate).toISOString().split('T')[0] : '');
+    setEvaluationComments('');
+    setShowEvaluateModal(true);
   };
 
-  const handleResolveEscalation = (pipId, existingNotes) => {
-    setClosurePipId(pipId);
-    setClosureIsEscalate(false);
-    setClosureIsResolveEscalation(true);
-    setExistingEscalationNotes(existingNotes || '');
-    setClosureNotesText('');
-    setShowClosureModal(true);
-  };
-
-  const submitClosePip = async (e) => {
+  const submitEvaluation = async (e) => {
     if (e) e.preventDefault();
-    if (!closureNotesText.trim()) {
-      toast.error(closureIsResolveEscalation ? 'Please provide resolution details.' : (closureIsEscalate ? 'Please provide escalation details.' : 'Please provide closure notes.'));
+    if (!evaluationComments.trim()) {
+      toast.error('Please provide evaluation comments.');
       return;
     }
 
-    let finalNotes = closureNotesText;
-    if (closureIsResolveEscalation) {
-      finalNotes = `${existingEscalationNotes}\n\n[HR Resolution by ${user?.firstName} ${user?.lastName}]: ${closureNotesText}`;
-    }
-
     try {
-      await api.patch(`/api/pips/${closurePipId}`, {
-        status: closureIsEscalate ? 'escalated' : 'closed',
-        closureNotes: finalNotes
-      });
-      setShowClosureModal(false);
+      setActionLoading(true);
+      const payload = {
+        status: selectedOutcome === 'extended' ? 'active' : selectedOutcome,
+        closureNotes: evaluationComments
+      };
+
+      if (selectedOutcome === 'extended') {
+        if (!extensionDate) {
+          toast.error('Please select an extension date.');
+          return;
+        }
+        payload.endDate = extensionDate;
+      }
+
+      await api.patch(`/api/pips/${evaluatePipId}`, payload);
+      setShowEvaluateModal(false);
       fetchData();
-      toast.success(closureIsResolveEscalation ? 'PIP escalation resolved and closed successfully.' : (closureIsEscalate ? 'PIP escalated to HR successfully.' : 'PIP completed and closed successfully.'));
+      toast.success(
+        selectedOutcome === 'extended' 
+          ? 'PIP extended successfully.' 
+          : `PIP closed as ${selectedOutcome.toUpperCase()} successfully.`
+      );
     } catch (err) {
       console.error(err);
-      toast.error('Failed to close PIP.');
+      toast.error(err.response?.data?.message || 'Failed to update PIP outcome.');
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'successful': return 'bg-emerald-50 text-emerald-700 border border-emerald-250';
+      case 'unsuccessful': return 'bg-rose-50 text-rose-700 border border-rose-250';
       case 'closed': return 'bg-emerald-50 text-emerald-700 border border-emerald-250';
       case 'escalated': return 'bg-rose-50 text-rose-700 border border-rose-250';
       default: return 'bg-amber-50 text-amber-700 border border-amber-250';
@@ -484,8 +495,8 @@ const PipWorkspace = () => {
             >
               <option value="all">All Statuses</option>
               <option value="active">Active</option>
-              <option value="closed">Closed</option>
-              <option value="escalated">Escalated</option>
+              <option value="successful">Successful</option>
+              <option value="unsuccessful">Unsuccessful</option>
             </select>
 
             {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'executive') && (
@@ -588,7 +599,7 @@ const PipWorkspace = () => {
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <UserCheck size={11} className="text-slate-400" />
-                              HR Overseer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
+                              Reviewer: {pip.hrReviewerId?.firstName} {pip.hrReviewerId?.lastName}
                             </span>
                             {(() => {
                               if (pip.status !== 'active') return null;
@@ -632,45 +643,34 @@ const PipWorkspace = () => {
                           {(() => {
                             const reviewerId = (pip.hrReviewerId?._id || pip.hrReviewerId)?.toString();
                             const currentUserId = (user?.id || user?._id)?.toString();
-                            const isDesignatedHrReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
+                            const isDesignatedReviewer = reviewerId && currentUserId && reviewerId === currentUserId;
                             const isLeadership = user?.role === 'admin' || user?.role === 'executive';
-                            const canManageStatus = (isDesignatedHrReviewer || isLeadership) && (pip.status === 'active' || pip.status === 'escalated');
+                            
+                            const canAction = pip.status === 'active' && (isDesignatedReviewer || isLeadership);
 
-                            if (!canManageStatus) return null;
+                            if (!canAction) return null;
 
                             return (
                               <div className="flex gap-1.5">
-                                {pip.status === 'active' ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleClosePip(pip._id, false)}
-                                      title="Mark as Met & Close: This successfully closes the performance plan, indicating the employee has successfully met all performance expectations. No further action will be required."
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                                    >
-                                      Complete Plan (Goals Met)
-                                    </button>
-                                    <button
-                                      onClick={() => handleClosePip(pip._id, true)}
-                                      title="Escalate: This marks the performance plan as failed and escalates it to HR. HR will review the case for formal disciplinary action or termination policy procedures."
-                                      className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                                    >
-                                      Escalate to HR (Goals Unmet)
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button
-                                    onClick={() => handleResolveEscalation(pip._id, pip.closureNotes)}
-                                    title="Resolve Escalation: Conclude this escalated PIP. Allows the HR reviewer or leadership to log the final HR outcome and close the PIP."
-                                    className="bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
-                                  >
-                                    Resolve & Close PIP
-                                  </button>
-                                )}
+                                <button
+                                  onClick={() => handleEvaluatePip(pip._id)}
+                                  title="Evaluate Outcome: Assess PIP goals and select a final outcome (Successful, Extended, or Unsuccessful)."
+                                  className="bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-lg cursor-pointer transition-colors"
+                                >
+                                  Evaluate Outcome
+                                </button>
                               </div>
                             );
                           })()}
                         </div>
                       </div>
+
+                      {pip.reason && (
+                        <div className="bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs space-y-1">
+                          <span className="font-bold text-[9px] uppercase text-slate-400 block">Reason for PIP</span>
+                          <p className="font-semibold text-slate-700">{pip.reason}</p>
+                        </div>
+                      )}
 
                       {/* Goals checklist */}
                       <div className="space-y-2">
@@ -707,13 +707,9 @@ const PipWorkspace = () => {
                       </div>
 
                       {pip.closureNotes && (
-                        <div className={`border p-3 rounded-xl text-slate-700 text-xs ${
-                          pip.status === 'escalated' ? 'bg-rose-50/40 border-rose-100' : 'bg-slate-50 border-slate-200'
-                        }`}>
-                          <span className={`font-bold text-[9px] uppercase block mb-0.5 ${
-                            pip.status === 'escalated' ? 'text-rose-500' : 'text-slate-500'
-                          }`}>
-                            {pip.status === 'escalated' ? 'Escalation Details' : 'Closure Notes'}
+                        <div className="border border-slate-200 p-3 rounded-xl text-slate-700 text-xs bg-slate-50">
+                          <span className="font-bold text-[9px] uppercase block mb-0.5 text-slate-500">
+                            Reviewer Comments & Outcome Notes
                           </span>
                           <p className="italic">{pip.closureNotes}</p>
                         </div>
@@ -754,7 +750,7 @@ const PipWorkspace = () => {
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xl shadow-2xl space-y-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-xl shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <h3 className="font-extrabold text-sm text-slate-800 border-b pb-2">Initiate Performance Improvement Plan</h3>
 
             <form onSubmit={handleCreatePip} className="space-y-4">
@@ -938,6 +934,18 @@ const PipWorkspace = () => {
                 </div>
               )}
 
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Reason for PIP *</label>
+                <textarea
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  placeholder="Provide clear reasons on why the Performance Improvement Plan is being initiated..."
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:bg-white p-3 rounded-xl outline-none text-slate-800 text-xs transition-all resize-none"
+                  required
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Start Date</label>
@@ -963,7 +971,7 @@ const PipWorkspace = () => {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">HR Overseer / Reviewer</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Reviewer</label>
                 <select
                   value={selectedHrId}
                   onChange={(e) => setSelectedHrId(e.target.value)}
@@ -1014,40 +1022,43 @@ const PipWorkspace = () => {
                   </button>
                 </div>
 
-                <div className="space-y-3 max-h-40 overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
                   {goals.map((g, idx) => (
-                    <div key={idx} className="flex gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 items-end">
-                      <div className="flex-1 space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase">Goal Description</label>
+                    <div key={idx} className="flex gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 items-center">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Goal Description</label>
                         <input
                           type="text"
                           value={g.description}
                           onChange={(e) => handleGoalChange(idx, 'description', e.target.value)}
                           placeholder="e.g. Reduce production bugs below 2%..."
-                          className="w-full bg-white border border-slate-200 p-2 rounded-lg outline-none text-slate-800 text-xs"
+                          className="w-full bg-white border border-slate-200 focus:border-sky-500 focus:bg-white p-2.5 rounded-xl outline-none text-slate-800 text-xs transition-all"
                           required
                         />
                       </div>
 
-                      <div className="w-36 space-y-1">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase">Target Date</label>
+                      <div className="w-36 space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-wide">Target Date</label>
                         <input
                           type="date"
                           value={g.targetDate}
                           onChange={(e) => handleGoalChange(idx, 'targetDate', e.target.value)}
-                          className="w-full bg-white border border-slate-200 p-2 rounded-lg outline-none text-slate-700 text-xs"
+                          className="w-full bg-white border border-slate-200 focus:border-sky-500 focus:bg-white p-2 rounded-xl outline-none text-slate-700 text-xs transition-all"
                           required
                         />
                       </div>
 
                       {goals.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveGoal(idx)}
-                          className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg cursor-pointer text-xs font-bold"
-                        >
-                          Remove
-                        </button>
+                        <div className="pt-5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGoal(idx)}
+                            className="text-rose-500 hover:bg-rose-50 hover:text-rose-600 p-2.5 rounded-xl cursor-pointer transition-colors"
+                            title="Remove Goal"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -1064,9 +1075,10 @@ const PipWorkspace = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 text-xs"
+                  disabled={actionLoading}
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold px-5 py-2 rounded-xl shadow-md cursor-pointer transition-all duration-200 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Initiate Plan
+                  {actionLoading ? 'Initiating...' : 'Initiate Plan'}
                 </button>
               </div>
             </form>
@@ -1074,93 +1086,120 @@ const PipWorkspace = () => {
         </div>
       )}
 
-      {/* Custom PIP Closure / Escalation Modal */}
-      {showClosureModal && (() => {
-        let iconBg = 'bg-emerald-50 text-emerald-600';
-        let modalTitle = 'Successfully Complete & Close PIP';
-        let modalSubtitle = 'Submit summary details of successful target achievement to complete the plan.';
-        let inputLabel = 'Provide Closure Notes';
-        let placeholderText = "Provide summary notes of the employee's progress, goal accomplishments, and successful wrap-up...";
-        let submitBtnClass = 'bg-emerald-600 hover:bg-emerald-700';
-        let submitBtnText = 'Complete & Close';
+      {/* Custom PIP Evaluation Modal */}
+      {showEvaluateModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 animate-fade-in">
+            <div className="flex items-center gap-3 border-b pb-3">
+              <div className="p-2.5 rounded-xl bg-sky-50 text-sky-600">
+                <FileText size={18} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-800">
+                  Evaluate Performance Improvement Plan
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Assess progress and select a final outcome for this plan.
+                </p>
+              </div>
+            </div>
 
-        if (closureIsEscalate) {
-          iconBg = 'bg-rose-50 text-rose-600';
-          modalTitle = 'Escalate PIP to HR Department';
-          modalSubtitle = 'Submit details regarding unresolved performance issues to HR for policy action.';
-          inputLabel = 'Provide Escalation Details';
-          placeholderText = "Provide details on why goals were not met, specific shortcomings, and recommendations for HR review...";
-          submitBtnClass = 'bg-rose-600 hover:bg-rose-700';
-          submitBtnText = 'Submit Escalation';
-        } else if (closureIsResolveEscalation) {
-          iconBg = 'bg-sky-50 text-sky-600';
-          modalTitle = 'Resolve HR Escalation & Close PIP';
-          modalSubtitle = 'Provide final HR action/resolution notes to conclude this performance plan.';
-          inputLabel = 'Provide Final HR Resolution Details';
-          placeholderText = "Provide details on the final outcome (e.g. employee termination per policy, role reassignment, cycle extension, etc.)...";
-          submitBtnClass = 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700';
-          submitBtnText = 'Resolve & Close Plan';
-        }
+            <form onSubmit={submitEvaluation} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                  Select Outcome
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutcome('successful')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                      selectedOutcome === 'successful'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-extrabold shadow-sm'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold'
+                    }`}
+                  >
+                    <span className="text-lg">🟢</span>
+                    <span className="text-[10px] mt-1">Successful</span>
+                  </button>
 
-        return (
-          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 w-full max-w-lg shadow-2xl space-y-4 animate-fade-in">
-              <div className="flex items-center gap-3 border-b pb-3">
-                <div className={`p-2.5 rounded-xl ${iconBg}`}>
-                  <FileText size={18} />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-800">
-                    {modalTitle}
-                  </h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {modalSubtitle}
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutcome('extended')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                      selectedOutcome === 'extended'
+                        ? 'border-amber-500 bg-amber-50 text-amber-800 font-extrabold shadow-sm'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold'
+                    }`}
+                  >
+                    <span className="text-lg">🟡</span>
+                    <span className="text-[10px] mt-1">Extend PIP</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOutcome('unsuccessful')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all cursor-pointer ${
+                      selectedOutcome === 'unsuccessful'
+                        ? 'border-rose-500 bg-rose-50 text-rose-800 font-extrabold shadow-sm'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold'
+                    }`}
+                  >
+                    <span className="text-lg">🔴</span>
+                    <span className="text-[10px] mt-1">Not Successful</span>
+                  </button>
                 </div>
               </div>
 
-              {closureIsResolveEscalation && existingEscalationNotes && (
-                <div className="bg-rose-50/40 border border-rose-100 p-3 rounded-xl text-xs space-y-1">
-                  <span className="font-bold text-[9px] uppercase text-rose-500 block">Original Escalation Details</span>
-                  <p className="italic text-slate-600 font-medium">{existingEscalationNotes}</p>
-                </div>
-              )}
-
-              <form onSubmit={submitClosePip} className="space-y-4">
-                <div className="space-y-1.5">
+              {selectedOutcome === 'extended' && (
+                <div className="space-y-1.5 animate-fade-in">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                    {inputLabel}
+                    New Target End Date *
                   </label>
-                  <textarea
-                    value={closureNotesText}
-                    onChange={(e) => setClosureNotesText(e.target.value)}
-                    placeholder={placeholderText}
-                    rows={4}
-                    className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:bg-white p-3 rounded-xl outline-none text-slate-800 text-xs transition-all resize-none"
+                  <input
+                    type="date"
+                    value={extensionDate}
+                    onChange={(e) => setExtensionDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:bg-white p-2.5 rounded-xl outline-none text-slate-800 text-xs transition-all"
                     required
                   />
                 </div>
+              )}
 
-                <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowClosureModal(false)}
-                    className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className={`text-white font-semibold px-5 py-2 rounded-xl shadow-xs cursor-pointer transition-colors text-xs ${submitBtnClass}`}
-                  >
-                    {submitBtnText}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                  Provide Evaluation Comments & Feedback *
+                </label>
+                <textarea
+                  value={evaluationComments}
+                  onChange={(e) => setEvaluationComments(e.target.value)}
+                  placeholder="Provide final evaluation feedback details..."
+                  rows={4}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 focus:bg-white p-3 rounded-xl outline-none text-slate-800 text-xs transition-all resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEvaluateModal(false)}
+                  className="border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2 rounded-xl cursor-pointer text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-5 py-2 rounded-xl shadow-xs cursor-pointer transition-colors text-xs"
+                >
+                  {actionLoading ? 'Processing...' : 'Submit Evaluation'}
+                </button>
+              </div>
+            </form>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 };

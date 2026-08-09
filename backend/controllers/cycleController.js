@@ -243,7 +243,33 @@ const getSelfAssessments = async (req, res) => {
     const { employeeId, reviewCycleId, status } = req.query;
     const filter = {};
 
-    const targetEmpId = employeeId || (req.user.role === 'employee' || !req.query.all ? req.user.id : null);
+    let targetEmpId = employeeId;
+
+    if (req.user.role === 'employee') {
+      // Employees can only fetch their own self-assessments
+      targetEmpId = req.user.id;
+    } else if (req.user.role === 'manager') {
+      // Managers can only fetch assessments for employees in their department or their own
+      if (targetEmpId && targetEmpId !== req.user.id) {
+        const targetEmp = await User.findById(targetEmpId);
+        if (!targetEmp) return res.status(404).json({ message: 'Employee not found.' });
+        const targetDeptId = targetEmp.departmentId?._id || targetEmp.departmentId;
+        const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+        if (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString()) {
+          return res.status(403).json({ message: 'Forbidden. You can only view self-assessments for employees in your department.' });
+        }
+      } else if (!targetEmpId) {
+        // If query is broad, restrict to department employees
+        const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+        if (mgrDeptId) {
+          const deptUsers = await User.find({ departmentId: mgrDeptId }).select('_id');
+          filter.employeeId = { $in: deptUsers.map(u => u._id) };
+        } else {
+          filter.employeeId = req.user.id;
+        }
+      }
+    }
+
     if (targetEmpId) {
       filter.employeeId = targetEmpId;
     }
@@ -278,11 +304,25 @@ const getSelfAssessmentById = async (req, res) => {
   try {
     const assessment = await SelfAssessment.findById(req.params.id)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId' });
 
     if (!assessment) {
       return res.status(404).json({ message: 'Self-assessment not found.' });
     }
+
+    // Auth validation:
+    if (req.user.role === 'employee' && assessment.employeeId._id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden. Access denied.' });
+    }
+
+    if (req.user.role === 'manager') {
+      const targetDeptId = assessment.employeeId.departmentId?._id || assessment.employeeId.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (assessment.employeeId._id.toString() !== req.user.id && (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString())) {
+        return res.status(403).json({ message: 'Forbidden. Access denied.' });
+      }
+    }
+
     res.json(assessment);
   } catch (error) {
     console.error('getSelfAssessmentById error:', error);
@@ -443,12 +483,26 @@ const getManagerReviewById = async (req, res) => {
   try {
     const review = await ManagerReview.findById(req.params.id)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode' })
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId' })
       .populate({ path: 'managerId', select: 'firstName lastName email' });
 
     if (!review) {
       return res.status(404).json({ message: 'Manager review not found.' });
     }
+
+    // Auth check:
+    if (req.user.role === 'employee' && review.employeeId._id.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Forbidden. Access denied.' });
+    }
+
+    if (req.user.role === 'manager') {
+      const targetDeptId = review.employeeId.departmentId?._id || review.employeeId.departmentId;
+      const mgrDeptId = req.user.departmentId?._id || req.user.departmentId;
+      if (review.employeeId._id.toString() !== req.user.id && review.managerId._id.toString() !== req.user.id && (!targetDeptId || !mgrDeptId || targetDeptId.toString() !== mgrDeptId.toString())) {
+        return res.status(403).json({ message: 'Forbidden. Access denied.' });
+      }
+    }
+
     res.json(review);
   } catch (error) {
     console.error('getManagerReviewById error:', error);
@@ -653,17 +707,22 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
         });
       } catch (_) {}
 
-      function getWeekdayCount(monthStr) {
+       function getWeekdayCount(monthStr) {
         const [yr, mo] = monthStr.split('-').map(Number);
         const now = new Date();
-        const isCurrentMonth = (now.getFullYear() === yr && (now.getMonth() + 1) === mo);
-        const startDate = new Date(yr, mo - 1, 1);
-        const endDate = isCurrentMonth ? now : new Date(yr, mo, 0);
+        const isCurrentMonth = (now.getUTCFullYear() === yr && (now.getUTCMonth() + 1) === mo);
+        const startDate = new Date(Date.UTC(yr, mo - 1, 1, 0, 0, 0, 0));
+        let endDate;
+        if (isCurrentMonth) {
+          endDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+        } else {
+          endDate = new Date(Date.UTC(yr, mo, 0, 23, 59, 59, 999));
+        }
 
         let count = 0;
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        for (let d = new Date(startDate); d <= endDate; d.setUTCDate(d.getUTCDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
-          if (!configWeekends.includes(d.getDay()) && !holidayDates.has(dateStr)) {
+          if (!configWeekends.includes(d.getUTCDay()) && !holidayDates.has(dateStr)) {
             count++;
           }
         }
@@ -965,7 +1024,15 @@ const deleteReviewCycle = async (req, res) => {
       // AIReport optional cleanup
     }
 
-    await logAction(req.user.id, 'DELETE_REVIEW_CYCLE', 'ReviewCycle', id, { reviewMonth: cycle.reviewMonth });
+    await logAction({
+      req,
+      userId: req.user.id,
+      action: 'DELETE_REVIEW_CYCLE',
+      module: 'ReviewCycle',
+      entityType: 'ReviewCycle',
+      entityId: id,
+      after: { reviewMonth: cycle.reviewMonth }
+    });
 
     res.json({ message: 'Review cycle and all associated evaluation data deleted successfully.' });
   } catch (error) {

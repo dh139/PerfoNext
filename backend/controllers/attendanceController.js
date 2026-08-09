@@ -44,13 +44,15 @@ const autoCloseIncompletePunches = async (settings) => {
   if (!settings.attendanceRules?.autoPunchOut?.enable) return;
 
   const autoTimeStr = settings.attendanceRules.autoPunchOut.time || '11:59 PM';
-  const todayStr = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
   const todayDate = new Date(todayStr);
+  const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
 
-  // Find all punches from previous days that don't have punchOut and aren't Auto Closed / Unusual yet
+  // Find all punches from previous days that don't have punchOut, aren't Auto Closed / Unusual yet, and were punched in more than 16 hours ago
   const incompletePunches = await AttendancePunch.find({
     date: { $lt: todayDate },
-    punchIn: { $exists: true },
+    punchIn: { $exists: true, $lt: sixteenHoursAgo },
     punchOut: { $exists: null },
     status: { $nin: ['Auto Closed', 'Unusual'] }
   });
@@ -78,6 +80,7 @@ const autoCloseIncompletePunches = async (settings) => {
     
     let overtimeMinutes = 0;
     if (rules.enableOvertime) {
+      const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
       const extraMins = Math.round((outTime.getTime() - shiftEnd.getTime()) / 60000);
       if (extraMins >= (rules.overtimeMinMinutes || 30)) {
         overtimeMinutes = Math.floor(extraMins / (rules.overtimeRoundMinutes || 15)) * (rules.overtimeRoundMinutes || 15);
@@ -112,12 +115,24 @@ const punchIn = async (req, res) => {
     }
 
     // 2. Weekend Check
-    if (rules.weekends && rules.weekends.includes(todayDate.getDay())) {
+    if (rules.weekends && rules.weekends.includes(todayDate.getUTCDay())) {
       return res.status(400).json({ message: 'Today is configured as a weekend. Attendance punching is not available.' });
     }
 
     // 3. Duplicate Punch In check
     let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
+    if (!punch) {
+      const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
+      const openYesterdayPunch = await AttendancePunch.findOne({
+        employeeId: req.user.id,
+        date: yesterdayDate,
+        punchIn: { $exists: true },
+        punchOut: { $exists: null }
+      });
+      if (openYesterdayPunch) {
+        return res.status(400).json({ message: 'You have an active open punch session from yesterday. Please punch out first.' });
+      }
+    }
     if (punch && punch.punchIn && rules.multiplePunchPrevention?.onePunchInPerDay) {
       return res.status(400).json({ message: 'You have already punched in for today.' });
     }
@@ -171,7 +186,20 @@ const punchOut = async (req, res) => {
     const todayStr = now.toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
-    const punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
+    let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
+    if (!punch) {
+      const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
+      const openYesterdayPunch = await AttendancePunch.findOne({
+        employeeId: req.user.id,
+        date: yesterdayDate,
+        punchIn: { $exists: true },
+        punchOut: { $exists: null }
+      });
+      if (openYesterdayPunch) {
+        punch = openYesterdayPunch;
+      }
+    }
+
     if (!punch || !punch.punchIn) {
       return res.status(400).json({ message: 'You must punch in first before punching out.' });
     }
@@ -179,7 +207,7 @@ const punchOut = async (req, res) => {
       return res.status(400).json({ message: 'You have already punched out for today.' });
     }
 
-    const shiftEnd = getDateWithTime(todayDate, rules.officeEndTime);
+    const shiftEnd = getDateWithTime(punch.date, rules.officeEndTime);
     punch.punchOut = now;
 
     const totalDurationMinutes = Math.round((now.getTime() - punch.punchIn.getTime()) / 60000);
@@ -192,7 +220,7 @@ const punchOut = async (req, res) => {
 
     // Early exit check
     const targetEndTimeStr = (rules.allowEarlyExit && rules.earlyExitTime) ? rules.earlyExitTime : rules.officeEndTime;
-    const earlyExitLimit = getDateWithTime(todayDate, targetEndTimeStr);
+    const earlyExitLimit = getDateWithTime(punch.date, targetEndTimeStr);
     punch.earlyExitMinutes = now < earlyExitLimit ? Math.round((earlyExitLimit.getTime() - now.getTime()) / 60000) : 0;
 
     // Overtime check
@@ -211,7 +239,7 @@ const punchOut = async (req, res) => {
 
     let isEarlyExitPresent = false;
     if (rules.allowEarlyExit && rules.earlyExitTime) {
-      const earlyExitTarget = getDateWithTime(todayDate, rules.earlyExitTime);
+      const earlyExitTarget = getDateWithTime(punch.date, rules.earlyExitTime);
       if (now >= earlyExitTarget) {
         isEarlyExitPresent = true;
       }
@@ -249,9 +277,21 @@ const getTodayAttendance = async (req, res) => {
     const todayDate = new Date(todayStr);
 
     const holiday = await Holiday.findOne({ date: todayStr });
-    const isWeekend = settings.attendanceRules.weekends.includes(todayDate.getDay());
+    const isWeekend = settings.attendanceRules.weekends.includes(todayDate.getUTCDay());
 
-    const punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
+    let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
+    if (!punch) {
+      const yesterdayDate = new Date(todayDate.getTime() - 24 * 60 * 60 * 1000);
+      const openYesterdayPunch = await AttendancePunch.findOne({
+        employeeId: req.user.id,
+        date: yesterdayDate,
+        punchIn: { $exists: true },
+        punchOut: { $exists: null }
+      });
+      if (openYesterdayPunch) {
+        punch = openYesterdayPunch;
+      }
+    }
     
     res.json({
       punch: punch || { status: 'Not Punched Yet' },
@@ -319,7 +359,7 @@ const submitRegularization = async (req, res) => {
     const targetDate = new Date(targetDateStr);
 
     // Block regularization on weekends
-    const isWeekend = rules.weekends?.includes(targetDate.getDay());
+    const isWeekend = rules.weekends?.includes(targetDate.getUTCDay());
     if (isWeekend) {
       return res.status(400).json({ message: 'Attendance regularization is not allowed on weekly off days (weekends).' });
     }
@@ -699,7 +739,7 @@ async function getAttendanceByDate(req, res) {
     const rules = settings.attendanceRules;
 
     const eligibleRoles = ['employee', 'manager', 'hr'];
-    const isWeekend = rules.weekends?.includes(targetDate.getDay());
+    const isWeekend = rules.weekends?.includes(targetDate.getUTCDay());
     const holiday = await Holiday.findOne({ date });
 
     const punches = await AttendancePunch.find({ date: targetDate })
