@@ -54,8 +54,11 @@ const PunchCard = () => {
 
   const parseTimeStr = (timeStr, baseDate = new Date()) => {
     if (!timeStr) return baseDate;
-    const [time, modifier] = timeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
+    const match = timeStr.trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+    if (!match) return baseDate;
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const modifier = match[3];
     if (modifier === 'PM' && hours < 12) hours += 12;
     if (modifier === 'AM' && hours === 12) hours = 0;
     const d = new Date(baseDate);
@@ -72,10 +75,14 @@ const PunchCard = () => {
 
   const getActualLateMinutes = () => {
     if (!todayPunch?.punchIn) return 0;
+    if (todayPunch?.lateMinutes !== undefined && todayPunch?.lateMinutes !== null) {
+      return todayPunch.lateMinutes;
+    }
     const punchInTime = new Date(todayPunch.punchIn);
     const officeStartTime = parseTimeStr(settings?.officeStartTime || '09:00 AM', punchInTime);
     const diffMins = Math.round((punchInTime.getTime() - officeStartTime.getTime()) / 60000);
-    return Math.max(0, diffMins);
+    const grace = settings?.graceMinutes || 0;
+    return diffMins > grace ? diffMins : 0;
   };
 
   const getExpectedStatusOnPunchOut = () => {

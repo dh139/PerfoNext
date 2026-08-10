@@ -6,7 +6,7 @@ const getTransporter = () => {
 
   return {
     sendMail: async ({ from, to, subject, text, html }) => {
-      const senderEmail = from || process.env.SMTP_FROM || 'noreply@perfonext.com';
+      const senderEmail = from || process.env.SMTP_FROM;
       let senderName = 'PerfoNext';
       let cleanSenderEmail = senderEmail;
       
