@@ -32,11 +32,22 @@ const ReviewCycles = () => {
   const [usersList, setUsersList] = useState([]);
   const [selectedUserIdToUnlock, setSelectedUserIdToUnlock] = useState('');
   const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [submittedUserIds, setSubmittedUserIds] = useState(new Set());
 
-  const fetchUsersForUnlock = async () => {
+  const fetchUsersForUnlock = async (cycle) => {
     try {
-      const res = await api.get('/api/users');
-      setUsersList(res.data.filter(u => u.employmentStatus === 'active'));
+      const [usersRes, selfRes] = await Promise.all([
+        api.get('/api/users'),
+        api.get(`/api/self-assessments?reviewCycleId=${cycle._id}`)
+      ]);
+      setUsersList(usersRes.data.filter(u => u.employmentStatus === 'active'));
+      // Build a Set of user IDs who already submitted for this cycle
+      const submitted = new Set(
+        (selfRes.data || []).filter(s => s.status === 'submitted').map(s =>
+          (s.employeeId?._id || s.employeeId || '').toString()
+        )
+      );
+      setSubmittedUserIds(submitted);
     } catch (err) {
       console.error('Failed to fetch users for unlock:', err);
     }
@@ -46,7 +57,8 @@ const ReviewCycles = () => {
     setUnlockModalCycle(c);
     setSelectedUserIdToUnlock('');
     setUserSearchTerm('');
-    fetchUsersForUnlock();
+    setSubmittedUserIds(new Set());
+    fetchUsersForUnlock(c);
   };
 
   const handleGrantUnlock = async (userIdToUnlock) => {
@@ -102,6 +114,9 @@ const ReviewCycles = () => {
       } else if (targetRole === 'employee') {
         if (u.role !== 'employee') return false;
       }
+
+      // 3. Exclude users who already submitted — they don't need a re-open
+      if (submittedUserIds.has(u._id.toString())) return false;
 
       return true;
     });

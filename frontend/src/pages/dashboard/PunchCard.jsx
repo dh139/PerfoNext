@@ -101,9 +101,18 @@ const PunchCard = () => {
 
   const formatDuration = (mins) => {
     if (!mins && mins !== 0) return '00h 00m';
-    const h = Math.floor(mins / 60);
-    const m = mins % 60;
+    const roundedMins = Math.round(mins);
+    const h = Math.floor(roundedMins / 60);
+    const m = roundedMins % 60;
     return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m`;
+  };
+
+  const formatTargetHours = (hoursVal) => {
+    const totalMins = Math.round((hoursVal || 8) * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
   };
 
   const formatTime = (dateVal) => {
@@ -337,7 +346,7 @@ const PunchCard = () => {
           <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
             <span>Work Progress</span>
             <span className={progressPercent >= 100 ? 'text-emerald-600' : progressPercent >= Math.round((halfDayMins / presentMins) * 100) ? 'text-amber-600' : 'text-rose-500'}>
-              {progressPercent}% of {settings?.presentHours || 8}h target
+              {progressPercent}% of {formatTargetHours(settings?.presentHours)} target
             </span>
           </div>
           <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -518,7 +527,7 @@ const PunchCard = () => {
 
             <div className="p-5 space-y-4">
               <p className="text-xs text-slate-650 leading-relaxed font-semibold">
-                Your net working hours are currently <strong className="text-slate-800">{formatDuration(currentNetMins)}</strong> (Target: {settings?.presentHours || 8}h). 
+                Your net working hours are currently <strong className="text-slate-800">{formatDuration(currentNetMins)}</strong> (Target: {formatTargetHours(settings?.presentHours)}). 
               </p>
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-[11px] text-amber-800 font-bold leading-relaxed">
                 ⚠️ If you do punch out then this counted as {getExpectedStatusOnPunchOut() === 'Absent' ? 'Absent' : 'Half Day'}.

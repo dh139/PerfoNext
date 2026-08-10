@@ -16,7 +16,7 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const SectionCard = ({ icon: Icon, iconBg, title, subtitle, children, defaultOpen = true }) => {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-visible transition-all duration-300 hover:shadow-md">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -75,6 +75,144 @@ const NumberField = ({ label, value, onChange, min = 0, max, suffix, hint }) => 
     {hint && <p className="text-[10px] text-slate-400">{hint}</p>}
   </div>
 );
+
+const DurationField = ({ label, value, onChange, hint }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef(null);
+
+  const totalMins = Math.round((value || 0) * 60);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+
+  const handleHourSelect = (newH) => {
+    const hoursDecimal = parseFloat((newH + m / 60).toFixed(2));
+    onChange(hoursDecimal);
+  };
+
+  const handleMinSelect = (newM) => {
+    const hoursDecimal = parseFloat((h + newM / 60).toFixed(2));
+    onChange(hoursDecimal);
+  };
+
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const hoursContainerRef = React.useRef(null);
+  const minsContainerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        if (hoursContainerRef.current) {
+          const selectedEl = hoursContainerRef.current.querySelector('[data-selected="true"]');
+          if (selectedEl) selectedEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+        if (minsContainerRef.current) {
+          const selectedEl = minsContainerRef.current.querySelector('[data-selected="true"]');
+          if (selectedEl) selectedEl.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+      }, 50);
+    }
+  }, [isOpen]);
+
+  const formatDisplay = () => {
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5" ref={containerRef}>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center justify-between w-32 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 hover:border-slate-350 focus:outline-none focus:ring-2 focus:ring-sky-500/20 transition-all cursor-pointer text-left shadow-sm"
+        >
+          <div className="flex items-center gap-2">
+            <Clock size={13} className="text-slate-450" />
+            <span>{formatDisplay()}</span>
+          </div>
+          <ChevronDown size={12} className={`text-slate-450 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute left-0 mt-2 w-52 bg-white border border-slate-200 shadow-2xl rounded-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex gap-4 h-48">
+              <div className="flex-1 flex flex-col min-w-0">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center mb-2">Hours</span>
+                <div 
+                  ref={hoursContainerRef}
+                  className="flex-1 overflow-y-auto space-y-1 pr-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {Array.from({ length: 25 }, (_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      data-selected={h === i}
+                      onClick={() => handleHourSelect(i)}
+                      className={`w-full text-center py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        h === i
+                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-500/10'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {i}h
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="w-[1px] bg-slate-100 h-full flex-shrink-0" />
+
+              <div className="flex-1 flex flex-col min-w-0">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center mb-2">Mins</span>
+                <div 
+                  ref={minsContainerRef}
+                  className="flex-1 overflow-y-auto space-y-1 pr-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {Array.from({ length: 60 }, (_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      data-selected={m === i}
+                      onClick={() => handleMinSelect(i)}
+                      className={`w-full text-center py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        m === i
+                          ? 'bg-sky-600 text-white shadow-sm shadow-sky-500/10'
+                          : 'text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {String(i).padStart(2, '0')}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-2.5 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="w-full py-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] rounded-lg transition-colors cursor-pointer text-center"
+              >
+                Apply & Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      {hint && <p className="text-[10px] text-slate-400">{hint}</p>}
+    </div>
+  );
+};
 
 const TimeField = ({ label, value, onChange, hint }) => (
   <div className="flex flex-col gap-1.5">
@@ -181,8 +319,41 @@ export default function AttendanceRulesPage() {
     }
   };
 
+  const parseTimeStr = (s) => {
+    const m = (s || '').trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+    if (!m) return null;
+    let h = parseInt(m[1]); const min = parseInt(m[2]);
+    if (m[3] === 'PM' && h < 12) h += 12;
+    if (m[3] === 'AM' && h === 12) h = 0;
+    return h * 60 + min;
+  };
+
+  const formatRulesHours = (hoursVal) => {
+    const totalMins = Math.round((hoursVal || 0) * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  };
+
   const setRule = (key, value) => {
-    setRules(prev => ({ ...prev, [key]: value }));
+    setRules(prev => {
+      const updated = { ...prev, [key]: value };
+      
+      // Auto-calculate presentHours and halfDayHours if office times or lunch settings change!
+      if (['officeStartTime', 'officeEndTime', 'lunchDeductionEnabled', 'lunchDeductionMinutes'].includes(key)) {
+        const start = parseTimeStr(updated.officeStartTime) ?? 540;
+        const end = parseTimeStr(updated.officeEndTime) ?? 1080;
+        const dur = Math.max(0, end - start);
+        const lunch = updated.lunchDeductionEnabled ? (updated.lunchDeductionMinutes || 0) : 0;
+        const net = Math.max(0, dur - lunch);
+        
+        updated.presentHours = parseFloat((net / 60).toFixed(2));
+        updated.halfDayHours = parseFloat((net / 120).toFixed(2));
+      }
+      
+      return updated;
+    });
     setDirty(true);
   };
   const setNestedRule = (parent, key, value) => {
@@ -222,16 +393,8 @@ export default function AttendanceRulesPage() {
 
   // Live formula preview
   const preview = (() => {
-    const parse = (s) => {
-      const m = (s || '').trim().toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
-      if (!m) return null;
-      let h = parseInt(m[1]); const min = parseInt(m[2]);
-      if (m[3] === 'PM' && h < 12) h += 12;
-      if (m[3] === 'AM' && h === 12) h = 0;
-      return h * 60 + min;
-    };
-    const start = parse(rules.officeStartTime) ?? 540;
-    const end = parse(rules.officeEndTime) ?? 1080;
+    const start = parseTimeStr(rules.officeStartTime) ?? 540;
+    const end = parseTimeStr(rules.officeEndTime) ?? 1080;
     const dur = Math.max(0, end - start);
     const lunch = rules.lunchDeductionEnabled ? (rules.lunchDeductionMinutes || 0) : 0;
     const net = Math.max(0, dur - lunch);
@@ -333,13 +496,13 @@ export default function AttendanceRulesPage() {
       {/* ── 3. Working Hour Thresholds ──────────────────────────────────────── */}
       <SectionCard icon={TrendingUp} iconBg="bg-emerald-50 text-emerald-600 border border-emerald-100" title="Minimum Working Hours" subtitle="Thresholds to classify attendance status">
         <div className="grid grid-cols-2 gap-6">
-          <NumberField label="Present After" value={rules.presentHours} onChange={v => setRule('presentHours', v)} min={0} max={24} suffix="hours" />
-          <NumberField label="Half Day After" value={rules.halfDayHours} onChange={v => setRule('halfDayHours', v)} min={0} max={24} suffix="hours" />
+          <DurationField label="Present After" value={rules.presentHours} onChange={v => setRule('presentHours', v)} />
+          <DurationField label="Half Day After" value={rules.halfDayHours} onChange={v => setRule('halfDayHours', v)} />
         </div>
         <div className="grid grid-cols-3 gap-3 mt-2">
-          <StatPill label="✅ Present" value={`≥ ${rules.presentHours}h`} color="bg-emerald-50 border-emerald-150 text-emerald-700" />
-          <StatPill label="🌗 Half Day" value={`${rules.halfDayHours}–${rules.presentHours}h`} color="bg-amber-50 border-amber-150 text-amber-700" />
-          <StatPill label="❌ Absent" value={`< ${rules.halfDayHours}h`} color="bg-rose-50 border-rose-150 text-rose-700" />
+          <StatPill label="✅ Present" value={`≥ ${formatRulesHours(rules.presentHours)}`} color="bg-emerald-50 border-emerald-150 text-emerald-700" />
+          <StatPill label="🌗 Half Day" value={`${formatRulesHours(rules.halfDayHours)}–${formatRulesHours(rules.presentHours)}`} color="bg-amber-50 border-amber-150 text-amber-700" />
+          <StatPill label="❌ Absent" value={`< ${formatRulesHours(rules.halfDayHours)}`} color="bg-rose-50 border-rose-150 text-rose-700" />
         </div>
       </SectionCard>
 
@@ -489,9 +652,9 @@ export default function AttendanceRulesPage() {
           </div>
           <div className="grid grid-cols-3 gap-3 text-xs">
             {[
-              { emoji: '✅', label: 'Present', cond: `Net ≥ ${rules.presentHours}h`, bg: 'bg-emerald-50', border: 'border-emerald-150', text: 'text-emerald-700' },
-              { emoji: '🌗', label: 'Half Day', cond: `${rules.halfDayHours}–${rules.presentHours}h`, bg: 'bg-amber-50', border: 'border-amber-150', text: 'text-amber-700' },
-              { emoji: '❌', label: 'Absent', cond: `Net < ${rules.halfDayHours}h`, bg: 'bg-rose-50', border: 'border-rose-150', text: 'text-rose-700' },
+              { emoji: '✅', label: 'Present', cond: `Net ≥ ${formatRulesHours(rules.presentHours)}`, bg: 'bg-emerald-50', border: 'border-emerald-150', text: 'text-emerald-700' },
+              { emoji: '🌗', label: 'Half Day', cond: `${formatRulesHours(rules.halfDayHours)}–${formatRulesHours(rules.presentHours)}`, bg: 'bg-amber-50', border: 'border-amber-150', text: 'text-amber-700' },
+              { emoji: '❌', label: 'Absent', cond: `Net < ${formatRulesHours(rules.halfDayHours)}`, bg: 'bg-rose-50', border: 'border-rose-150', text: 'text-rose-700' },
             ].map(s => (
               <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-3 text-center shadow-sm`}>
                 <p className="text-lg mb-1">{s.emoji}</p>

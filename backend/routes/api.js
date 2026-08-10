@@ -32,24 +32,22 @@ const integrationController = require('../controllers/integrationController');
 const workJournalController = require('../controllers/workJournalController');
 const attendanceController = require('../controllers/attendanceController');
 
-const { authLimiter, publicLimiter, userActionLimiter } = require('../middlewares/rateLimiter');
 
 // ==================== AUTH ROUTES ====================
-router.post('/auth/login', authLimiter, validateLogin, authController.login);
+router.post('/auth/login', validateLogin, authController.login);
 router.post('/auth/refresh', authController.refresh);
 router.post('/auth/logout', authController.logout);
-router.post('/auth/register', authLimiter, validateRegister, authController.register);
-router.post('/auth/forgot-password', authLimiter, validateForgotPassword, authController.forgotPassword);
-router.post('/auth/verify-otp', authLimiter, authController.verifyOtp);
-router.post('/auth/reset-password', authLimiter, validateResetPassword, authController.resetPassword);
+router.post('/auth/register', validateRegister, authController.register);
+router.post('/auth/forgot-password', validateForgotPassword, authController.forgotPassword);
+router.post('/auth/verify-otp', authController.verifyOtp);
+router.post('/auth/reset-password', validateResetPassword, authController.resetPassword);
 
 // Public metadata routes
-router.get('/auth/departments', publicLimiter, userController.getDepartments);
-router.get('/auth/designations', publicLimiter, userController.getDesignations);
-router.get('/auth/managers', publicLimiter, userController.getPublicManagers);
+router.get('/auth/departments', userController.getDepartments);
+router.get('/auth/designations', userController.getDesignations);
+router.get('/auth/managers', userController.getPublicManagers);
 
 // ==================== PROTECTED ROUTES ====================
-router.use(userActionLimiter);
 
 router.get('/users', verifyToken, userController.getUsers);
 router.get('/users/me', verifyToken, userController.getMyProfile);

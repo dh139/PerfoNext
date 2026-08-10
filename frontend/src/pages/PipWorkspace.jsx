@@ -86,7 +86,7 @@ const PipWorkspace = () => {
         setAllUsers(candidates);
         if (candidates.length > 0) setSelectedEmployeeId(candidates[0]._id);
 
-        const hrUsers = usersRes.data.filter(u => u.role === 'hr' || u.role === 'admin' || u.role === 'executive' || u.role === 'manager');
+        const hrUsers = usersRes.data.filter(u => u.role === 'hr' || u.role === 'executive' || u.role === 'manager');
         setHrList(hrUsers);
         if (hrUsers.length > 0) setSelectedHrId(hrUsers[0]._id);
       }
@@ -251,8 +251,6 @@ const PipWorkspace = () => {
     switch (status) {
       case 'successful': return 'bg-emerald-50 text-emerald-700 border border-emerald-250';
       case 'unsuccessful': return 'bg-rose-50 text-rose-700 border border-rose-250';
-      case 'closed': return 'bg-emerald-50 text-emerald-700 border border-emerald-250';
-      case 'escalated': return 'bg-rose-50 text-rose-700 border border-rose-250';
       default: return 'bg-amber-50 text-amber-700 border border-amber-250';
     }
   };
@@ -266,8 +264,8 @@ const PipWorkspace = () => {
   }
 
   const activeCount = pips.filter(p => p.status === 'active').length;
-  const closedCount = pips.filter(p => p.status === 'closed').length;
-  const escalatedCount = pips.filter(p => p.status === 'escalated').length;
+  const closedCount = pips.filter(p => p.status === 'successful').length;
+  const unsuccessfulCount = pips.filter(p => p.status === 'unsuccessful').length;
 
   return (
     <div className="space-y-6 animate-fade-in text-xs text-slate-800">
@@ -338,9 +336,9 @@ const PipWorkspace = () => {
 
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Escalated Plans</p>
-              <h2 className="text-xl font-extrabold text-rose-400 mt-0.5">{escalatedCount}</h2>
-              <span className="text-[9px] text-rose-400 font-medium">Formal HR review</span>
+              <p className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Unsuccessful Closures</p>
+              <h2 className="text-xl font-extrabold text-rose-400 mt-0.5">{unsuccessfulCount}</h2>
+              <span className="text-[9px] text-rose-400 font-medium">Goals not met</span>
             </div>
             <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 border border-rose-500/20">
               <XCircle size={20} />

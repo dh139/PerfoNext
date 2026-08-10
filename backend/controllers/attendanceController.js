@@ -36,6 +36,25 @@ const getActiveSettings = async () => {
     settings = new AttendanceSettings();
     await settings.save();
   }
+  
+  if (settings && settings.attendanceRules) {
+    const rules = settings.attendanceRules;
+    const start = parseTimeStr(rules.officeStartTime || '09:00 AM');
+    const end = parseTimeStr(rules.officeEndTime || '06:00 PM');
+    const startMins = start.hours * 60 + start.minutes;
+    const endMins = end.hours * 60 + end.minutes;
+    
+    let dur = endMins - startMins;
+    if (dur < 0) dur += 24 * 60;
+    
+    const lunch = rules.lunchDeductionEnabled ? (rules.lunchDeductionMinutes || 0) : 0;
+    const netMins = Math.max(0, dur - lunch);
+    const netHours = parseFloat((netMins / 60).toFixed(2));
+    
+    rules.presentHours = Math.min(rules.presentHours || 8, netHours);
+    rules.halfDayHours = Math.min(rules.halfDayHours || 4, rules.presentHours);
+  }
+  
   return settings;
 };
 
@@ -705,7 +724,25 @@ const getHrSummary = async (req, res) => {
       _id: { $nin: punchedUserIds.filter(Boolean).map(id => new mongoose.Types.ObjectId(id)) }
     });
 
-    const pendingRegularizationCount = await AttendancePunch.countDocuments({ regularizationStatus: 'pending' });
+    let regFilter = {
+      regularizationStatus: 'pending',
+      employeeId: { $ne: req.user.id }
+    };
+
+    if (req.user.role === 'manager') {
+      regFilter.employeeId = null;
+    } else if (req.user.role === 'hr') {
+      const employees = await User.find({ role: 'employee' }).select('_id');
+      regFilter.employeeId = { $in: employees.map(u => u._id), $ne: req.user.id };
+    } else if (req.user.role === 'executive') {
+      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr'] } }).select('_id');
+      regFilter.employeeId = { $in: managersAndHr.map(u => u._id), $ne: req.user.id };
+    } else if (req.user.role === 'admin') {
+      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
+      regFilter.employeeId = { $in: allUsers.map(u => u._id), $ne: req.user.id };
+    }
+
+    const pendingRegularizationCount = await AttendancePunch.countDocuments(regFilter);
     const attendancePct = totalUsers > 0 ? Math.round(((present + halfDay * 0.5) / totalUsers) * 100) : 0;
 
     res.json({

@@ -279,9 +279,9 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
   let logoutCount = 0;
   
   dailyPunches.forEach(p => {
-    if (p.status === 'Present') presentDays++;
+    if (['Present', 'Late', 'Regularized'].includes(p.status)) presentDays++;
     else if (p.status === 'Half Day') halfDays++;
-    else if (p.status === 'Absent') absentDays++;
+    else if (['Absent', 'Auto Closed', 'Unusual'].includes(p.status)) absentDays++;
     else if (p.status === 'Incomplete') incompleteDays++;
     
     if (p.lateMinutes > 0) lateDays++;

@@ -548,9 +548,9 @@ const ExecutiveDashboard = ({ data, user }) => {
               return (
                 <div className="space-y-4">
                   <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500">
-                    <span className="text-emerald-600">✓ Present: {ceoDateAttendance.records.filter(r => r.status === 'Present').length}</span>
+                    <span className="text-emerald-600">✓ Present: {ceoDateAttendance.records.filter(r => ['Present', 'Regularized', 'Late', 'Incomplete'].includes(r.status)).length}</span>
                     <span className="text-amber-600">◑ Half Day: {ceoDateAttendance.records.filter(r => r.status === 'Half Day').length}</span>
-                    <span className="text-rose-600">✗ Absent: {ceoDateAttendance.records.filter(r => r.status === 'Absent').length}</span>
+                    <span className="text-rose-600">✗ Absent: {ceoDateAttendance.records.filter(r => ['Absent', 'Auto Closed', 'Unusual'].includes(r.status)).length}</span>
                     <span className="text-slate-400">({filtered.length} shown)</span>
                   </div>
                   <div className="overflow-x-auto">

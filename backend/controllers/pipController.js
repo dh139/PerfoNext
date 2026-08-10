@@ -27,12 +27,6 @@ const getPipSuggestions = async (req, res) => {
     const suggestions = [];
 
     for (const emp of employees) {
-      // Check if employee already has an active or escalated PIP
-      const activePip = await Pip.findOne({ employeeId: emp._id, status: { $in: ['active', 'escalated'] } });
-      if (activePip) {
-        continue;
-      }
-
       // Find latest completed review scores
       const recentScores = await ReviewScore.find({ employeeId: emp._id })
         .sort('-createdAt')
@@ -43,6 +37,18 @@ const getPipSuggestions = async (req, res) => {
         const isLow = ['Needs Improvement', 'Unsatisfactory'].includes(latestScore.rating);
 
         if (isLow) {
+          // Check if employee already has an active PIP or a PIP triggered by the latest review score
+          const existingPip = await Pip.findOne({
+            employeeId: emp._id,
+            $or: [
+              { status: 'active' },
+              { triggerReviewScoreId: latestScore._id }
+            ]
+          });
+          if (existingPip) {
+            continue;
+          }
+
           suggestions.push({
             employee: emp,
             reason: `Needs Improvement/Unsatisfactory rating in latest cycle (${latestScore.rating} with score ${latestScore.finalScore})`,

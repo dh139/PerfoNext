@@ -1060,6 +1060,18 @@ const unlockUserForCycle = async (req, res) => {
       return res.status(404).json({ message: 'Target employee not found.' });
     }
 
+    // Block re-open if the employee already submitted their self-assessment for this cycle
+    const existingSubmission = await SelfAssessment.findOne({
+      reviewCycleId: cycleId,
+      employeeId: userId,
+      status: 'submitted'
+    });
+    if (existingSubmission) {
+      return res.status(400).json({
+        message: `${targetUser.firstName} ${targetUser.lastName} has already submitted their self-assessment for this cycle and does not need a re-open.`
+      });
+    }
+
     // Add to unlockedUserIds if not present
     if (!cycle.unlockedUserIds.some(id => id.toString() === userId.toString())) {
       cycle.unlockedUserIds.push(userId);
