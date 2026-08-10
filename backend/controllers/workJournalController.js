@@ -123,8 +123,23 @@ const createWorkJournalItem = async (req, res) => {
       }
     }
 
-    if (!title || !category) {
-      return res.status(400).json({ message: 'Achievement title and category are required.' });
+    if (!title || !title.trim()) {
+      return res.status(400).json({ message: 'Achievement title is required.' });
+    }
+    if (!category || !category.trim()) {
+      return res.status(400).json({ message: 'Category is required.' });
+    }
+    if (!project || !project.trim()) {
+      return res.status(400).json({ message: 'Project / Client / Account name is required.' });
+    }
+    if (!hoursSpent || isNaN(Number(hoursSpent)) || Number(hoursSpent) <= 0) {
+      return res.status(400).json({ message: 'Hours Spent is required and must be a positive number.' });
+    }
+    if (!resultSummary || !resultSummary.trim()) {
+      return res.status(400).json({ message: 'Work Summary & Output Result is required.' });
+    }
+    if (!evidenceRef || !evidenceRef.trim()) {
+      return res.status(400).json({ message: 'Proof Link / Reference ID is required.' });
     }
 
     // Closed Review Cycle Isolation Check
@@ -218,6 +233,25 @@ const updateWorkJournalItem = async (req, res) => {
     }
 
     const updateData = { ...req.body };
+
+    if (updateData.title !== undefined && (!updateData.title || !updateData.title.trim())) {
+      return res.status(400).json({ message: 'Achievement title is required.' });
+    }
+    if (updateData.category !== undefined && (!updateData.category || !updateData.category.trim())) {
+      return res.status(400).json({ message: 'Category is required.' });
+    }
+    if (updateData.project !== undefined && (!updateData.project || !updateData.project.trim())) {
+      return res.status(400).json({ message: 'Project / Client / Account name is required.' });
+    }
+    if (updateData.hoursSpent !== undefined && (!updateData.hoursSpent || isNaN(Number(updateData.hoursSpent)) || Number(updateData.hoursSpent) <= 0)) {
+      return res.status(400).json({ message: 'Hours Spent is required and must be a positive number.' });
+    }
+    if (updateData.resultSummary !== undefined && (!updateData.resultSummary || !updateData.resultSummary.trim())) {
+      return res.status(400).json({ message: 'Work Summary & Output Result is required.' });
+    }
+    if (updateData.evidenceRef !== undefined && (!updateData.evidenceRef || !updateData.evidenceRef.trim())) {
+      return res.status(400).json({ message: 'Proof Link / Reference ID is required.' });
+    }
     if (updateData.customFieldsData) {
       try {
         updateData.customFieldsData = typeof updateData.customFieldsData === 'string'

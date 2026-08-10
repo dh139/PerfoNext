@@ -1,25 +1,47 @@
-const nodemailer = require('nodemailer');
-
-let transporter = null;
-
+// Replace nodemailer with Brevo API
 const getTransporter = () => {
-  if (transporter) return transporter;
-
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+  if (!process.env.BREVO_API_KEY) {
     return null;
   }
 
-  transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
+  return {
+    sendMail: async ({ from, to, subject, text, html }) => {
+      const senderEmail = from || process.env.SMTP_FROM || 'noreply@perfonext.com';
+      let senderName = 'PerfoNext';
+      let cleanSenderEmail = senderEmail;
+      
+      if (senderEmail.includes('<') && senderEmail.includes('>')) {
+        const match = senderEmail.match(/^(.*?)\s*<(.*?)>$/);
+        if (match) {
+          senderName = match[1].trim();
+          cleanSenderEmail = match[2].trim();
+        }
+      }
 
-  return transporter;
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { email: cleanSenderEmail, name: senderName },
+          to: [{ email: to }],
+          subject: subject,
+          textContent: text,
+          htmlContent: html
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('Brevo API send email failed:', errText);
+        throw new Error(`Brevo API Error: ${response.status} - ${errText}`);
+      }
+
+      return await response.json();
+    }
+  };
 };
 
 const getEmailWrapper = (title, contentHtml) => {

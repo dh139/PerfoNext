@@ -125,7 +125,7 @@ const RecognitionsWorkspace = () => {
     try {
       await api.post('/api/recognitions', {
         employeeId,
-        cycleId: cycleId || null,
+        cycleId: null,
         category,
         comments,
         awardedAt
@@ -533,7 +533,7 @@ const RecognitionsWorkspace = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-500 uppercase">Award Category *</label>
                   <select
@@ -559,47 +559,6 @@ const RecognitionsWorkspace = () => {
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
                     required
                   />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Review Cycle (Optional)</label>
-                  <select
-                    value={cycleId}
-                    onChange={(e) => setCycleId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-700 font-medium cursor-pointer"
-                  >
-                    <option value="">No cycle (Org Level)</option>
-                    {(() => {
-                      const selectedEmp = employees.find(e => e._id === employeeId);
-                      const filteredCycles = cycles.filter(c => {
-                        if (!selectedEmp) return true;
-
-                        // Check target role compatibility
-                        const isEmpManager = selectedEmp.role === 'manager' || selectedEmp.role === 'hr';
-                        if (isEmpManager && c.targetRole === 'employee') return false;
-                        if (!isEmpManager && c.targetRole === 'manager') return false;
-
-                        // Check department compatibility
-                        const cycleDeptId = c.kpiTemplateId?.departmentId?._id || c.kpiTemplateId?.departmentId;
-                        const empDeptId = selectedEmp.departmentId?._id || selectedEmp.departmentId;
-                        if (cycleDeptId && empDeptId && cycleDeptId.toString() !== empDeptId.toString()) {
-                          return false;
-                        }
-
-                        return true;
-                      });
-
-                      return filteredCycles.map(c => {
-                        const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Depts';
-                        const targetBadge = c.targetRole === 'manager' ? 'Manager Cycle' : 'Employee Cycle';
-                        return (
-                          <option key={c._id} value={c._id}>
-                            Month: {c.reviewMonth} — {deptName} [{targetBadge}]
-                          </option>
-                        );
-                      });
-                    })()}
-                  </select>
                 </div>
               </div>
 

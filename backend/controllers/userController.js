@@ -2,9 +2,26 @@ const User = require('../models/User');
 const Department = require('../models/Department');
 const Designation = require('../models/Designation');
 const ManagerReview = require('../models/ManagerReview');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryHelper');
 const bcrypt = require('bcryptjs');
 const { logAction } = require('../utils/logger');
 const { sendWelcomeEmail } = require('../services/emailService');
+
+// Models required for cascading user deletion
+const AIReport = require('../models/AIReport');
+const AttendancePunch = require('../models/AttendancePunch');
+const Certification = require('../models/Certification');
+const EmployeeSkill = require('../models/EmployeeSkill');
+const FeedbackRequest = require('../models/FeedbackRequest');
+const FeedbackResponse = require('../models/FeedbackResponse');
+const LeaveRequest = require('../models/LeaveRequest');
+const Notification = require('../models/Notification');
+const Pip = require('../models/Pip');
+const Promotion = require('../models/Promotion');
+const Recognition = require('../models/Recognition');
+const ReviewScore = require('../models/ReviewScore');
+const SelfAssessment = require('../models/SelfAssessment');
+const WorkJournal = require('../models/WorkJournal');
 
 const validateManagerSelection = async (employeeId, managerId, role, departmentId) => {
   if (managerId) {
@@ -581,7 +598,8 @@ const getPublicManagers = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const userId = req.params.id;
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -589,19 +607,80 @@ const deleteUser = async (req, res) => {
     delete before.passwordHash;
     delete before.refreshToken;
 
-    await User.findByIdAndDelete(req.params.id);
+    // 1. Delete Profile Photo from Cloudinary
+    if (user.profilePhoto) {
+      await deleteFromCloudinary(user.profilePhoto);
+    }
+
+    // 2. Delete Certifications from Cloudinary and database
+    const certs = await Certification.find({ employeeId: userId });
+    for (const cert of certs) {
+      if (cert.fileUrl) {
+        await deleteFromCloudinary(cert.fileUrl);
+      }
+    }
+    await Certification.deleteMany({ employeeId: userId });
+
+    // 3. Cascading delete all other user-related data
+    await AIReport.deleteMany({ employeeId: userId });
+    await AttendancePunch.deleteMany({ employeeId: userId });
+    await EmployeeSkill.deleteMany({ employeeId: userId });
+    await FeedbackRequest.deleteMany({
+      $or: [
+        { employeeId: userId },
+        { reviewerId: userId },
+        { requesterId: userId }
+      ]
+    });
+    await FeedbackResponse.deleteMany({
+      $or: [
+        { employeeId: userId },
+        { reviewerId: userId }
+      ]
+    });
+    await LeaveRequest.deleteMany({ employeeId: userId });
+    await ManagerReview.deleteMany({
+      $or: [
+        { employeeId: userId },
+        { managerId: userId }
+      ]
+    });
+    await Notification.deleteMany({ userId: userId });
+    await Pip.deleteMany({
+      $or: [
+        { employeeId: userId },
+        { managerId: userId },
+        { hrReviewerId: userId }
+      ]
+    });
+    await Promotion.deleteMany({ employeeId: userId });
+    await Recognition.deleteMany({
+      $or: [
+        { employeeId: userId },
+        { giverId: userId }
+      ]
+    });
+    await ReviewScore.deleteMany({ employeeId: userId });
+    await SelfAssessment.deleteMany({ employeeId: userId });
+    await WorkJournal.deleteMany({ employeeId: userId });
+
+    // 4. Update subordinates who report to this user
+    await User.updateMany({ managerId: userId }, { managerId: null });
+
+    // 5. Finally, delete the User record
+    await User.findByIdAndDelete(userId);
 
     await logAction({
       userId: req.user.id,
       action: 'user_deletion',
       entityType: 'User',
-      entityId: req.params.id,
+      entityId: userId,
       before,
       after: null,
       ipAddress: req.ip || ''
     });
 
-    res.json({ message: 'User deleted successfully.' });
+    res.json({ message: 'User and all associated data deleted successfully.' });
   } catch (error) {
     console.error('deleteUser error:', error);
     res.status(500).json({ message: error.message || 'Internal server error.' });
@@ -692,18 +771,35 @@ const uploadProfilePhoto = async (req, res) => {
       return res.status(400).json({ message: 'Profile photo file upload is required.' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      // Clean up uploaded file if user not found
+      const fs = require('fs');
+      if (fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch (e) {}
+      }
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Delete the old profile photo if it exists on Cloudinary
+    if (user.profilePhoto) {
+      await deleteFromCloudinary(user.profilePhoto);
+    }
+
+    // Upload new profile photo to Cloudinary under the 'profiles' folder with employee code
+    const publicId = `profiles/${user.employeeCode.toLowerCase()}-profile`;
+    const result = await uploadToCloudinary(req.file.path, publicId);
 
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
-      { profilePhoto: fileUrl },
+      { profilePhoto: result.secure_url },
       { new: true }
     ).select('-passwordHash -refreshToken');
 
     res.json(updatedUser);
   } catch (error) {
     console.error('uploadProfilePhoto error:', error);
-    res.status(500).json({ message: 'Internal server error.' });
+    res.status(500).json({ message: error.message || 'Internal server error.' });
   }
 };
 

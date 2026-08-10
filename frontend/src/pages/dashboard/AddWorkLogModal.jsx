@@ -49,8 +49,28 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title || !category) {
-      toast.error('Achievement Title and Category are required.');
+    if (!title || !title.trim()) {
+      toast.error('Achievement Title is required.');
+      return;
+    }
+    if (!category || !category.trim()) {
+      toast.error('Category is required.');
+      return;
+    }
+    if (!project || !project.trim()) {
+      toast.error(`${formTemplate?.projectLabel || 'Project / Client / Account name'} is required.`);
+      return;
+    }
+    if (!hoursSpent || isNaN(Number(hoursSpent)) || Number(hoursSpent) <= 0) {
+      toast.error('Hours Spent is required and must be a positive number.');
+      return;
+    }
+    if (!resultSummary || !resultSummary.trim()) {
+      toast.error(`${formTemplate?.summaryLabel || 'Work Summary'} is required.`);
+      return;
+    }
+    if (!evidenceRef || !evidenceRef.trim()) {
+      toast.error(`${formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'} is required.`);
       return;
     }
 
@@ -144,7 +164,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase">
-                {formTemplate?.projectLabel || 'Project / Module'}
+                {formTemplate?.projectLabel || 'Project / Module'} *
               </label>
               <input
                 type="text"
@@ -152,6 +172,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+                required
               />
             </div>
 
@@ -186,7 +207,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Hours Spent</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Hours Spent *</label>
               <input
                 type="number"
                 step="0.5"
@@ -194,13 +215,14 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
                 value={hoursSpent}
                 onChange={(e) => setHoursSpent(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+                required
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase">
-              {formTemplate?.summaryLabel || 'Work Summary & Output Result'}
+              {formTemplate?.summaryLabel || 'Work Summary & Output Result'} *
             </label>
             <textarea
               rows="3"
@@ -208,6 +230,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
               value={resultSummary}
               onChange={(e) => setResultSummary(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-medium text-slate-850 outline-none focus:border-sky-500"
+              required
             ></textarea>
           </div>
 
@@ -276,7 +299,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase">
-                {formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'}
+                {formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'} *
               </label>
               <input
                 type="text"
@@ -284,6 +307,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
                 value={evidenceRef}
                 onChange={(e) => setEvidenceRef(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
+                required
               />
             </div>
           </div>

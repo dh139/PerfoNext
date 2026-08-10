@@ -777,14 +777,14 @@ const Certifications = () => {
             <div className="flex-1 bg-slate-50 border border-slate-150 rounded-xl overflow-hidden relative">
               {previewDoc.fileUrl.toLowerCase().endsWith('.pdf') ? (
                 <iframe
-                  src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                  src={previewDoc.fileUrl.startsWith('http') ? previewDoc.fileUrl : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
                   className="w-full h-full border-0"
                   title={previewDoc.fileName}
                 />
               ) : (
                 <div className="w-full h-full flex justify-center items-center overflow-auto p-4">
                   <img
-                    src={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
+                    src={previewDoc.fileUrl.startsWith('http') ? previewDoc.fileUrl : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}${previewDoc.fileUrl}`}
                     alt={previewDoc.fileName}
                     className="max-w-full max-h-full object-contain rounded-lg shadow"
                   />

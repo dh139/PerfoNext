@@ -3,6 +3,7 @@ const ReviewCycle = require('../models/ReviewCycle');
 const AIReport = require('../models/AIReport');
 const User = require('../models/User');
 const fs = require('fs');
+const { uploadToCloudinary, deleteFromCloudinary, slugify } = require('../utils/cloudinaryHelper');
 
 const getCertifications = async (req, res) => {
   try {
@@ -124,7 +125,10 @@ const uploadCertification = async (req, res) => {
       return res.status(400).json({ message: 'Certificate file upload is required.' });
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Upload to Cloudinary under 'certificates' folder with employee code and slugified certificate name
+    const publicId = `certificates/${targetUser.employeeCode.toLowerCase()}-${slugify(name)}`;
+    const result = await uploadToCloudinary(req.file.path, publicId);
+    const fileUrl = result.secure_url;
 
     const cert = await Certification.create({
       employeeId: targetEmployeeId,
@@ -188,8 +192,16 @@ const updateCertification = async (req, res) => {
 
     // Handle new replacement file if uploaded
     if (req.file) {
-      cert.fileUrl = `/uploads/${req.file.filename}`;
-
+      if (cert.fileUrl) {
+        await deleteFromCloudinary(cert.fileUrl);
+      }
+      const employee = await User.findById(cert.employeeId);
+      const employeeCode = employee ? employee.employeeCode : 'unknown';
+      const finalName = name || cert.name;
+      const publicId = `certificates/${employeeCode.toLowerCase()}-${slugify(finalName)}`;
+      
+      const result = await uploadToCloudinary(req.file.path, publicId);
+      cert.fileUrl = result.secure_url;
       cert.extractedText = '';
     }
 

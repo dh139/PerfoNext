@@ -6,15 +6,13 @@ const { logAction } = require('../utils/logger');
 
 const getRecognitions = async (req, res) => {
   try {
-    const { employeeId, cycleId } = req.query;
+    const { employeeId } = req.query;
     const filter = {};
 
     if (employeeId) filter.employeeId = employeeId;
-    if (cycleId) filter.cycleId = cycleId;
 
     const recognitions = await Recognition.find(filter)
       .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
-      .populate('cycleId')
       .populate({ path: 'awardedBy', select: 'firstName lastName email' });
 
     res.json(recognitions);
@@ -26,7 +24,7 @@ const getRecognitions = async (req, res) => {
 
 const createRecognition = async (req, res) => {
   try {
-    const { employeeId, cycleId, category, comments, awardedAt } = req.body;
+    const { employeeId, category, comments, awardedAt } = req.body;
     const targetEmp = await User.findById(employeeId);
     if (!targetEmp) return res.status(404).json({ message: 'Target employee not found.' });
 
@@ -63,13 +61,12 @@ const createRecognition = async (req, res) => {
     await ReviewCycle.autoCloseExpiredCycles();
     const activeCycle = await ReviewCycle.findOne({ status: 'active' });
     const isUserAdminOrCEO = req.user.role === 'admin' || req.user.role === 'executive';
-    if (!isUserAdminOrCEO && !activeCycle && !cycleId) {
+    if (!isUserAdminOrCEO && !activeCycle) {
       return res.status(400).json({ message: 'Cannot award recognition when there is no active review cycle.' });
     }
 
     const recognition = await Recognition.create({
       employeeId,
-      cycleId: cycleId || activeCycle?._id || null,
       category,
       comments,
       awardedBy: req.user.id,

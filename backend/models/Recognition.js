@@ -8,12 +8,7 @@ const recognitionSchema = new mongoose.Schema(
       required: true,
       index: true
     },
-    cycleId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'ReviewCycle',
-      default: null,
-      index: true
-    },
+
     category: {
       type: String,
       required: true,
