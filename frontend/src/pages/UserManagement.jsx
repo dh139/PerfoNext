@@ -212,6 +212,7 @@ const UserManagement = () => {
     if (u.role === 'employee') return false; // Employees cannot be managers
     if (editUser && u._id === editUser._id) return false;
     if (u.employmentStatus !== 'active') return false;
+    if (role === 'employee' && u.role === 'executive') return false; // Don't show CEO for standard employees
     if (role === 'hr' || role === 'admin') return u.role === 'executive';
     const uLevel = u.level || 5;
     if (uLevel >= userLevel && u.role !== 'executive') return false;
