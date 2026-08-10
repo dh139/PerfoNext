@@ -734,7 +734,7 @@ const checkAndCalculateScores = async (reviewCycleId, employeeId, ipAddress) => 
       if (hasAttendanceRecords) {
         let totalPresent = 0;
         attendancePunches.forEach(p => {
-          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
+          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized' || p.status === 'Incomplete') totalPresent += 1;
           else if (p.status === 'Half Day') totalPresent += 0.5;
         });
         const totalWorking = monthKeys.reduce((sum, mk) => sum + getWeekdayCount(mk), 0);

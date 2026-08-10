@@ -322,7 +322,7 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
   if (dailyPunches.length > 0) {
     let totalPresent = 0;
     dailyPunches.forEach(p => {
-      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
+      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized' || p.status === 'Incomplete') totalPresent += 1;
       else if (p.status === 'Half Day') totalPresent += 0.5;
     });
 
@@ -665,7 +665,7 @@ const generateLocalFallback = async (employee, scores, managerReviews, certifica
   if (dailyPunches.length > 0) {
     let totalPresent = 0;
     dailyPunches.forEach(p => {
-      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') totalPresent += 1;
+      if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized' || p.status === 'Incomplete') totalPresent += 1;
       else if (p.status === 'Half Day') totalPresent += 0.5;
     });
 

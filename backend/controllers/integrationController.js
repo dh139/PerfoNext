@@ -137,7 +137,7 @@ const getAttendance = async (req, res) => {
         
         let daysPresent = 0;
         userMonthPunches.forEach(p => {
-          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized') daysPresent += 1;
+          if (p.status === 'Present' || p.status === 'Late' || p.status === 'Regularized' || p.status === 'Incomplete') daysPresent += 1;
           else if (p.status === 'Half Day') daysPresent += 0.5;
         });
 

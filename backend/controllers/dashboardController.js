@@ -241,6 +241,12 @@ const getDashboardData = async (req, res) => {
         }
       }
 
+      const teamScores = await ReviewScore.find({ employeeId: { $in: teamIds } })
+        .populate('employeeId', 'firstName lastName')
+        .populate('reviewCycleId', 'reviewMonth')
+        .sort({ calculatedAt: -1 })
+        .limit(10);
+
       return res.json({
         profile: user,
         teamSize: team.length,
@@ -249,6 +255,7 @@ const getDashboardData = async (req, res) => {
         pendingWorkLogs,
         pendingManagerReviews,
         pendingSelfAssessmentsFromSubordinates,
+        teamScores,
         pendingSelfAssessments,
         activeCyclesCount: activeCycles.length,
         notifications,
