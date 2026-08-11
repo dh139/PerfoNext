@@ -13,7 +13,6 @@ const connectDB = async () => {
   await conn();
 };
 
-const path = require('path');
 const apiRoutes = require('./routes/api');
 
 const app = express();
@@ -42,19 +41,12 @@ app.use(cors({
 // Body parser
 app.use(express.json());
 
-// Serve static uploads with nosniff security header to prevent execution
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Content-Disposition', 'inline');
-  next();
-}, express.static(path.join(__dirname, 'uploads')));
-
 // Logging middleware in dev
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// Health check route
+// Health check route 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
 });
@@ -78,6 +70,10 @@ app.use((err, req, res, next) => {
     method: req.method,
     ip: req.ip
   });
+
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ message: 'File size exceeds the 2MB limit. Please upload a smaller file.' });
+  }
 
   const isFormatError = err.name === 'MulterError' || (err.message && err.message.includes('Invalid file format'));
   const statusCode = err.statusCode || err.status || (isFormatError ? 400 : 500);

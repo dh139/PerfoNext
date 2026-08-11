@@ -721,12 +721,19 @@ const Certifications = () => {
                         setFile(null);
                         return;
                       }
+                      if (selected.size > 2 * 1024 * 1024) {
+                        toast.error('File size exceeds the 2MB limit. Please upload a smaller file.');
+                        e.target.value = '';
+                        setFile(null);
+                        return;
+                      }
                       setFile(selected);
                     }
                   }}
                   className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-slate-700 file:bg-sky-100 file:border-0 file:rounded-lg file:px-3 file:py-1 file:text-xs file:font-bold file:text-sky-800 cursor-pointer"
                   required
                 />
+                <p className="text-[10px] text-slate-400 mt-1">Allowed formats: PDF, JPG, JPEG (Max file size: 2MB)</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">

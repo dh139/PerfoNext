@@ -12,7 +12,7 @@ const generateAccessToken = (user) => {
       lastName: user.lastName
     },
     process.env.JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: process.env.ACCESS_TOKEN_EXPIRY || '15m' }
   );
 };
 
@@ -20,7 +20,7 @@ const generateRefreshToken = (user) => {
   return jwt.sign(
     { id: user._id },
     process.env.JWT_REFRESH_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || '7d' }
   );
 };
 

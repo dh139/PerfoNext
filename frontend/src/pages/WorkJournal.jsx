@@ -244,6 +244,21 @@ const WorkJournal = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['pdf', 'jpg', 'jpeg'].includes(ext)) {
+        toast.error('Invalid file format. Only PDF, JPG, and JPEG files are allowed.');
+        e.target.value = '';
+        setScreenshotFile(null);
+        setImagePreviewUrl('');
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error('File size exceeds the 2MB limit. Please upload a smaller file.');
+        e.target.value = '';
+        setScreenshotFile(null);
+        setImagePreviewUrl('');
+        return;
+      }
       setScreenshotFile(file);
       setImagePreviewUrl(URL.createObjectURL(file));
     }
@@ -1991,10 +2006,11 @@ const WorkJournal = () => {
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Upload Screenshot Proof (Optional)</label>
                 <input
                   type="file"
-                  accept="image/*,.pdf"
+                  accept=".pdf,.jpg,.jpeg,image/jpeg,application/pdf"
                   onChange={handleFileChange}
                   className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs cursor-pointer"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">Allowed formats: PDF, JPG, JPEG (Max file size: 2MB)</p>
                 {imagePreviewUrl && (
                   <div className="mt-2 relative rounded-xl border border-slate-200 overflow-hidden bg-slate-100 max-h-36 flex justify-center items-center">
                     <img src={imagePreviewUrl} alt="Preview" className="max-h-32 object-contain" />

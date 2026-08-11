@@ -3,6 +3,8 @@ const User = require('../models/User');
 const ProjectStatus = require('../models/ProjectStatus');
 const ReviewCycle = require('../models/ReviewCycle');
 const { logAction } = require('../utils/logger');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryHelper');
+const fs = require('fs');
 
 /**
  * Get Work Journal achievements for logged in user or target employee
@@ -176,7 +178,17 @@ const createWorkJournalItem = async (req, res) => {
 
     let finalEvidenceUrl = (evidenceUrl || '').trim();
     if (req.file) {
-      finalEvidenceUrl = `/uploads/${req.file.filename}`;
+      try {
+        const publicId = `evidence/${user.employeeCode.toLowerCase()}-${Date.now()}`;
+        const uploadResult = await uploadToCloudinary(req.file.path, publicId);
+        finalEvidenceUrl = uploadResult.secure_url;
+      } catch (err) {
+        console.error('Cloudinary work journal upload error:', err);
+        if (fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch (e) {}
+        }
+        return res.status(500).json({ message: 'Failed to upload evidence file to Cloudinary.' });
+      }
     }
 
     const item = await WorkJournal.create({
@@ -294,6 +306,23 @@ const updateWorkJournalItem = async (req, res) => {
       return res.status(400).json({ message: 'Cannot edit work logs for a date that falls within a closed review cycle.' });
     }
 
+    if (req.file) {
+      try {
+        if (item.evidenceUrl && item.evidenceUrl.includes('cloudinary')) {
+          await deleteFromCloudinary(item.evidenceUrl);
+        }
+        const publicId = `evidence/${user.employeeCode.toLowerCase()}-${Date.now()}`;
+        const uploadResult = await uploadToCloudinary(req.file.path, publicId);
+        updateData.evidenceUrl = uploadResult.secure_url;
+      } catch (err) {
+        console.error('Cloudinary work journal edit upload error:', err);
+        if (fs.existsSync(req.file.path)) {
+          try { fs.unlinkSync(req.file.path); } catch (e) {}
+        }
+        return res.status(500).json({ message: 'Failed to upload new evidence file to Cloudinary.' });
+      }
+    }
+
     if (item.status === 'approved' || item.status === 'needs_changes') {
       updateData.status = 'submitted';
       updateData.isLocked = false;
@@ -325,6 +354,14 @@ const deleteWorkJournalItem = async (req, res) => {
 
     if (item.employeeId.toString() !== req.user.id.toString() && !['admin', 'hr'].includes(req.user.role)) {
       return res.status(403).json({ message: 'Access denied.' });
+    }
+
+    if (item.evidenceUrl && item.evidenceUrl.includes('cloudinary')) {
+      try {
+        await deleteFromCloudinary(item.evidenceUrl);
+      } catch (err) {
+        console.error('Failed to delete work journal evidence from Cloudinary on delete:', err);
+      }
     }
 
     await WorkJournal.findByIdAndDelete(id);

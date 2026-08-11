@@ -158,6 +158,12 @@ const Profile = () => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
 
+    if (selectedFile.size > 2 * 1024 * 1024) {
+      setError('File size exceeds the 2MB limit. Please upload a smaller file.');
+      toast.error('File size exceeds the 2MB limit. Please upload a smaller file.');
+      return;
+    }
+
     const formData = new FormData();
     formData.append('file', selectedFile);
 

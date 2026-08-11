@@ -662,6 +662,16 @@ const deleteUser = async (req, res) => {
     });
     await ReviewScore.deleteMany({ employeeId: userId });
     await SelfAssessment.deleteMany({ employeeId: userId });
+    const workLogs = await WorkJournal.find({ employeeId: userId });
+    for (const log of workLogs) {
+      if (log.evidenceUrl && log.evidenceUrl.includes('cloudinary')) {
+        try {
+          await deleteFromCloudinary(log.evidenceUrl);
+        } catch (err) {
+          console.error(`Failed to delete work log evidence ${log.evidenceUrl} from Cloudinary:`, err);
+        }
+      }
+    }
     await WorkJournal.deleteMany({ employeeId: userId });
 
     // 4. Update subordinates who report to this user
