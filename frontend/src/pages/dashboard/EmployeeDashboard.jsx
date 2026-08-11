@@ -186,69 +186,141 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
         </div>
       </div>
 
-      {/* Bento Grid: Journey Checklist (2/3) + Punch Card (1/3) */}
+      {/* Bento Grid: Journey Checklist & Score History (2/3) + Punch Card (1/3) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Your Journey Checklist Card */}
-        <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col space-y-6 self-start w-full">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-sky-50 rounded-xl text-sky-700">
-                <BookOpen size={18} />
-              </div>
-              <div>
-                <h3 className="font-extrabold text-slate-850 text-sm">Your PerfoNext Journey</h3>
-                <p className="text-[11px] text-slate-400">Track and complete your employee lifecycle tasks</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-150">
-            <div className="flex justify-between items-center text-xs">
-              <span className="font-extrabold text-slate-500 uppercase tracking-wider text-[9px]">Setup & Evaluation Progress</span>
-              <span className="font-black text-sky-700 text-[11px]">{progressPercent}% Completed</span>
-            </div>
-            <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
-              <div 
-                className="bg-gradient-to-r from-sky-600 to-indigo-600 h-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Checklist list */}
-          <div className="space-y-3.5">
-            {checklistItems.map((item, idx) => (
-              <div 
-                key={idx} 
-                className={`flex items-center justify-between p-4 border rounded-2xl transition-all duration-300 ${
-                  item.status === 'locked' 
-                    ? 'border-slate-100 opacity-55 bg-slate-50/30' 
-                    : 'border-slate-200 bg-white hover:border-sky-500/30 hover:shadow-md hover:-translate-y-0.5'
-                }`}
-              >
-                <div className="flex items-center gap-4 overflow-hidden">
-                  <div className={`p-2.5 rounded-xl border shrink-0 ${item.badgeClass}`}>
-                    {item.icon}
-                  </div>
-                  <div className="overflow-hidden">
-                    <p className={`font-black text-xs truncate ${item.status === 'locked' ? 'text-slate-400' : 'text-slate-800'}`}>
-                      {item.label}
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.desc}</p>
-                  </div>
+        {/* Left Column: Checklist & Performance History */}
+        <div className="lg:col-span-2 flex flex-col gap-6 self-start w-full">
+          {/* Your Journey Checklist Card */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex flex-col space-y-6 w-full">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-sky-50 rounded-xl text-sky-700">
+                  <BookOpen size={18} />
                 </div>
-
-                {item.action && (
-                  <Link
-                    to={item.action.link}
-                    className="shrink-0 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-4 py-2.5 rounded-xl shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  >
-                    {item.action.text}
-                  </Link>
-                )}
+                <div>
+                  <h3 className="font-extrabold text-slate-850 text-sm">Your PerfoNext Journey</h3>
+                  <p className="text-[11px] text-slate-400">Track and complete your employee lifecycle tasks</p>
+                </div>
               </div>
-            ))}
+            </div>
+
+            {/* Progress bar */}
+            <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-150">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-extrabold text-slate-500 uppercase tracking-wider text-[9px]">Setup & Evaluation Progress</span>
+                <span className="font-black text-sky-700 text-[11px]">{progressPercent}% Completed</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-sky-600 to-indigo-600 h-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Checklist list */}
+            <div className="space-y-3.5">
+              {checklistItems.map((item, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flex items-center justify-between p-4 border rounded-2xl transition-all duration-300 ${
+                    item.status === 'locked' 
+                      ? 'border-slate-100 opacity-55 bg-slate-50/30' 
+                      : 'border-slate-200 bg-white hover:border-sky-500/30 hover:shadow-md hover:-translate-y-0.5'
+                  }`}
+                >
+                  <div className="flex items-center gap-4 overflow-hidden">
+                    <div className={`p-2.5 rounded-xl border shrink-0 ${item.badgeClass}`}>
+                      {item.icon}
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className={`font-black text-xs truncate ${item.status === 'locked' ? 'text-slate-400' : 'text-slate-800'}`}>
+                        {item.label}
+                      </p>
+                      <p className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{item.desc}</p>
+                    </div>
+                  </div>
+
+                  {item.action && (
+                    <Link
+                      to={item.action.link}
+                      className="shrink-0 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-[10px] px-4 py-2.5 rounded-xl shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                    >
+                      {item.action.text}
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Score History Section */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-700">
+                  <FileText size={18} />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-850 text-sm">Performance Scores History</h3>
+                  <p className="text-[11px] text-slate-400 font-semibold">Ratings finalized across cycles</p>
+                </div>
+              </div>
+            </div>
+
+            {reviewScores.length === 0 ? (
+              <div className="py-12 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                <p className="text-slate-400 text-xs italic">No completed reviews found in your history.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-100">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-200 bg-slate-50/80">
+                      <th className="py-3.5 px-4 rounded-l-lg">Cycle</th>
+                      <th className="py-3.5 px-4">Final Score</th>
+                      <th className="py-3.5 px-4">Rating band</th>
+                      <th className="py-3.5 px-4">Finalized On</th>
+                      <th className="py-3.5 px-4 rounded-r-lg text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reviewScores.map((score) => (
+                      <tr key={score._id} className="hover:bg-slate-50/40 transition-colors">
+                        <td className="py-4 px-4 font-bold text-slate-800">
+                          {score.reviewCycleId ? score.reviewCycleId.reviewMonth : 'N/A'}
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className="font-black text-sky-700 text-sm">{score.finalScore}</span>
+                          <span className="text-slate-400 text-[10px]"> / 5.0</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className={`inline-block font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
+                            score.finalScore >= 4.0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                            score.finalScore >= 3.0 ? 'bg-sky-50 text-sky-700 border-sky-100' :
+                            'bg-amber-50 text-amber-700 border-amber-100'
+                          }`}>
+                            {score.rating}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-slate-500 font-medium">
+                          {new Date(score.calculatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                        <td className="py-4 px-4 text-right">
+                          <Link
+                            to={`/reports/employee/${user.id}`}
+                            className="inline-flex items-center gap-1 font-extrabold text-sky-600 hover:text-sky-850 text-[11px]"
+                          >
+                            <span>Full Report</span>
+                            <ArrowUpRight size={12} />
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
 
@@ -270,7 +342,7 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
               </Link>
             </div>
 
-            <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+            <div className="space-y-3.5 pr-1 pt-1">
               {notifications.length === 0 ? (
                 <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
               ) : (
@@ -286,75 +358,6 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Score History Section */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-700">
-              <FileText size={18} />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-slate-850 text-sm">Performance Scores History</h3>
-              <p className="text-[11px] text-slate-400 font-semibold">Ratings finalized across cycles</p>
-            </div>
-          </div>
-        </div>
-
-        {reviewScores.length === 0 ? (
-          <div className="py-12 bg-slate-50 rounded-2xl border border-slate-200 text-center">
-            <p className="text-slate-400 text-xs italic">No completed reviews found in your history.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-100">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-[10px] font-black text-slate-400 uppercase border-b border-slate-200 bg-slate-50/80">
-                  <th className="py-3.5 px-4 rounded-l-lg">Cycle</th>
-                  <th className="py-3.5 px-4">Final Score</th>
-                  <th className="py-3.5 px-4">Rating band</th>
-                  <th className="py-3.5 px-4">Finalized On</th>
-                  <th className="py-3.5 px-4 rounded-r-lg text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {reviewScores.map((score) => (
-                  <tr key={score._id} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="py-4 px-4 font-bold text-slate-800">
-                      {score.reviewCycleId ? score.reviewCycleId.reviewMonth : 'N/A'}
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className="font-black text-sky-700 text-sm">{score.finalScore}</span>
-                      <span className="text-slate-400 text-[10px]"> / 5.0</span>
-                    </td>
-                    <td className="py-4 px-4">
-                      <span className={`inline-block font-bold px-2.5 py-0.5 rounded-full text-[10px] border ${
-                        score.finalScore >= 4.0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
-                        score.finalScore >= 3.0 ? 'bg-sky-50 text-sky-700 border-sky-100' :
-                        'bg-amber-50 text-amber-700 border-amber-100'
-                      }`}>
-                        {score.rating}
-                      </span>
-                    </td>
-                    <td className="py-4 px-4 text-slate-500 font-medium">
-                      {new Date(score.calculatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </td>
-                    <td className="py-4 px-4 text-right">
-                      <Link
-                        to={`/reports/employee/${user.id}`}
-                        className="inline-flex items-center gap-1 font-extrabold text-sky-600 hover:text-sky-850 text-[11px]"
-                      >
-                        <span>Full Report</span>
-                        <ArrowUpRight size={12} />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

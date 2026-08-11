@@ -451,7 +451,7 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                     View All
                   </Link>
                 </div>
-                <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+                <div className="max-h-[300px] space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
                   {notifications.length === 0 ? (
                     <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
                   ) : (

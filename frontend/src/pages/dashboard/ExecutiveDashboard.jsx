@@ -398,7 +398,7 @@ const ExecutiveDashboard = ({ data, user }) => {
                   View All
                 </Link>
               </div>
-              <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin max-h-[520px]">
+              <div className="space-y-3.5 pr-1 pt-1">
                 {notifications.length === 0 ? (
                   <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
                 ) : (

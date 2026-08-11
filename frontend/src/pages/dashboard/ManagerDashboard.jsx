@@ -371,7 +371,7 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
             </div>
           )}
 
-          {/* Team Ratings Summary Card (moved to left column, 2/3 width) */}
+          {/* Team Ratings Summary Card */}
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
@@ -445,7 +445,7 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
               </Link>
             </div>
 
-            <div className="flex-1 space-y-3.5 overflow-y-auto pr-1 pt-1 scrollbar-thin">
+            <div className="space-y-3.5 pr-1 pt-1">
               {notifications.length === 0 ? (
                 <p className="text-slate-400 text-xs py-6 text-center italic">No new notifications.</p>
               ) : (
@@ -461,7 +461,6 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
