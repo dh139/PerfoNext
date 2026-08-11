@@ -16,21 +16,27 @@ const Notifications = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await api.get('/api/notifications');
       setNotifications(res.data);
     } catch (err) {
       console.error(err);
-      setError('Failed to fetch notifications.');
+      if (!silent) setError('Failed to fetch notifications.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchNotifications();
+
+    const interval = setInterval(() => {
+      fetchNotifications(true);
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleMarkAsRead = async (id) => {

@@ -18,20 +18,28 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [isAddWorkLogOpen, setIsAddWorkLogOpen] = useState(false);
 
-  const fetchDashboard = async () => {
+  const fetchDashboard = async (silent = false) => {
     try {
+      if (!silent) setLoading(true);
       const res = await api.get('/api/dashboard/stats');
       setData(res.data);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-      setError('Failed to load dashboard statistics.');
+      if (!silent) setError('Failed to load dashboard statistics.');
+    } finally {
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
     if (user) {
-      setLoading(true);
-      fetchDashboard().finally(() => setLoading(false));
+      fetchDashboard();
+
+      const interval = setInterval(() => {
+        fetchDashboard(true);
+      }, 10000); // Poll every 10 seconds
+
+      return () => clearInterval(interval);
     }
   }, [user]);
 

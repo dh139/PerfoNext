@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { Bell, Menu, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { toast } from '../store/toastStore';
 
 const Layout = () => {
   const { user } = useAuthStore();
@@ -11,6 +12,8 @@ const Layout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [activeCycle, setActiveCycle] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const previousNotificationsRef = useRef([]);
+  const isFirstLoadRef = useRef(true);
 
   useEffect(() => {
     // Fetch unread notification counts
@@ -19,6 +22,16 @@ const Layout = () => {
         const res = await api.get('/api/notifications');
         const unread = res.data.filter(n => !n.isRead).length;
         setUnreadCount(unread);
+
+        if (!isFirstLoadRef.current) {
+          const newUnread = res.data.filter(n => !n.isRead && !previousNotificationsRef.current.some(pn => pn._id === n._id));
+          newUnread.forEach(n => {
+            toast.info(n.message || 'New notification received!');
+          });
+        }
+
+        previousNotificationsRef.current = res.data;
+        isFirstLoadRef.current = false;
       } catch (err) {
         console.error('Failed to load notifications count:', err);
       }
@@ -55,10 +68,11 @@ const Layout = () => {
     };
 
     if (user) {
+      isFirstLoadRef.current = true;
       fetchNotifications();
       fetchActiveCycles();
-      // Fetch notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000);
+      // Fetch notifications every 10 seconds for real-time notifications
+      const interval = setInterval(fetchNotifications, 10000);
       return () => clearInterval(interval);
     }
   }, [user, location.pathname]);

@@ -4,6 +4,7 @@ const ManagerReview = require('../models/ManagerReview');
 const ReviewScore = require('../models/ReviewScore');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
+const Department = require('../models/Department');
 const { calculateReviewScores } = require('../utils/scoring');
 const { logAction } = require('../utils/logger');
 const {
@@ -215,6 +216,14 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     });
 
     if (targetUsers.length === 0) return;
+
+    let deptName = 'All Departments';
+    if (targetDeptId) {
+      const dept = await Department.findById(targetDeptId);
+      if (dept) {
+        deptName = dept.departmentName;
+      }
+    }
 
     // In-app notifications for targeted users
     const notifications = targetUsers.map(u => ({
