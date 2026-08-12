@@ -289,13 +289,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           )}
         </div>
 
-        {/* Communication Section */}
-        <div className="pt-2 border-t border-slate-800/80 my-2">
-          <Link to="/notifications" className={linkClass('/notifications')} onClick={handleNavClick}>
-            <Bell size={18} />
-            <span>Notifications</span>
-          </Link>
-        </div>
+     
 
         {/* Management & HR Desk Section */}
         {(user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
