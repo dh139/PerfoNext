@@ -372,7 +372,7 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
           )}
 
           {/* Team Ratings Summary Card */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600">
                 <Activity size={16} />
@@ -432,7 +432,7 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
           <PunchCard />
 
           {/* Recent Alerts — stacked below PunchCard */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-amber-50 rounded-xl text-amber-700">

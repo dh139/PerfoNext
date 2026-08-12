@@ -386,7 +386,7 @@ const ExecutiveDashboard = ({ data, user }) => {
           {/* Recent Alerts Sidebar */}
           <div className="w-full lg:w-80 shrink-0">
             <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-4">Recent Alerts</h2>
-            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm flex flex-col">
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <div className="p-2 bg-amber-50 rounded-xl text-amber-700">
