@@ -549,9 +549,9 @@ const SkillMatrix = () => {
                         <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[9px]">
                           <span className="font-semibold text-slate-550 truncate max-w-[80px]">{deptName}</span>
                           <span className={`font-black uppercase px-1.5 py-0.2 rounded text-[8px] ${
-                            u.role === 'manager' || u.role === 'hr' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                            u.role === 'manager' || u.role === 'hr' || u.role === 'executive' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
                           }`}>
-                            {u.role === 'manager' ? 'MGR' : u.role === 'hr' ? 'HR' : 'EMP'}
+                            {u.role === 'manager' ? 'MGR' : u.role === 'hr' ? 'HR' : u.role === 'executive' ? 'EXEC' : 'EMP'}
                           </span>
                         </div>
                       </button>
@@ -667,7 +667,7 @@ const SkillMatrix = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {skillsByCategory[catName].map(sk => {
                       const record = getEmployeeSkillRecord(sk._id);
-                      const isManagerOrHr = user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin';
+                      const isManagerOrHr = user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive';
                       const isOwnProfile = selectedEmployeeId === user?.id;
 
                       return (
