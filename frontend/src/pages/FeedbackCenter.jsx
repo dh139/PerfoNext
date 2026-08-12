@@ -58,6 +58,16 @@ const FeedbackCenter = () => {
   const [revDeptFilter, setRevDeptFilter] = useState('all');
   const [disbursedRequests, setDisbursedRequests] = useState([]);
 
+  // Registry Pagination, Search & Filter states
+  const [registrySearch, setRegistrySearch] = useState('');
+  const [registryDeptFilter, setRegistryDeptFilter] = useState('all');
+  const [registryPage, setRegistryPage] = useState(1);
+
+  // Summary Pagination, Search & Filter states
+  const [summarySearch, setSummarySearch] = useState('');
+  const [summaryDeptFilter, setSummaryDeptFilter] = useState('all');
+  const [summaryPage, setSummaryPage] = useState(1);
+
   const detectRelationship = (subjectId, reviewerId) => {
     if (!subjectId || !reviewerId) return 'peer';
     const subject = users.find(u => u._id === subjectId);
@@ -123,6 +133,44 @@ const FeedbackCenter = () => {
       }
 
       return true;
+    });
+  };
+
+  const getFilteredDisbursedRequests = () => {
+    return disbursedRequests.filter(req => {
+      // Department Filter matches if subject's department matches OR reviewer's department matches
+      const empDeptId = req.employeeId?.departmentId?._id || req.employeeId?.departmentId;
+      const revDeptId = req.reviewerId?.departmentId?._id || req.reviewerId?.departmentId;
+      const matchesDept = registryDeptFilter === 'all' || 
+        (empDeptId && empDeptId.toString() === registryDeptFilter.toString()) || 
+        (revDeptId && revDeptId.toString() === registryDeptFilter.toString());
+
+      // Search Filter matches subject name/code/role or reviewer name/code/role
+      const subName = `${req.employeeId?.firstName} ${req.employeeId?.lastName}`.toLowerCase();
+      const subCode = (req.employeeId?.employeeCode || '').toLowerCase();
+      const revName = `${req.reviewerId?.firstName} ${req.reviewerId?.lastName}`.toLowerCase();
+      const revCode = (req.reviewerId?.employeeCode || '').toLowerCase();
+      const query = registrySearch.toLowerCase();
+      const matchesSearch = subName.includes(query) || subCode.includes(query) || revName.includes(query) || revCode.includes(query);
+
+      return matchesDept && matchesSearch;
+    });
+  };
+
+  const getFilteredAvailableSummaries = () => {
+    return availableSummaries.filter(s => {
+      // Department Filter matches if employee's department matches
+      const emp = s.employee || {};
+      const empDeptId = emp.departmentId?._id || emp.departmentId;
+      const matchesDept = summaryDeptFilter === 'all' || (empDeptId && empDeptId.toString() === summaryDeptFilter.toString());
+
+      // Search Filter matches employee name or code
+      const empName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+      const empCode = (emp.employeeCode || '').toLowerCase();
+      const query = summarySearch.toLowerCase();
+      const matchesSearch = empName.includes(query) || empCode.includes(query);
+
+      return matchesDept && matchesSearch;
     });
   };
 
@@ -1042,100 +1090,167 @@ const FeedbackCenter = () => {
 
           {/* Disbursed Feedback Surveys Registry Table */}
           <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm space-y-4">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+            <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-4">
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                   <MessageSquare size={16} className="text-sky-600" />
                   <span>Disbursed Feedback Surveys Registry</span>
                   <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
-                    {disbursedRequests.length} Total Disbursed
+                    {getFilteredDisbursedRequests().length} Total Disbursed
                   </span>
                 </h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   Live audit log of all 360° evaluation survey assignments across departments
                 </p>
               </div>
+
+              {/* Filters & Search Row */}
+              <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
+                <div className="relative flex-1 sm:w-60">
+                  <Search size={12} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search subject or reviewer..."
+                    value={registrySearch}
+                    onChange={(e) => { setRegistrySearch(e.target.value); setRegistryPage(1); }}
+                    className="pl-8 pr-3 py-1.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-[11px] outline-none focus:border-sky-500 transition-colors"
+                  />
+                </div>
+                <div className="w-full sm:w-44">
+                  <select
+                    value={registryDeptFilter}
+                    onChange={(e) => { setRegistryDeptFilter(e.target.value); setRegistryPage(1); }}
+                    className="px-2.5 py-1.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-[11px] outline-none focus:border-sky-500 transition-colors font-medium text-slate-600"
+                  >
+                    <option value="all">All Departments</option>
+                    {departments.map(d => (
+                      <option key={d._id} value={d._id}>{d.departmentName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {disbursedRequests.length === 0 ? (
-              <div className="py-8 text-center bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 text-xs italic">
-                No feedback surveys disbursed yet. Launch a survey above to track progress.
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="p-3">Review Subject</th>
-                      <th className="p-3">Assigned Reviewer</th>
-                      <th className="p-3">Relationship</th>
-                      <th className="p-3">Review Cycle</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Disbursed Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {disbursedRequests.map(req => (
-                      <tr key={req._id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="p-3">
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={getUserAvatarUrl(req.employeeId)}
-                              alt="Avatar"
-                              className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                            />
-                            <div>
-                              <p className="font-bold text-slate-800">{req.employeeId?.firstName} {req.employeeId?.lastName}</p>
-                              <p className="text-[9px] font-mono text-slate-400">{req.employeeId?.employeeCode || 'EMP'}</p>
-                            </div>
-                          </div>
-                        </td>
+            {(() => {
+              const filtered = getFilteredDisbursedRequests();
+              const pageSize = 5;
+              const totalPages = Math.ceil(filtered.length / pageSize);
+              const paginated = filtered.slice((registryPage - 1) * pageSize, registryPage * pageSize);
 
-                        <td className="p-3">
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={getUserAvatarUrl(req.reviewerId)}
-                              alt="Avatar"
-                              className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                            />
-                            <div>
-                              <p className="font-bold text-slate-800">{req.reviewerId?.firstName} {req.reviewerId?.lastName}</p>
-                              <p className="text-[9px] text-slate-400 uppercase font-bold">{req.reviewerId?.role}</p>
-                            </div>
-                          </div>
-                        </td>
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-8 text-center bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 text-xs italic">
+                    No matching feedback surveys found.
+                  </div>
+                );
+              }
 
-                        <td className="p-3 font-semibold text-slate-700">
-                          {formatRelationshipLabel(req.relationship)}
-                        </td>
+              return (
+                <>
+                  <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                          <th className="p-3">Review Subject</th>
+                          <th className="p-3">Assigned Reviewer</th>
+                          <th className="p-3">Relationship</th>
+                          <th className="p-3">Review Cycle</th>
+                          <th className="p-3">Status</th>
+                          <th className="p-3 text-right">Disbursed Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paginated.map(req => (
+                          <tr key={req._id} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2.5">
+                                <img
+                                  src={getUserAvatarUrl(req.employeeId)}
+                                  alt="Avatar"
+                                  className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                />
+                                <div>
+                                  <p className="font-bold text-slate-800">{req.employeeId?.firstName} {req.employeeId?.lastName}</p>
+                                  <p className="text-[9px] font-mono text-slate-400">{req.employeeId?.employeeCode || 'EMP'}</p>
+                                </div>
+                              </div>
+                            </td>
 
-                        <td className="p-3 text-slate-600">
-                          <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">
-                            {req.cycleId?.reviewMonth || 'N/A'}
-                          </span>
-                        </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-2.5">
+                                <img
+                                  src={getUserAvatarUrl(req.reviewerId)}
+                                  alt="Avatar"
+                                  className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                                />
+                                <div>
+                                  <p className="font-bold text-slate-800">{req.reviewerId?.firstName} {req.reviewerId?.lastName}</p>
+                                  <p className="text-[9px] text-slate-400 uppercase font-bold">{req.reviewerId?.role}</p>
+                                </div>
+                              </div>
+                            </td>
 
-                        <td className="p-3">
-                          {req.status === 'submitted' ? (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              ● Completed
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                              ● Pending Survey
-                            </span>
-                          )}
-                        </td>
+                            <td className="p-3 font-semibold text-slate-700">
+                              {formatRelationshipLabel(req.relationship)}
+                            </td>
 
-                        <td className="p-3 text-slate-400 text-[10px]">
-                          {new Date(req.createdAt).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                            <td className="p-3 text-slate-600">
+                              <span className="px-2 py-0.5 bg-slate-100 rounded border border-slate-200 font-mono text-[10px]">
+                                {req.cycleId?.reviewMonth || 'N/A'}
+                              </span>
+                            </td>
+
+                            <td className="p-3">
+                              {req.status === 'submitted' ? (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  ● Completed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                  ● Pending Survey
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="p-3 text-slate-400 text-[10px] text-right">
+                              {new Date(req.createdAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-[11px]">
+                      <span className="text-slate-500">
+                        Showing <span className="font-semibold text-slate-700">{((registryPage - 1) * pageSize) + 1}</span> to{' '}
+                        <span className="font-semibold text-slate-700">{Math.min(registryPage * pageSize, filtered.length)}</span> of{' '}
+                        <span className="font-semibold text-slate-700">{filtered.length}</span> entries
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={registryPage === 1}
+                          onClick={() => setRegistryPage(prev => Math.max(prev - 1, 1))}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={registryPage === totalPages}
+                          onClick={() => setRegistryPage(prev => Math.min(prev + 1, totalPages))}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
@@ -1145,195 +1260,183 @@ const FeedbackCenter = () => {
           
           {/* Available Summaries Dashboard List */}
           <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
-            <div>
-              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
-                <Users size={16} className="text-sky-600" />
-                <span>Available Anonymized 360° Feedback Summaries</span>
-              </h3>
-              <p className="text-slate-500 text-xs mt-0.5">
-                Quickly select and analyze aggregated anonymized feedback summaries for employees
-              </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between pb-3 border-b border-slate-100 gap-4">
+              <div>
+                <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                  <Users size={16} className="text-sky-600" />
+                  <span>Available Anonymized 360° Feedback Summaries</span>
+                  <span className="text-[10px] bg-sky-50 text-sky-700 px-2.5 py-0.5 rounded-full font-bold border border-sky-100">
+                    {getFilteredAvailableSummaries().length} Total Summaries
+                  </span>
+                </h3>
+                <p className="text-slate-500 text-xs mt-0.5">
+                  Quickly select and analyze aggregated anonymized feedback summaries for employees
+                </p>
+              </div>
+
+              {/* Filters & Search Row */}
+              <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
+                <div className="relative flex-1 sm:w-60">
+                  <Search size={12} className="absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search subject or code..."
+                    value={summarySearch}
+                    onChange={(e) => { setSummarySearch(e.target.value); setSummaryPage(1); }}
+                    className="pl-8 pr-3 py-1.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-[11px] outline-none focus:border-sky-500 transition-colors"
+                  />
+                </div>
+                <div className="w-full sm:w-44">
+                  <select
+                    value={summaryDeptFilter}
+                    onChange={(e) => { setSummaryDeptFilter(e.target.value); setSummaryPage(1); }}
+                    className="px-2.5 py-1.5 w-full bg-slate-50 border border-slate-200 rounded-xl text-[11px] outline-none focus:border-sky-500 transition-colors font-medium text-slate-600"
+                  >
+                    <option value="all">All Departments</option>
+                    {departments.map(d => (
+                      <option key={d._id} value={d._id}>{d.departmentName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {availableSummaries.length === 0 ? (
-              <div className="py-8 bg-slate-50 border border-slate-200 rounded-2xl text-center">
-                <p className="text-slate-400 italic text-xs">No feedback responses recorded for any employees in any cycles yet.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                      <th className="p-3">Employee</th>
-                      <th className="p-3">Department & Designation</th>
-                      <th className="p-3">Review Cycle</th>
-                      <th className="p-3">Aggregated Feedback Count</th>
-                      <th className="p-3 pr-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {availableSummaries.map(s => {
-                      const emp = s.employee || {};
-                      const cycle = s.cycle || {};
-                      const deptName = emp.departmentId?.departmentName || 'General';
-                      const desigName = emp.designationId?.designationName || '-';
+            {(() => {
+              const filtered = getFilteredAvailableSummaries();
+              const pageSize = 5;
+              const totalPages = Math.ceil(filtered.length / pageSize);
+              const paginated = filtered.slice((summaryPage - 1) * pageSize, summaryPage * pageSize);
 
-                      const isSelected = summaryEmployeeId === emp._id && summaryCycleId === cycle._id;
-
-                      return (
-                        <tr key={`${emp._id}_${cycle._id}`} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/30' : ''}`}>
-                          <td className="p-3">
-                            <div>
-                              <p className="font-bold text-slate-800">
-                                {emp.firstName} {emp.lastName}
-                              </p>
-                              <p className="text-[10px] text-slate-400 font-mono">
-                                {emp.employeeCode || 'EMP-N/A'}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <p className="font-semibold text-slate-700">{deptName}</p>
-                            <p className="text-[10px] text-slate-400">{desigName}</p>
-                          </td>
-                          <td className="p-3">
-                            <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-medium text-slate-600">
-                              {cycle.reviewMonth} ({cycle.cycleType})
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2">
-                              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded text-[10px] font-bold">
-                                Peer: {s.peerCount}
-                              </span>
-                              <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded text-[10px] font-bold">
-                                Subordinate: {s.subordinateCount}
-                              </span>
-                              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[10px] font-bold">
-                                Manager: {s.managerCount}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-3 pr-4 text-right">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                setSummaryEmployeeId(emp._id);
-                                setSummaryCycleId(cycle._id);
-                                try {
-                                  setLoading(true);
-                                  setError('');
-                                  const res = await api.get(`/api/feedback/summary/${emp._id}?cycleId=${cycle._id}`);
-                                  setSummaryData(res.data);
-                                } catch (err) {
-                                  console.error(err);
-                                  setError('Failed to load anonymized summary.');
-                                } finally {
-                                  setLoading(false);
-                                }
-                              }}
-                              className={`px-3 py-1.5 font-bold rounded-xl text-[11px] transition-colors cursor-pointer border ${
-                                isSelected 
-                                  ? 'bg-sky-600 border-sky-600 text-white hover:bg-sky-700' 
-                                  : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                              }`}
-                            >
-                              {isSelected ? 'Selected' : 'Analyze Feedback'}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Selector Card */}
-          <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row gap-4 items-end">
-            <div className="space-y-1 flex-1 relative">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Employee</label>
-              <button
-                type="button"
-                onClick={() => setSumDropdownOpen(!sumDropdownOpen)}
-                className="w-full flex items-center justify-between bg-slate-50 hover:bg-slate-100 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-700 text-left transition-colors cursor-pointer"
-              >
-                <span>
-                  {(() => {
-                    const selected = users.find(u => u._id === summaryEmployeeId);
-                    return selected ? `${selected.firstName} ${selected.lastName}` : 'Select Employee...';
-                  })()}
-                </span>
-                <span className="text-slate-400 text-[10px]">▼</span>
-              </button>
-
-              {sumDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => { setSumDropdownOpen(false); setSumSearchQuery(''); }} />
-                  <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-lg z-20 p-2 space-y-2 max-h-60 overflow-y-auto animate-fade-in">
-                    <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs">
-                      <Search size={14} className="text-slate-400" />
-                      <input
-                        type="text"
-                        value={sumSearchQuery}
-                        onChange={(e) => setSumSearchQuery(e.target.value)}
-                        placeholder="Search employee..."
-                        className="w-full bg-transparent text-xs text-slate-800 outline-none"
-                        autoFocus
-                      />
-                    </div>
-                    <div className="space-y-0.5">
-                      {users
-                        .filter(u => availableSummaries.some(s => s.employee?._id?.toString() === u._id.toString()))
-                        .filter(u => `${u.firstName} ${u.lastName}`.toLowerCase().includes(sumSearchQuery.toLowerCase()))
-                        .map(u => (
-                          <button
-                            key={u._id}
-                            type="button"
-                            onClick={() => {
-                              setSummaryEmployeeId(u._id);
-                              setSumDropdownOpen(false);
-                              setSumSearchQuery('');
-                            }}
-                            className={`w-full text-left p-2 rounded-lg text-xs flex justify-between items-center transition-colors ${
-                              summaryEmployeeId === u._id ? 'bg-sky-50 text-sky-850 font-bold' : 'hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <span>{u.firstName} {u.lastName}</span>
-                          </button>
-                        ))}
-                    </div>
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-8 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+                    <p className="text-slate-400 italic text-xs">No matching anonymized summaries found.</p>
                   </div>
+                );
+              }
+
+              return (
+                <>
+                  <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                          <th className="p-3">Employee</th>
+                          <th className="p-3">Department & Designation</th>
+                          <th className="p-3">Review Cycle</th>
+                          <th className="p-3">Aggregated Feedback Count</th>
+                          <th className="p-3 pr-4 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {paginated.map(s => {
+                          const emp = s.employee || {};
+                          const cycle = s.cycle || {};
+                          const deptName = emp.departmentId?.departmentName || 'General';
+                          const desigName = emp.designationId?.designationName || '-';
+
+                          const isSelected = summaryEmployeeId === emp._id && summaryCycleId === cycle._id;
+
+                          return (
+                            <tr key={`${emp._id}_${cycle._id}`} className={`hover:bg-slate-50/50 transition-colors ${isSelected ? 'bg-sky-50/30' : ''}`}>
+                              <td className="p-3">
+                                <div>
+                                  <p className="font-bold text-slate-800">
+                                    {emp.firstName} {emp.lastName}
+                                  </p>
+                                  <p className="text-[10px] text-slate-400 font-mono">
+                                    {emp.employeeCode || 'EMP-N/A'}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="p-3">
+                                <p className="font-semibold text-slate-700">{deptName}</p>
+                                <p className="text-[10px] text-slate-400">{desigName}</p>
+                              </td>
+                              <td className="p-3">
+                                <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-[11px] font-medium text-slate-600">
+                                  {cycle.reviewMonth} ({cycle.cycleType})
+                                </span>
+                              </td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 bg-sky-50 text-sky-700 border border-sky-100 rounded text-[10px] font-bold">
+                                    Peer: {s.peerCount}
+                                  </span>
+                                  <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded text-[10px] font-bold">
+                                    Subordinate: {s.subordinateCount}
+                                  </span>
+                                  <span className="px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[10px] font-bold">
+                                    Manager: {s.managerCount}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="p-3 pr-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setSummaryEmployeeId(emp._id);
+                                    setSummaryCycleId(cycle._id);
+                                    try {
+                                      setLoading(true);
+                                      setError('');
+                                      const res = await api.get(`/api/feedback/summary/${emp._id}?cycleId=${cycle._id}`);
+                                      setSummaryData(res.data);
+                                    } catch (err) {
+                                      console.error(err);
+                                      setError('Failed to load anonymized summary.');
+                                    } finally {
+                                      setLoading(false);
+                                    }
+                                  }}
+                                  className={`px-3 py-1.5 font-bold rounded-xl text-[11px] transition-colors cursor-pointer border ${
+                                    isSelected 
+                                      ? 'bg-sky-600 border-sky-600 text-white hover:bg-sky-700' 
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {isSelected ? 'Selected' : 'Analyze Feedback'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 text-[11px]">
+                      <span className="text-slate-500">
+                        Showing <span className="font-semibold text-slate-700">{((summaryPage - 1) * pageSize) + 1}</span> to{' '}
+                        <span className="font-semibold text-slate-700">{Math.min(summaryPage * pageSize, filtered.length)}</span> of{' '}
+                        <span className="font-semibold text-slate-700">{filtered.length}</span> entries
+                      </span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={summaryPage === 1}
+                          onClick={() => setSummaryPage(prev => Math.max(prev - 1, 1))}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Previous
+                        </button>
+                        <button
+                          type="button"
+                          disabled={summaryPage === totalPages}
+                          onClick={() => setSummaryPage(prev => Math.min(prev + 1, totalPages))}
+                          className="px-2.5 py-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
-              )}
-            </div>
-
-            <div className="space-y-1 flex-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Review Cycle</label>
-              <select
-                value={summaryCycleId}
-                onChange={(e) => setSummaryCycleId(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none font-semibold text-slate-700"
-              >
-                {getFilteredCyclesForSubject(summaryEmployeeId).map(c => {
-                  const deptName = c.departmentId?.departmentName || c.kpiTemplateId?.departmentId?.departmentName || 'All Departments';
-                  return (
-                    <option key={c._id} value={c._id}>
-                      Month: {c.reviewMonth} — Dept: {deptName} ({c.cycleType})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            <button
-              onClick={fetchSummary}
-              className="px-6 py-2.5 bg-sky-700 hover:bg-sky-850 text-white font-bold rounded-xl cursor-pointer transition-colors"
-            >
-              Analyze Summary
-            </button>
+              );
+            })()}
           </div>
+
 
           {/* Results summary matrix */}
           {summaryData && (
