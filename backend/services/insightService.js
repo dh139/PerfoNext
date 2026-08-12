@@ -393,8 +393,8 @@ Note: The employee has logged a TOTAL of ${workJournalItems.length} records in t
     });
   }
 
-  const apiKey = (process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY || '').trim();
-  let modelName = (process.env.CHATGPT_MODEL || 'gpt-4o-mini').trim();
+  const apiKey = (process.env.CHATGPT_API_KEY).trim();
+  let modelName = (process.env.CHATGPT_MODEL).trim();
   
   let targetUrl = (process.env.CHATGPT_API_URL || '').trim();
   if (!targetUrl) {
