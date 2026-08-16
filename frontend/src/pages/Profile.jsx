@@ -81,6 +81,46 @@ const Profile = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [errors, setErrors] = useState({});
+
+  const validateField = (name, value) => {
+    let err = '';
+    if (name === 'firstName') {
+      if (!value.trim()) {
+        err = 'First name is required.';
+      } else if (!/^[A-Za-z\s]+$/.test(value)) {
+        err = 'First name must contain only letters.';
+      }
+    } else if (name === 'lastName') {
+      if (!value.trim()) {
+        err = 'Last name is required.';
+      } else if (!/^[A-Za-z\s]+$/.test(value)) {
+        err = 'Last name must contain only letters.';
+      }
+    } else if (name === 'mobile') {
+      if (!value.trim()) {
+        err = 'Mobile number is required.';
+      } else if (!/^\d{10}$/.test(value.trim())) {
+        err = 'Mobile number must be exactly 10 digits.';
+      }
+    } else if (name === 'currentPassword') {
+      if (newPassword && !value) {
+        err = 'Current password is required to change password.';
+      }
+    } else if (name === 'newPassword') {
+      if (value && value.length < 6) {
+        err = 'New password must be at least 6 characters.';
+      }
+    } else if (name === 'confirmPassword') {
+      if (newPassword && value !== newPassword) {
+        err = 'Passwords do not match.';
+      }
+    }
+
+    setErrors(prev => ({ ...prev, [name]: err }));
+    return err === '';
+  };
+
   const fetchProfile = async () => {
     try {
       setLoading(true);
@@ -107,22 +147,21 @@ const Profile = () => {
     setError('');
     setSuccess('');
 
+    // Run all validations
+    const isFirstNameValid = validateField('firstName', firstName);
+    const isLastNameValid = validateField('lastName', lastName);
+    const isMobileValid = validateField('mobile', mobile);
+    
+    let isPasswordValid = true;
     if (showPasswordFields && newPassword) {
-      if (newPassword.length < 6) {
-        setError('New password must be at least 6 characters long.');
-        return;
-      }
-      if (newPassword !== confirmPassword) {
-        setError('New password and confirmation do not match.');
-        return;
-      }
-      if (!currentPassword) {
-        setError('Please enter your current password to set a new one.');
-        return;
-      }
+      const isCurrentPassValid = validateField('currentPassword', currentPassword);
+      const isNewPassValid = validateField('newPassword', newPassword);
+      const isConfirmPassValid = validateField('confirmPassword', confirmPassword);
+      isPasswordValid = isCurrentPassValid && isNewPassValid && isConfirmPassValid;
     }
-    if (!/^\d{10}$/.test(mobile.trim())) {
-      setError('Mobile number must be exactly 10 digits long.');
+
+    if (!isFirstNameValid || !isLastNameValid || !isMobileValid || !isPasswordValid) {
+      setError('Please correct the validation errors below.');
       return;
     }
 
@@ -276,20 +315,28 @@ const Profile = () => {
               <input
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all"
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  validateField('firstName', e.target.value);
+                }}
+                className={`w-full bg-slate-50 border ${errors.firstName ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
                 required
               />
+              {errors.firstName && <p className="text-[10px] text-rose-500 font-bold">{errors.firstName}</p>}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Last Name</label>
               <input
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all"
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  validateField('lastName', e.target.value);
+                }}
+                className={`w-full bg-slate-50 border ${errors.lastName ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
                 required
               />
+              {errors.lastName && <p className="text-[10px] text-rose-500 font-bold">{errors.lastName}</p>}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Mobile Number</label>
@@ -300,13 +347,15 @@ const Profile = () => {
                 <input
                   type="text"
                   value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  pattern="\d{10}"
-                  title="Mobile number must be exactly 10 digits (numbers only)"
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition-all"
+                  onChange={(e) => {
+                    setMobile(e.target.value);
+                    validateField('mobile', e.target.value);
+                  }}
+                  className={`w-full bg-slate-50 border ${errors.mobile ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none transition-all`}
                   required
                 />
               </div>
+              {errors.mobile && <p className="text-[10px] text-rose-500 font-bold">{errors.mobile}</p>}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Gender (Avatar Preference)</label>
@@ -369,6 +418,7 @@ const Profile = () => {
                       setCurrentPassword('');
                       setNewPassword('');
                       setConfirmPassword('');
+                      setErrors(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
                     }}
                     className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
@@ -381,28 +431,43 @@ const Profile = () => {
                     <input
                       type="password"
                       value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all"
+                      onChange={(e) => {
+                        setCurrentPassword(e.target.value);
+                        validateField('currentPassword', e.target.value);
+                      }}
+                      className={`w-full bg-slate-50 border ${errors.currentPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
                     />
+                    {errors.currentPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.currentPassword}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">New Password</label>
                     <input
                       type="password"
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value);
+                        validateField('newPassword', e.target.value);
+                        if (confirmPassword) {
+                          setErrors(prev => ({ ...prev, confirmPassword: e.target.value !== confirmPassword ? 'Passwords do not match.' : '' }));
+                        }
+                      }}
                       placeholder="Min 6 characters"
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all"
+                      className={`w-full bg-slate-50 border ${errors.newPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
                     />
+                    {errors.newPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.newPassword}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Confirm New Password</label>
                     <input
                       type="password"
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-200 focus:border-sky-500 text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all"
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        validateField('confirmPassword', e.target.value);
+                      }}
+                      className={`w-full bg-slate-50 border ${errors.confirmPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
                     />
+                    {errors.confirmPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.confirmPassword}</p>}
                   </div>
                 </div>
               </div>
