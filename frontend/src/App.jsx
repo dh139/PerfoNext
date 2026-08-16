@@ -6,7 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ToastContainer from './components/ToastContainer';
 
 import Login from './pages/Login';
-import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
