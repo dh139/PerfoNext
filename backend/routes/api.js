@@ -82,7 +82,7 @@ router.post('/review-cycles/:id/relock-user', verifyToken, authorizeRoles('admin
 // Evidence Confirmation & Reviews
 router.get('/self-assessments', verifyToken, cycleController.getSelfAssessments);
 router.get('/self-assessments/:id', verifyToken, cycleController.getSelfAssessmentById);
-router.post('/self-assessments', verifyToken, authorizeRoles('employee', 'manager', 'hr', 'executive'), cycleController.submitSelfAssessment);
+router.post('/self-assessments', verifyToken, authorizeRoles('employee', 'manager', 'hr', 'admin', 'executive'), cycleController.submitSelfAssessment);
 
 router.get('/manager-reviews', verifyToken, cycleController.getManagerReviews);
 router.get('/manager-reviews/:id', verifyToken, cycleController.getManagerReviewById);

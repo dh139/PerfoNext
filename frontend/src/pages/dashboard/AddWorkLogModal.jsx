@@ -164,7 +164,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase">
-              {formTemplate?.titleLabel || 'Achievement Title'} *
+              {formTemplate?.titleLabel || 'Achievement Title'} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -179,7 +179,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase">
-                {formTemplate?.projectLabel || 'Project / Module'} *
+                {formTemplate?.projectLabel || 'Project / Module'} <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -192,7 +192,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Category *</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Category <span className="text-rose-500">*</span></label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
@@ -211,7 +211,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Date Completed *</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Date Completed <span className="text-rose-500">*</span></label>
               <input
                 type="date"
                 value={completedDate}
@@ -222,7 +222,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Hours Spent *</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Hours Spent <span className="text-rose-500">*</span></label>
               <input
                 type="number"
                 step="0.5"
@@ -237,7 +237,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
 
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase">
-              {formTemplate?.summaryLabel || 'Work Summary & Output Result'} *
+              {formTemplate?.summaryLabel || 'Work Summary & Output Result'} <span className="text-rose-500">*</span>
             </label>
             <textarea
               rows="3"
@@ -314,7 +314,7 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
 
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase">
-                {formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'} *
+                {formTemplate?.evidenceRefLabel || 'Proof Link / Reference ID'} <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"

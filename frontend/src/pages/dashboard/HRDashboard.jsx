@@ -307,8 +307,8 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
           </div>
         </div>
 
-        {/* HR Self Assessment Action Banner */}
-        {user?.role !== 'admin' && pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
+        {/* Self Assessment Action Banner */}
+        {pendingSelfAssessments && pendingSelfAssessments.length > 0 && (
           (() => {
             const type = pendingSelfAssessments[0].cycleType || '';
             const typeLabel = type.toLowerCase() === 'yearly' ? 'Yearly' : (type.toLowerCase() === 'half_yearly' ? 'Half-Yearly' : 'Quarterly');
@@ -317,9 +317,9 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] uppercase font-extrabold px-2.5 py-0.5 bg-sky-500/20 text-sky-300 rounded-full border border-sky-400/30">Action Required</span>
-                    <h3 className="font-bold text-sm">Your {typeLabel} Self Assessment Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
+                    <h3 className="font-bold text-sm">Your {typeLabel} Evidence Confirmation Pending ({pendingSelfAssessments[0].reviewMonth})</h3>
                   </div>
-                  <p className="text-xs text-sky-200 mt-1">Please complete your self-evaluation for the active review cycle.</p>
+                  <p className="text-xs text-sky-200 mt-1">Please confirm your verified work evidence for the active review cycle.</p>
                 </div>
                 <Link
                   to={"/review/confirm/" + pendingSelfAssessments[0].cycleId}
@@ -334,10 +334,10 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
 
         {/* Command Suite Grid & Personal Punch Card Bento Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Left Column: Command Suite Grid (2/3 width, or full width for Admin) */}
-          <div className={`${user?.role === 'admin' ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-4`}>
+          {/* Left Column: Command Suite Grid (2/3 width) */}
+          <div className="lg:col-span-2 space-y-4">
             <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Management Command Desk</h2>
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${user?.role === 'admin' ? 'lg:grid-cols-3' : ''} gap-6`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               
               {/* Card 1: Org Tree */}
               <div 
@@ -432,9 +432,8 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
             </div>
           </div>
 
-          {/* Right Column: Personal Punch Card (only rendered for non-Admin roles) */}
-          {user?.role !== 'admin' && (
-            <div className="lg:col-span-1 space-y-4">
+          {/* Right Column: Personal Punch Card */}
+          <div className="lg:col-span-1 space-y-4">
               <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Personal Shift Control</h2>
               <PunchCard />
 
@@ -467,7 +466,6 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                 </div>
               </div>
             </div>
-          )}
         </div>
       </div>
     );
@@ -494,7 +492,6 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
       </div>
 
       {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
-      {activeTab === 'tree' && <OrgTreeHierarchy />}      {/* TAB 0: ORGANIZATIONAL TREE HIERARCHY */}
       {activeTab === 'tree' && <OrgTreeHierarchy />}
 
       {/* TAB: ATTENDANCE CONTROL DESK */}
@@ -623,8 +620,8 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                               <p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
                             </td>
                             <td className="py-2.5 px-3 text-slate-500">{r.department}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchIn || <span className="text-slate-300">--</span>}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchOut || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchIn) || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchOut) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 text-slate-600">
                               {r.workingMinutes > 0 || r.punchIn ? (
                                 `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && dateViewDate === todayIso ? ' (Active)' : ''}`

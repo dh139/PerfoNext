@@ -173,16 +173,9 @@ const PunchCard = () => {
 
   const handlePunchOutClick = () => {
     const presentMins = (settings?.presentHours || 8) * 60;
-    let isEarlyExitPresent = false;
-    if (settings?.allowEarlyExit && settings?.earlyExitTime) {
-      const earlyExitLimit = parseTimeStr(settings.earlyExitTime);
-      if (nowMs >= earlyExitLimit.getTime()) {
-        isEarlyExitPresent = true;
-      }
-    }
-    const isCompleted = currentNetMins >= presentMins || isEarlyExitPresent;
-
-    if (!isCompleted) {
+    
+    // Always warn the user if they are punching out before completing their target shift hours
+    if (currentNetMins < presentMins) {
       setShowPunchOutWarning(true);
     } else {
       performPunchOut();
@@ -537,7 +530,11 @@ const PunchCard = () => {
                 Your net working hours are currently <strong className="text-slate-800">{formatDuration(currentNetMins)}</strong> (Target: {formatTargetHours(settings?.presentHours)}). 
               </p>
               <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 text-[11px] text-amber-800 font-bold leading-relaxed">
-                ⚠️ If you do punch out then this counted as {getExpectedStatusOnPunchOut() === 'Absent' ? 'Absent' : 'Half Day'}.
+                {getExpectedStatusOnPunchOut() === 'Present' ? (
+                  <span>⚠️ Since the early exit window is open, you will still be marked as Present. However, you are punching out before completing your target hours.</span>
+                ) : (
+                  <span>⚠️ If you do punch out then this counted as {getExpectedStatusOnPunchOut()}.</span>
+                )}
               </div>
               <p className="text-[11px] text-slate-450 font-medium">
                 Are you sure you want to proceed with Punching Out?

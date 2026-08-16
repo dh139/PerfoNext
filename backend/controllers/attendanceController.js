@@ -117,8 +117,8 @@ const autoCloseIncompletePunches = async (settings) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const punchIn = async (req, res) => {
   try {
-    if (req.user.role === 'executive' || req.user.role === 'admin') {
-      return res.status(403).json({ message: 'CEO and Admins are not allowed to punch attendance.' });
+    if (req.user.role === 'executive') {
+      return res.status(403).json({ message: 'CEO is not allowed to punch attendance.' });
     }
 
     const settings = await getActiveSettings();
@@ -167,7 +167,7 @@ const punchIn = async (req, res) => {
         date: todayDate,
         month: todayStr.substring(0, 7),
         punchIn: now,
-        status: lateMinutes > 0 ? 'Late' : 'Incomplete',
+        status: 'Incomplete',
         lateMinutes,
         ipAddress: req.ip || '',
         browser: req.headers['user-agent'] || '',
@@ -176,7 +176,7 @@ const punchIn = async (req, res) => {
       });
     } else {
       punch.punchIn = now;
-      punch.status = lateMinutes > 0 ? 'Late' : 'Incomplete';
+      punch.status = 'Incomplete';
       punch.lateMinutes = lateMinutes;
     }
 
@@ -195,8 +195,8 @@ const punchIn = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const punchOut = async (req, res) => {
   try {
-    if (req.user.role === 'executive' || req.user.role === 'admin') {
-      return res.status(403).json({ message: 'CEO and Admins are not allowed to punch attendance.' });
+    if (req.user.role === 'executive') {
+      return res.status(403).json({ message: 'CEO is not allowed to punch attendance.' });
     }
 
     const settings = await getActiveSettings();
@@ -265,8 +265,7 @@ const punchOut = async (req, res) => {
     }
 
     if (workingMinutes >= presentMins || isEarlyExitPresent) {
-      // If punchIn was late, maintain Late status or set Present
-      punch.status = punch.lateMinutes > 0 ? 'Late' : 'Present';
+      punch.status = 'Present';
     } else if (workingMinutes >= halfDayMins) {
       punch.status = 'Half Day';
     } else {
@@ -420,8 +419,8 @@ const submitRegularization = async (req, res) => {
           // Employee request -> notify only HR manager
           const hrManagers = await User.find({ role: 'hr' });
           hrManagers.forEach(hr => targetUserIds.add(hr._id.toString()));
-        } else if (employee.role === 'manager' || employee.role === 'hr') {
-          // Manager or HR request -> notify only CEO (role: executive)
+        } else if (employee.role === 'manager' || employee.role === 'hr' || employee.role === 'admin') {
+          // Manager, HR, or Admin request -> notify only CEO (role: executive)
           const ceos = await User.find({ role: 'executive' });
           ceos.forEach(ceo => targetUserIds.add(ceo._id.toString()));
         }
@@ -470,12 +469,12 @@ const getPendingRegularizations = async (req, res) => {
       const employees = await User.find({ role: 'employee' }).select('_id');
       filter.employeeId = { $in: employees.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'executive') {
-      // CEO / Executives receive requests only from managers and HR
-      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr'] } }).select('_id');
+      // CEO / Executives receive requests only from managers, HR, and Admin
+      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr', 'admin'] } }).select('_id');
       filter.employeeId = { $in: managersAndHr.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'admin') {
       // Admins can see everything
-      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
+      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee', 'admin'] } }).select('_id');
       filter.employeeId = { $in: allUsers.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'employee') {
       return res.status(403).json({ message: 'Access denied.' });
@@ -512,7 +511,7 @@ const reviewRegularization = async (req, res) => {
     const requester = await User.findById(punch.employeeId);
     if (!requester) return res.status(404).json({ message: 'Requester not found.' });
 
-    if (['manager', 'hr'].includes(requester.role)) {
+    if (['manager', 'hr', 'admin'].includes(requester.role)) {
       if (!['executive', 'admin'].includes(req.user.role)) {
         return res.status(403).json({ message: 'Only the CEO can approve regularization for managers and HR.' });
       }
@@ -606,7 +605,7 @@ const getCeoSummary = async (req, res) => {
     const targetDateStr = date || new Date().toISOString().split('T')[0];
     const targetDate = new Date(targetDateStr);
 
-    const eligibleRoles = ['employee', 'manager', 'hr'];
+    const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
     const punches = await AttendancePunch.find({ date: targetDate })
       .populate('employeeId', 'firstName lastName role departmentId');
@@ -614,17 +613,15 @@ const getCeoSummary = async (req, res) => {
     let present = 0, halfDay = 0, absent = 0, late = 0, autoClosed = 0, leave = 0;
     const lateEmployees = [];
     const punchedUserIds = punches.map(p => {
-      if (p.status === 'Present' || p.status === 'Regularized' || p.status === 'Incomplete') present++;
-      else if (p.status === 'Late') { 
-        present++; 
-        late++; 
-      }
-      else if (p.status === 'Half Day') halfDay++;
-      else if (p.status === 'Absent') absent++;
-      else if (p.status === 'Auto Closed' || p.status === 'Unusual') autoClosed++;
-      else if (p.status === 'Leave') leave++;
+      const status = p.status === 'Late' ? (p.punchOut ? 'Present' : 'Incomplete') : p.status;
+      if (status === 'Present' || status === 'Regularized' || status === 'Incomplete') present++;
+      else if (status === 'Half Day') halfDay++;
+      else if (status === 'Absent') absent++;
+      else if (status === 'Auto Closed' || status === 'Unusual') autoClosed++;
+      else if (status === 'Leave') leave++;
 
       if (p.lateMinutes > 0) {
+        late++;
         lateEmployees.push({
           name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
           lateMinutes: p.lateMinutes
@@ -689,7 +686,7 @@ const getHrSummary = async (req, res) => {
     const targetDateStr = date || new Date().toISOString().split('T')[0];
     const targetDate = new Date(targetDateStr);
 
-    const eligibleRoles = ['employee', 'manager', 'hr'];
+    const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
     const punches = await AttendancePunch.find({ date: targetDate })
       .populate('employeeId', 'firstName lastName employeeCode email');
@@ -698,11 +695,11 @@ const getHrSummary = async (req, res) => {
     const working = [];
     const lateEmployees = [];
     const punchedUserIds = punches.map(p => {
-      if (p.status === 'Present' || p.status === 'Regularized' || p.status === 'Incomplete') present++;
-      else if (p.status === 'Late') { present++; late++; }
-      else if (p.status === 'Half Day') halfDay++;
-      else if (p.status === 'Absent') absent++;
-      else if (p.status === 'Auto Closed' || p.status === 'Unusual') autoClosed++;
+      const status = p.status === 'Late' ? (p.punchOut ? 'Present' : 'Incomplete') : p.status;
+      if (status === 'Present' || status === 'Regularized' || status === 'Incomplete') present++;
+      else if (status === 'Half Day') halfDay++;
+      else if (status === 'Absent') absent++;
+      else if (status === 'Auto Closed' || status === 'Unusual') autoClosed++;
 
       if (p.earlyExitMinutes > 0) earlyExit++;
 
@@ -711,6 +708,7 @@ const getHrSummary = async (req, res) => {
       }
 
       if (p.lateMinutes > 0) {
+        late++;
         lateEmployees.push({
           name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
           lateMinutes: p.lateMinutes
@@ -735,10 +733,10 @@ const getHrSummary = async (req, res) => {
       const employees = await User.find({ role: 'employee' }).select('_id');
       regFilter.employeeId = { $in: employees.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'executive') {
-      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr'] } }).select('_id');
+      const managersAndHr = await User.find({ role: { $in: ['manager', 'hr', 'admin'] } }).select('_id');
       regFilter.employeeId = { $in: managersAndHr.map(u => u._id), $ne: req.user.id };
     } else if (req.user.role === 'admin') {
-      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee'] } }).select('_id');
+      const allUsers = await User.find({ role: { $in: ['manager', 'hr', 'employee', 'admin'] } }).select('_id');
       regFilter.employeeId = { $in: allUsers.map(u => u._id), $ne: req.user.id };
     }
 
@@ -775,7 +773,7 @@ async function getAttendanceByDate(req, res) {
     const settings = await getActiveSettings();
     const rules = settings.attendanceRules;
 
-    const eligibleRoles = ['employee', 'manager', 'hr'];
+    const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
     const isWeekend = rules.weekends?.includes(targetDate.getUTCDay());
     const holiday = await Holiday.findOne({ date });
 
@@ -810,12 +808,12 @@ async function getAttendanceByDate(req, res) {
         name: `${p.employeeId?.firstName || 'Unknown'} ${p.employeeId?.lastName || ''}`,
         code: p.employeeId?.employeeCode || 'N/A',
         department: p.employeeId?.departmentId?.departmentName || 'N/A',
-        punchIn: fmt(p.punchIn),
-        punchOut: fmt(p.punchOut),
+        punchIn: p.punchIn,
+        punchOut: p.punchOut,
         workingMinutes,
         lateMinutes: p.lateMinutes || 0,
         overtimeMinutes: p.overtimeMinutes || 0,
-        status: p.status === 'Auto Closed' ? 'Unusual' : (p.status || 'Unknown'),
+        status: p.status === 'Auto Closed' ? 'Unusual' : (p.status === 'Late' ? (p.punchOut ? 'Present' : 'Incomplete') : (p.status || 'Unknown')),
         regularizationStatus: p.regularizationStatus || null,
       };
     });
@@ -920,14 +918,14 @@ const updateSettings = async (req, res) => {
         }
 
         if (workingMinutes >= presentMins || isEarlyExitPresent) {
-          punch.status = lateMinutes > 0 ? 'Late' : 'Present';
+          punch.status = 'Present';
         } else if (workingMinutes >= halfDayMins) {
           punch.status = 'Half Day';
         } else {
           punch.status = 'Absent';
         }
       } else {
-        punch.status = lateMinutes > 0 ? 'Late' : 'Incomplete';
+        punch.status = 'Incomplete';
       }
 
       await punch.save();

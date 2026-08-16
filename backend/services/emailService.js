@@ -519,10 +519,46 @@ const sendLeaveReviewedEmail = async (employeeEmail, employeeName, leaveTitle, f
   });
 };
 
+const sendReviewCycleUpdatedEmail = async (toEmail, firstName, reviewMonth, startDate, endDate) => {
+  const subject = `Performance Review Cycle Updated (${reviewMonth})`;
+  const startFmt = new Date(startDate).toLocaleDateString();
+  const endFmt = new Date(endDate).toLocaleDateString();
+  const text = `Hello ${firstName},\n\nThe performance review cycle for ${reviewMonth} has been updated.\nThe new start date is ${startFmt} and the new evaluation due date is ${endFmt}.\n\nBest regards,\nPerfoNext Team`;
+  const html = getEmailWrapper(
+    'Performance Review Cycle Updated',
+    `
+      <p style="margin-top: 0;">Hello <strong>${firstName}</strong>,</p>
+      <p>The performance review cycle details for <strong>${reviewMonth}</strong> have been updated by the administration.</p>
+      
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin: 24px 0;">
+        <p style="margin: 0 0 8px 0; font-size: 13px;"><strong>New Start Date:</strong> ${startFmt}</p>
+        <p style="margin: 0; font-size: 13px;"><strong>New Evaluation Due Date:</strong> ${endFmt}</p>
+      </div>
+
+      <p>Please log in to your PerfoNext portal to continue your self-assessment during the active period.</p>
+    `
+  );
+
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[emailService] SMTP not configured. Review cycle update email simulated for ${toEmail}`);
+    return { simulated: true };
+  }
+
+  return t.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: toEmail,
+    subject,
+    text,
+    html
+  });
+};
+
 module.exports = {
   sendOtpEmail,
   sendWelcomeEmail,
   sendReviewCycleStartedEmail,
+  sendReviewCycleUpdatedEmail,
   sendSelfAssessmentSubmittedEmail,
   sendFinalReportGeneratedEmail,
   sendIndividualExtensionEmail,

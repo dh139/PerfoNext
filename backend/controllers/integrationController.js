@@ -67,7 +67,7 @@ const getAttendance = async (req, res) => {
     } else if (employeeId) {
       userQuery._id = employeeId;
     } else {
-      userQuery.role = { $in: ['employee', 'manager', 'hr'] };
+      userQuery.role = { $in: ['employee', 'manager', 'hr', 'admin'] };
     }
 
     const users = await User.find(userQuery)

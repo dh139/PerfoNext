@@ -79,6 +79,41 @@ const UserManagement = () => {
   const [joiningDate, setJoiningDate] = useState('');
   const [gender, setGender] = useState('male');
   const [workMode, setWorkMode] = useState('Work From office');
+  const [errors, setErrors] = useState({});
+
+  const validateField = (name, value) => {
+    switch (name) {
+      case 'firstName':
+        return !value || !value.trim() ? 'First name is required.' : '';
+      case 'lastName':
+        return !value || !value.trim() ? 'Last name is required.' : '';
+      case 'email':
+        if (!value || !value.trim()) return 'Email address is required.';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return !emailRegex.test(value) ? 'Please enter a valid email address.' : '';
+      case 'mobile':
+        if (!value || !value.trim()) return 'Mobile number is required.';
+        const mobileRegex = /^\d{10}$/;
+        return !mobileRegex.test(value) ? 'Mobile number must be exactly 10 digits (numbers only).' : '';
+      case 'password':
+        if (!editUser && (!value || value.length < 6)) {
+          return 'Password must be at least 6 characters.';
+        }
+        if (editUser && value && value.length < 6) {
+          return 'Password must be at least 6 characters.';
+        }
+        return '';
+      case 'joiningDate':
+        if (!value) return 'Joining date is required.';
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (value > todayStr) {
+          return 'Joining date cannot be in the future.';
+        }
+        return '';
+      default:
+        return '';
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -113,6 +148,7 @@ const UserManagement = () => {
   const handleOpenCreate = () => {
     setError('');
     setModalError('');
+    setErrors({});
     setIsSubmitting(false);
     setEditUser(null);
     setEmployeeCode(''); setFirstName(''); setLastName(''); setEmail(''); setMobile(''); setPassword('');
@@ -127,6 +163,7 @@ const UserManagement = () => {
   const handleOpenEdit = (user) => {
     setError('');
     setModalError('');
+    setErrors({});
     setIsSubmitting(false);
     setEditUser(user);
     setEmployeeCode(user.employeeCode); setFirstName(user.firstName); setLastName(user.lastName);
@@ -146,19 +183,19 @@ const UserManagement = () => {
     setModalError('');
     setIsSubmitting(true);
 
-    if (!/^\d{10}$/.test(mobile.trim())) {
-      const errMsg = 'Mobile number must be exactly 10 digits long.';
-      setModalError(errMsg);
-      toast.error(errMsg);
-      setIsSubmitting(false);
-      return;
-    }
+    const fieldsToValidate = { firstName, lastName, email, mobile, password, joiningDate };
+    const newErrors = {};
+    Object.keys(fieldsToValidate).forEach(key => {
+      const err = validateField(key, fieldsToValidate[key]);
+      if (err) {
+        newErrors[key] = err;
+      }
+    });
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (joiningDate && joiningDate > todayStr) {
-      const errMsg = 'Joining date cannot be in the future.';
-      setModalError(errMsg);
-      toast.error(errMsg);
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      setModalError('Please correct the validation errors in the form.');
+      toast.error('Please correct the validation errors in the form.');
       setIsSubmitting(false);
       return;
     }
@@ -564,11 +601,18 @@ const UserManagement = () => {
                     <input
                       type="text"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFirstName(val);
+                        setErrors(prev => ({ ...prev, firstName: validateField('firstName', val) }));
+                      }}
                       placeholder="Enter first name"
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
+                    {errors.firstName && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.firstName}</p>
+                    )}
                   </div>
 
                   {/* Last Name */}
@@ -579,11 +623,18 @@ const UserManagement = () => {
                     <input
                       type="text"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLastName(val);
+                        setErrors(prev => ({ ...prev, lastName: validateField('lastName', val) }));
+                      }}
                       placeholder="Enter last name"
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
+                    {errors.lastName && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.lastName}</p>
+                    )}
                   </div>
 
                   {/* Email */}
@@ -594,11 +645,18 @@ const UserManagement = () => {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEmail(val);
+                        setErrors(prev => ({ ...prev, email: validateField('email', val) }));
+                      }}
                       placeholder="e.g. employee@epts.com"
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
+                    {errors.email && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.email}</p>
+                    )}
                   </div>
 
                   {/* Mobile */}
@@ -609,13 +667,20 @@ const UserManagement = () => {
                     <input
                       type="text"
                       value={mobile}
-                      onChange={(e) => setMobile(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setMobile(val);
+                        setErrors(prev => ({ ...prev, mobile: validateField('mobile', val) }));
+                      }}
                       placeholder="e.g. 9876543210"
                       pattern="\d{10}"
                       title="Mobile number must be exactly 10 digits (numbers only)"
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
+                    {errors.mobile && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.mobile}</p>
+                    )}
                   </div>
 
                   {/* Gender – icon toggle buttons */}
@@ -689,10 +754,17 @@ const UserManagement = () => {
                       type="date"
                       value={joiningDate}
                       max={new Date().toISOString().split('T')[0]}
-                      onChange={(e) => setJoiningDate(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setJoiningDate(val);
+                        setErrors(prev => ({ ...prev, joiningDate: validateField('joiningDate', val) }));
+                      }}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 font-medium transition-all"
                       required
                     />
+                    {errors.joiningDate && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.joiningDate}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -755,11 +827,18 @@ const UserManagement = () => {
                     <input
                       type="password"
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPassword(val);
+                        setErrors(prev => ({ ...prev, password: validateField('password', val) }));
+                      }}
                       placeholder={editUser ? '••••••••' : 'Enter password...'}
                       className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 transition-all"
                       required={!editUser}
                     />
+                    {errors.password && (
+                      <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.password}</p>
+                    )}
                   </div>
                 </div>
               </div>

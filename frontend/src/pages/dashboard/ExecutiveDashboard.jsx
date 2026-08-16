@@ -10,6 +10,17 @@ import { getUserAvatarUrl } from '../../utils/avatar';
 import PunchCard from './PunchCard';
 import { OrgTreeHierarchy } from './HRDashboard';
 
+const formatTimeStr = (dateStr) => {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch (e) {
+    return dateStr;
+  }
+};
+
 const ExecutiveDashboard = ({ data, user }) => {
   const {
     stats = {},
@@ -574,8 +585,8 @@ const ExecutiveDashboard = ({ data, user }) => {
                               <p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
                             </td>
                             <td className="py-2.5 px-3 text-slate-500">{r.department}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchIn || <span className="text-slate-300">--</span>}</td>
-                            <td className="py-2.5 px-3 font-bold text-slate-700">{r.punchOut || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchIn) || <span className="text-slate-300">--</span>}</td>
+                            <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchOut) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 text-slate-600">
                               {r.workingMinutes > 0 || r.punchIn ? (
                                 `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && ceoDateViewDate === ceotodayIso ? ' (Active)' : ''}`
@@ -1166,7 +1177,7 @@ const ExecutiveDashboard = ({ data, user }) => {
               {activeCycleMetrics.map((item) => {
                 const isManagerCycle = item.targetRole === 'manager';
                 const visibleSubmissions = item.submissions?.filter(sub =>
-                  isManagerCycle ? (sub.role === 'manager' || sub.role === 'hr') : sub.role === 'employee'
+                  isManagerCycle ? ['manager', 'hr', 'admin'].includes(sub.role) : sub.role === 'employee'
                 ) || [];
                 const totalCount = visibleSubmissions.length;
                 const selfCount = visibleSubmissions.filter(s => s.selfSubmitted).length;

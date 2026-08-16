@@ -94,7 +94,7 @@ function App() {
           <Route path="/reports/employee/:id" element={<EmployeeReport />} />
           
           {/* Quarterly Evidence Confirmation */}
-          <Route element={<ProtectedRoute allowedRoles={['employee', 'manager', 'hr', 'executive']} />}>
+          <Route element={<ProtectedRoute allowedRoles={['employee', 'manager', 'hr', 'admin', 'executive']} />}>
             <Route path="/assessment/:cycleId" element={<EvidenceConfirmation />} />
             <Route path="/review/confirm/:cycleId" element={<EvidenceConfirmation />} />
           </Route>

@@ -178,12 +178,12 @@ const WorkJournal = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Switch to manager desk for admin/executive since they have no personal logs
-    if (['admin', 'executive'].includes(user.role)) {
+    // Switch to manager desk for executive since they have no personal logs
+    if (user.role === 'executive') {
       setActiveTab('manager_desk');
     }
 
-    const isSpecial = ['admin', 'executive'].includes(user.role);
+    const isSpecial = user.role === 'executive';
     if (!isSpecial) {
       fetchJournalData();
       fetchJournalStats();
@@ -674,7 +674,7 @@ const WorkJournal = () => {
 
       {/* Tabs Bar */}
       <div className="flex border-b border-slate-200 gap-6 text-xs font-extrabold text-slate-500">
-        {!['admin', 'executive'].includes(user?.role) && (
+        {user?.role !== 'executive' && (
           <button
             onClick={() => setActiveTab('my_logs')}
             className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
@@ -703,7 +703,7 @@ const WorkJournal = () => {
           </button>
         )}
 
-        {!['admin', 'executive'].includes(user?.role) && (
+        {user?.role !== 'executive' && (
           <button
             onClick={() => setActiveTab('timeline')}
             className={`pb-3 flex items-center gap-2 border-b-2 cursor-pointer transition-colors ${
@@ -729,7 +729,7 @@ const WorkJournal = () => {
       </div>
 
       {/* TAB 1: MY DAILY LOGS */}
-      {activeTab === 'my_logs' && !['admin', 'executive'].includes(user?.role) && (
+      {activeTab === 'my_logs' && user?.role !== 'executive' && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-slate-100">
             <div>
@@ -1428,7 +1428,7 @@ const WorkJournal = () => {
       )}
 
       {/* TAB 3: VERIFIED WORK TIMELINE */}
-      {activeTab === 'timeline' && !['admin', 'executive'].includes(user?.role) && (
+      {activeTab === 'timeline' && user?.role !== 'executive' && (
         <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-6">
           <div>
             <h3 className="font-extrabold text-sm text-slate-900">Verified Evidence Timeline</h3>

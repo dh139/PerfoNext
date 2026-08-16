@@ -393,11 +393,11 @@ const getPendingManagerItems = async (req, res) => {
       };
 
       if (req.user.role === 'executive') {
-        // CEO gets all managers, HR managers, and anyone explicitly reporting to them
+        // CEO gets all managers, HR managers, admins, and anyone explicitly reporting to them
         query.$or = [
           { managerId: userId },
           { managerId: new mongoose.Types.ObjectId(userId) },
-          { role: { $in: ['manager', 'hr'] } }
+          { role: { $in: ['manager', 'hr', 'admin'] } }
         ];
       } else {
         // Standard manager gets only their explicit reportees
@@ -416,6 +416,9 @@ const getPendingManagerItems = async (req, res) => {
         reporteeIds = allUsers.map(u => u._id);
       }
     }
+
+    // Exclude the current user from their own reportees so they cannot approve their own logs
+    reporteeIds = reporteeIds.filter(id => id.toString() !== userId.toString());
 
     const pendingItems = await WorkJournal.find({
       employeeId: { $in: reporteeIds }
@@ -446,6 +449,10 @@ const reviewWorkJournalItem = async (req, res) => {
     const item = await WorkJournal.findById(id).populate('employeeId');
     if (!item) {
       return res.status(404).json({ message: 'Work Journal entry not found.' });
+    }
+
+    if (item.employeeId?._id.toString() === req.user.id.toString()) {
+      return res.status(403).json({ message: 'Access denied. You cannot review your own work evidence.' });
     }
 
     const isManagerOfEmployee = item.employeeId?.managerId?.toString() === req.user.id.toString();

@@ -159,7 +159,9 @@ const EvidenceConfirmation = () => {
         const startObj = new Date(rStart);
         const endObj = new Date(rEnd);
 
-        let queryParams = `?status=approved`;
+        const currentUserId = (user?._id || user?.id || '').toString();
+
+        let queryParams = `?status=approved&employeeId=${currentUserId}`;
         if (rStart && rEnd) {
           queryParams += `&startDate=${encodeURIComponent(rStart)}&endDate=${encodeURIComponent(rEnd)}`;
         }
@@ -171,8 +173,6 @@ const EvidenceConfirmation = () => {
         } catch (e) {
           console.error('Logs fetch error:', e);
         }
-
-        const currentUserId = (user?._id || user?.id || '').toString();
 
         // 3. Fetch certifications earned strictly within this review cycle window
         try {
@@ -225,7 +225,7 @@ const EvidenceConfirmation = () => {
         }
 
         // 6. Fetch existing assessment / confirmation record
-        const assessmentRes = await api.get(`/api/self-assessments?reviewCycleId=${cycleId}`);
+        const assessmentRes = await api.get(`/api/self-assessments?reviewCycleId=${cycleId}&employeeId=${currentUserId}`);
         const existing = assessmentRes.data.length > 0 ? assessmentRes.data[0] : null;
 
         if (existing) {

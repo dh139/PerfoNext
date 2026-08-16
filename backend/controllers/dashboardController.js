@@ -38,10 +38,10 @@ const getDashboardData = async (req, res) => {
           continue;
         }
 
-        if (cycle.targetRole === 'manager' && user.role === 'employee') {
+        if (cycle.targetRole === 'manager' && !['manager', 'hr', 'admin'].includes(user.role)) {
           continue;
         }
-        if (cycle.targetRole === 'employee' && (user.role === 'manager' || user.role === 'hr' || user.role === 'executive')) {
+        if (cycle.targetRole === 'employee' && user.role !== 'employee') {
           continue;
         }
 
@@ -101,8 +101,8 @@ const getDashboardData = async (req, res) => {
         if (!isUnlocked) return false;
       }
 
-      if (cycle.targetRole === 'manager' && user.role === 'employee') return false;
-      if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(user.role)) return false;
+      if (cycle.targetRole === 'manager' && !['manager', 'hr', 'admin'].includes(user.role)) return false;
+      if (cycle.targetRole === 'employee' && user.role !== 'employee') return false;
 
       if (cycle.departmentId) {
         const cycleDeptId = cycle.departmentId._id ? cycle.departmentId._id.toString() : cycle.departmentId.toString();
@@ -294,8 +294,8 @@ const getDashboardData = async (req, res) => {
         const allActiveUsers = await User.find({ employmentStatus: 'active' }).populate('departmentId managerId designationId');
 
         const eligibleUsers = allActiveUsers.filter(emp => {
-          if (cycle.targetRole === 'manager' && emp.role === 'employee') return false;
-          if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(emp.role)) return false;
+          if (cycle.targetRole === 'manager' && !['manager', 'hr', 'admin'].includes(emp.role)) return false;
+          if (cycle.targetRole === 'employee' && emp.role !== 'employee') return false;
 
           if (cycleDeptId) {
             const empDeptId = emp.departmentId?._id ? emp.departmentId._id.toString() : (emp.departmentId ? emp.departmentId.toString() : '');
@@ -370,7 +370,7 @@ const getDashboardData = async (req, res) => {
         .sort({ calculatedAt: -1 });
 
       const allEmployeeScores = allScores.filter(s => s.employeeId?.role === 'employee');
-      const allManagerScores = allScores.filter(s => s.employeeId?.role === 'manager' || s.employeeId?.role === 'hr');
+      const allManagerScores = allScores.filter(s => ['manager', 'hr', 'admin'].includes(s.employeeId?.role));
 
       // 3. Pending Manager Reviews for Executive / Admin / HR evaluation desk
       const pendingManagerReviews = [];
@@ -384,7 +384,7 @@ const getDashboardData = async (req, res) => {
       };
 
       if (user.role === 'executive') {
-        teamQuery.$or.push({ role: { $in: ['manager', 'hr'] } });
+        teamQuery.$or.push({ role: { $in: ['manager', 'hr', 'admin'] } });
       }
 
       const team = await User.find(teamQuery).populate('departmentId');
@@ -403,8 +403,8 @@ const getDashboardData = async (req, res) => {
           }
 
           // Target role check
-          if (cycle.targetRole === 'manager' && member.role === 'employee') continue;
-          if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive'].includes(member.role)) continue;
+          if (cycle.targetRole === 'manager' && !['manager', 'hr', 'admin'].includes(member.role)) continue;
+          if (cycle.targetRole === 'employee' && member.role !== 'employee') continue;
 
           // Eligibility check
           if (member.joiningDate && !isEmployeeEligibleForCycle(member.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { getUserAvatarUrl } from '../utils/avatar';
@@ -33,36 +33,25 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [workspaceOpen, setWorkspaceOpen] = React.useState(true);
-  const [performanceOpen, setPerformanceOpen] = React.useState(true);
-  const [developmentOpen, setDevelopmentOpen] = React.useState(true);
-  const [managementOpen, setManagementOpen] = React.useState(true);
-  const [settingsOpen, setSettingsOpen] = React.useState(true);
+  const [workspaceOpen, setWorkspaceOpen] = React.useState(false);
+  const [performanceOpen, setPerformanceOpen] = React.useState(false);
+  const [developmentOpen, setDevelopmentOpen] = React.useState(false);
+  const [managementOpen, setManagementOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
 
-  // Auto-expand active route sections
-  React.useEffect(() => {
-    const p = location.pathname;
-    if (['/profile', '/skills', '/certifications', '/recognitions'].includes(p)) {
-      setWorkspaceOpen(true);
-    }
-    if (['/feedback'].includes(p) || p.startsWith('/reports/employee/')) {
-      setPerformanceOpen(true);
-    }
-    if (['/integrations', '/pips', '/promotions'].includes(p)) {
-      setDevelopmentOpen(true);
-    }
-    if (['/manager/reviews', '/reports/department', '/hr/kpi-templates', '/hr/kpis', '/hr/cycles', '/reports/completion', '/admin/users', '/admin/org', '/admin/audit'].includes(p)) {
-      setManagementOpen(true);
-    }
-    if (p.startsWith('/settings/')) {
-      setSettingsOpen(true);
-    }
-  }, [location.pathname]);
 
-  const handleLogout = async () => {
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const handleLogout = () => {
+    if (setSidebarOpen) setSidebarOpen(false);
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = async () => {
     try {
-      if (setSidebarOpen) setSidebarOpen(false);
+      setShowLogoutConfirm(false);
       await logout();
       navigate('/login');
     } catch (err) {
@@ -366,6 +355,37 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
         </button>
       </div>
     </div>
+
+    {/* Logout Confirmation Modal */}
+    {showLogoutConfirm && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl text-center space-y-4 animate-scale-in">
+          <div className="mx-auto w-12 h-12 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center border border-rose-500/20">
+            <LogOut size={24} />
+          </div>
+          <div>
+            <h3 className="text-white font-extrabold text-base">Confirm Sign Out</h3>
+            <p className="text-slate-400 text-xs mt-1">Are you sure you want to log out of your PerfoNext session?</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowLogoutConfirm(false)}
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs py-3 rounded-xl border border-slate-700/50 cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmLogout}
+              className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs py-3 rounded-xl shadow-lg cursor-pointer transition-colors"
+            >
+              Yes, Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 };

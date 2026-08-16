@@ -9,6 +9,7 @@ const { calculateReviewScores } = require('../utils/scoring');
 const { logAction } = require('../utils/logger');
 const {
   sendReviewCycleStartedEmail,
+  sendReviewCycleUpdatedEmail,
   sendSelfAssessmentSubmittedEmail,
   sendFinalReportGeneratedEmail,
   sendIndividualExtensionEmail
@@ -165,12 +166,27 @@ const updateReviewCycle = async (req, res) => {
       req.body.reviewMonth = normalizeReviewMonth(req.body.reviewMonth, type);
     }
 
+    const now = new Date();
+    const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+
+    if (req.body.status === undefined) {
+      const checkStartDate = req.body.startDate ? new Date(req.body.startDate) : new Date(oldCycle.startDate);
+      const checkEndDate = req.body.endDate ? new Date(req.body.endDate) : new Date(oldCycle.endDate);
+
+      if (checkStartDate > endOfToday) {
+        req.body.status = 'draft';
+      } else if (checkEndDate >= startOfToday) {
+        req.body.status = 'active';
+      } else {
+        req.body.status = 'closed';
+      }
+    }
+
     const updatedCycle = await ReviewCycle.findByIdAndUpdate(id, req.body, { new: true });
 
-    // Trigger notification if status transitioned to active
-    if (oldCycle.status !== 'active' && updatedCycle.status === 'active') {
-      await notifyAllEmployeesOfNewCycle(updatedCycle);
-    }
+    // Send update/reschedule notifications (in-app and email) to target users
+    await notifyAllEmployeesOfUpdatedCycle(updatedCycle, oldCycle);
 
     // Notify HR/Admin when a review cycle is closed
     if (oldCycle.status !== 'closed' && updatedCycle.status === 'closed') {
@@ -200,8 +216,8 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     }
 
     if (cycle.targetRole === 'manager') {
-      // CEO created cycle -> ONLY Reporting Managers and HR Managers of that department
-      baseFilter.role = { $in: ['manager', 'hr'] };
+      // CEO created cycle -> Reporting Managers, HR Managers, and Admins of that department
+      baseFilter.role = { $in: ['manager', 'hr', 'admin'] };
     } else {
       // HR/Manager created cycle -> ONLY regular employees of that department
       baseFilter.role = 'employee';
@@ -242,6 +258,83 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     }
   } catch (err) {
     console.error('Notification seeding failed:', err);
+  }
+};
+
+const notifyAllEmployeesOfUpdatedCycle = async (cycle, oldCycle) => {
+  try {
+    const startDateChanged = new Date(cycle.startDate).getTime() !== new Date(oldCycle.startDate).getTime();
+    const endDateChanged = new Date(cycle.endDate).getTime() !== new Date(oldCycle.endDate).getTime();
+    const statusChanged = cycle.status !== oldCycle.status;
+
+    if (!startDateChanged && !endDateChanged && !statusChanged) return;
+
+    const targetDeptId = cycle.departmentId;
+    const baseFilter = { employmentStatus: 'active' };
+    if (targetDeptId) {
+      baseFilter.departmentId = targetDeptId;
+    }
+
+    if (cycle.targetRole === 'manager') {
+      baseFilter.role = { $in: ['manager', 'hr', 'admin'] };
+    } else {
+      baseFilter.role = 'employee';
+    }
+
+    let targetUsers = await User.find(baseFilter);
+    targetUsers = targetUsers.filter(u => {
+      if (!u.joiningDate) return true;
+      return isEmployeeEligibleForCycle(u.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate);
+    });
+
+    if (targetUsers.length === 0) return;
+
+    let deptName = 'All Departments';
+    if (targetDeptId) {
+      const dept = await Department.findById(targetDeptId);
+      if (dept) {
+        deptName = dept.departmentName;
+      }
+    }
+
+    // 1. Delete old notifications for this cycle to keep it clean
+    await Notification.deleteMany({
+      userId: { $in: targetUsers.map(u => u._id) },
+      message: { $regex: new RegExp(`"${cycle.reviewMonth}"`) }
+    });
+
+    const startFmt = new Date(cycle.startDate).toLocaleDateString('en-GB');
+    const endFmt = new Date(cycle.endDate).toLocaleDateString('en-GB');
+
+    // 2. Insert new notifications depending on status
+    let notifications = [];
+    if (cycle.status === 'active') {
+      notifications = targetUsers.map(u => ({
+        userId: u._id,
+        type: 'review_assigned',
+        message: `Performance review cycle "${cycle.reviewMonth}" (${deptName}) has been launched! Please submit your self-assessment before evaluation due date (${endFmt}).`
+      }));
+    } else if (cycle.status === 'draft') {
+      notifications = targetUsers.map(u => ({
+        userId: u._id,
+        type: 'review_assigned',
+        message: `Performance review cycle "${cycle.reviewMonth}" (${deptName}) has been updated. New start date is ${startFmt} and new evaluation due date is ${endFmt}.`
+      }));
+    }
+
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    // 3. Email notifications specifically to targeted users
+    for (const emp of targetUsers) {
+      if (emp.email) {
+        sendReviewCycleUpdatedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.startDate, cycle.endDate)
+          .catch(err => console.error(`Review cycle update email failed for ${emp.email}:`, err));
+      }
+    }
+  } catch (err) {
+    console.error('Updated cycle notification seeding failed:', err);
   }
 };
 
@@ -362,11 +455,11 @@ const submitSelfAssessment = async (req, res) => {
     // Verify user eligibility based on joining date & target role
     const emp = await User.findById(employeeId);
     if (emp) {
-      if (cycle.targetRole === 'employee' && ['manager', 'hr', 'executive', 'admin'].includes(emp.role)) {
-        return res.status(403).json({ message: 'Managers and HR Managers do not submit self-assessments for employee review cycles.' });
+      if (cycle.targetRole === 'employee' && emp.role !== 'employee') {
+        return res.status(403).json({ message: 'Only standard employees can submit self-assessments for employee review cycles.' });
       }
-      if (cycle.targetRole === 'manager' && emp.role === 'employee') {
-        return res.status(403).json({ message: 'Standard employees are not eligible for manager review cycles.' });
+      if (cycle.targetRole === 'manager' && !['manager', 'hr', 'admin'].includes(emp.role)) {
+        return res.status(403).json({ message: 'Only managers, HR, and admins can submit self-assessments for manager review cycles.' });
       }
       if (!isEmployeeEligibleForCycle(emp.joiningDate, cycle.cycleType, cycle.reviewMonth, cycle.startDate)) {
         return res.status(403).json({ message: 'You are not eligible for this review cycle due to joining date constraints.' });
@@ -427,8 +520,8 @@ const submitSelfAssessment = async (req, res) => {
       const user = await User.findById(employeeId).populate('managerId');
       let evaluator = user?.managerId;
 
-      // If user is a manager/HR or cycle targets managers, evaluator is the CEO / Executive
-      if (!evaluator || user?.role === 'manager' || user?.role === 'hr' || cycle?.targetRole === 'manager') {
+      // If user is a manager/HR/admin or cycle targets managers, evaluator is the CEO / Executive
+      if (!evaluator || user?.role === 'manager' || user?.role === 'hr' || user?.role === 'admin' || cycle?.targetRole === 'manager') {
         evaluator = await User.findOne({ role: 'executive', employmentStatus: 'active' });
       }
 
@@ -542,10 +635,10 @@ const submitManagerReview = async (req, res) => {
       return res.status(404).json({ message: 'Employee not found.' });
     }
 
-    const isManagerOrHRReview = employee.role === 'manager' || employee.role === 'hr' || cycle.targetRole === 'manager';
+    const isManagerOrHRReview = employee.role === 'manager' || employee.role === 'hr' || employee.role === 'admin' || cycle.targetRole === 'manager';
     if (isManagerOrHRReview) {
       if (req.user.role !== 'executive' && req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Only the CEO (Executive) or Admin can evaluate managers and HR.' });
+        return res.status(403).json({ message: 'Only the CEO (Executive) or Admin can evaluate managers, HR, and admins.' });
       }
     } else {
       if (employee.managerId?.toString() !== managerId.toString() && !['hr', 'admin', 'executive'].includes(req.user.role)) {

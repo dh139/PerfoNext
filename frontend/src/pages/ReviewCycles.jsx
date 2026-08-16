@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { AlertCircle, Calendar, Plus, CheckCircle2, Trash2, Unlock, Lock, UserCheck, Search, Building } from 'lucide-react';
+import { AlertCircle, Calendar, Plus, CheckCircle2, Trash2, Unlock, Lock, UserCheck, Search, Building, Edit2 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import ConfirmModal from '../components/ConfirmModal';
 import TablePagination from '../components/TablePagination';
@@ -139,6 +139,16 @@ const ReviewCycles = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  // Edit Form State
+  const [editingCycle, setEditingCycle] = useState(null);
+  const [editReviewMonth, setEditReviewMonth] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editDepartmentId, setEditDepartmentId] = useState('');
+  const [editCycleType, setEditCycleType] = useState('quarterly');
+  const [editTargetRole, setEditTargetRole] = useState('employee');
+  const [editError, setEditError] = useState('');
+
   const getQuarterOptions = () => {
     const currentYear = new Date().getFullYear();
     const years = [currentYear - 1, currentYear, currentYear + 1];
@@ -214,6 +224,72 @@ const ReviewCycles = () => {
       setError('Failed to load review cycles.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatDateToYYYYMMDD = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleOpenEditModal = (c) => {
+    setEditingCycle(c);
+    setEditReviewMonth(c.reviewMonth);
+    setEditStartDate(formatDateToYYYYMMDD(c.startDate));
+    setEditEndDate(formatDateToYYYYMMDD(c.endDate));
+    setEditDepartmentId(c.departmentId?._id || c.departmentId || '');
+    setEditCycleType(c.cycleType || 'quarterly');
+    setEditTargetRole(c.targetRole || 'employee');
+    setEditError('');
+  };
+
+  const handleEditCycleTypeChange = (newType) => {
+    setEditCycleType(newType);
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    if (newType === 'quarterly') {
+      const q = Math.ceil(currentMonth / 3);
+      setEditReviewMonth(`${currentYear}-Q${q}`);
+    } else if (newType === 'half_yearly') {
+      const h = currentMonth <= 6 ? 1 : 2;
+      setEditReviewMonth(`${currentYear}-H${h}`);
+    } else if (['yearly', 'annual'].includes(newType)) {
+      setEditReviewMonth(`${currentYear}`);
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    setEditError('');
+    if (!editReviewMonth) {
+      setEditError('Please select target period.');
+      return;
+    }
+    if (!editStartDate || !editEndDate) {
+      setEditError('Please select both Start Date and Evaluation Due Date.');
+      return;
+    }
+
+    try {
+      await api.patch(`/api/review-cycles/${editingCycle._id}`, {
+        reviewMonth: editReviewMonth,
+        startDate: editStartDate,
+        endDate: editEndDate,
+        departmentId: editDepartmentId || null,
+        cycleType: editCycleType,
+        targetRole: editTargetRole
+      });
+      toast.success('Review cycle updated successfully!');
+      setEditingCycle(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      setEditError(err.response?.data?.message || 'Failed to update review cycle.');
     }
   };
 
@@ -528,6 +604,16 @@ const ReviewCycles = () => {
 
                           {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
                             <button
+                              onClick={() => handleOpenEditModal(c)}
+                              className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                              title="Edit Review Cycle"
+                            >
+                              <Edit2 size={15} />
+                            </button>
+                          )}
+
+                          {(user?.role === 'admin' || user?.role === 'hr' || user?.role === 'executive') && (
+                            <button
                               onClick={() => setPendingDeleteCycle(c)}
                               className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
                               title="Delete Review Cycle"
@@ -814,6 +900,133 @@ const ReviewCycles = () => {
                   className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold cursor-pointer shadow-md transition-colors"
                 >
                   Create Cycle
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingCycle && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-5 border border-slate-100 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-sm">Edit Review Period</h3>
+              <button onClick={() => setEditingCycle(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">✕</button>
+            </div>
+
+            {editError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 flex items-center gap-2.5 font-bold text-xs">
+                <AlertCircle size={18} className="text-rose-600 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">
+                    {editCycleType === 'quarterly' ? 'Quarter Period *' : editCycleType === 'half_yearly' ? 'Half-Year Period *' : 'Review Year *'}
+                  </label>
+                  <select
+                    value={editReviewMonth}
+                    onChange={(e) => setEditReviewMonth(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                    required
+                  >
+                    {editCycleType === 'quarterly' && getQuarterOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {editCycleType === 'half_yearly' && getHalfYearOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                    {['yearly', 'annual'].includes(editCycleType) && getAnnualOptions().map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Frequency *</label>
+                  <select
+                    value={editCycleType}
+                    onChange={(e) => handleEditCycleTypeChange(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                  >
+                    <option value="quarterly">Quarterly</option>
+                    <option value="half_yearly">Half-Yearly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Target Audience (Evaluated Group) *</label>
+                <select
+                  value={editTargetRole}
+                  onChange={(e) => setEditTargetRole(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                  required
+                >
+                  <option value="employee">Department Employees (Evaluated by Reporting Managers)</option>
+                  <option value="manager">Reporting Managers & HRs (Evaluated by CEO / Executive)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department *</label>
+                <select
+                  value={editDepartmentId}
+                  onChange={(e) => setEditDepartmentId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold cursor-pointer"
+                >
+                  <option value="">All Departments (Org-Wide Review)</option>
+                  {departments.map(d => (
+                    <option key={d._id} value={d._id}>
+                      {d.departmentName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Cycle Start Date *</label>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => setEditStartDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Evaluation Due Date *</label>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => setEditEndDate(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl outline-none focus:border-sky-500 text-slate-800 font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingCycle(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-bold cursor-pointer shadow-md transition-colors"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

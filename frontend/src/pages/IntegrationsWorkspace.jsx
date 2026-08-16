@@ -105,7 +105,7 @@ const IntegrationsWorkspace = () => {
         api.get('/api/users'),
         api.get('/api/departments')
       ]);
-      let allUsers = usersRes.data || [];
+      let allUsers = (usersRes.data || []).filter(u => u.role !== 'executive');
       setDepartments(deptsRes.data || []);
 
       // Scope users list based on role:
@@ -352,8 +352,6 @@ const IntegrationsWorkspace = () => {
 
         // Filter users for the attendance registry table
         const filteredAttendanceRecords = users.filter(u => {
-          if (u.role === 'admin') return false; // skip system admins
-          
           const fullName = `${u.firstName || ''} ${u.lastName || ''} ${u.employeeCode || ''}`.toLowerCase();
           const deptName = (u.departmentId?.departmentName || '').toLowerCase();
           const desigName = (u.designationId?.designationName || '').toLowerCase();
