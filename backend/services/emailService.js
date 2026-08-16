@@ -1,6 +1,7 @@
 // Replace nodemailer with Brevo API
 const getTransporter = () => {
-  if (!process.env.BREVO_API_KEY) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey || apiKey === 'your_brevo_api_key' || apiKey.trim() === '') {
     return null;
   }
 
@@ -18,28 +19,31 @@ const getTransporter = () => {
         }
       }
 
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          'api-key': process.env.BREVO_API_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sender: { email: cleanSenderEmail, name: senderName },
-          to: [{ email: to }],
-          subject: subject,
-          textContent: text,
-          htmlContent: html
-        })
-      });
+      try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            sender: { email: cleanSenderEmail, name: senderName },
+            to: [{ email: to }],
+            subject: subject,
+            textContent: text,
+            htmlContent: html
+          })
+        });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('Brevo API send email failed:', errText);
-        throw new Error(`Brevo API Error: ${response.status} - ${errText}`);
+        if (!response.ok) {
+          console.error(`Brevo API send email failed with status ${response.status}`);
+          throw new Error(`Brevo API Error: ${response.status}`);
+        }
+
+        return await response.json();
+      } catch (err) {
+        throw new Error(`Email delivery failed: ${err.message}`);
       }
-
-      return await response.json();
     }
   };
 };

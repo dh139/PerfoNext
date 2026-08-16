@@ -30,7 +30,7 @@ const getEmployeeInsights = async (req, res) => {
     res.json(insights);
   } catch (error) {
     console.error('getEmployeeInsights controller error:', error);
-    res.status(500).json({ message: error.message || 'Failed to compile AI insights.' });
+    res.status(500).json({ message: 'Failed to compile AI insights.' });
   }
 };
 
@@ -49,7 +49,7 @@ const getEmployeeCycleInsights = async (req, res) => {
     res.json(insights);
   } catch (error) {
     console.error('getEmployeeCycleInsights controller error:', error);
-    res.status(500).json({ message: error.message || 'Failed to compile AI insights.' });
+    res.status(500).json({ message: 'Failed to compile AI insights.' });
   }
 };
 
@@ -68,7 +68,7 @@ const regenerateEmployeeCycleInsights = async (req, res) => {
     res.json(insights);
   } catch (error) {
     console.error('regenerateEmployeeCycleInsights controller error:', error);
-    res.status(500).json({ message: error.message || 'Failed to regenerate AI insights.' });
+    res.status(500).json({ message: 'Failed to regenerate AI insights.' });
   }
 };
 

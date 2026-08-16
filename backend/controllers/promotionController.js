@@ -101,7 +101,7 @@ const createPromotion = async (req, res) => {
     res.status(201).json(populated);
   } catch (error) {
     console.error('createPromotion error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -160,7 +160,7 @@ const approvePromotion = async (req, res) => {
     res.json(populated);
   } catch (error) {
     console.error('approvePromotion error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

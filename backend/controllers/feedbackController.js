@@ -89,7 +89,7 @@ const createFeedbackRequest = async (req, res) => {
     res.status(201).json(request);
   } catch (error) {
     console.error('createFeedbackRequest error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -130,7 +130,7 @@ const submitFeedbackResponse = async (req, res) => {
     res.json({ message: 'Feedback submitted anonymously and successfully!' });
   } catch (error) {
     console.error('submitFeedbackResponse error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

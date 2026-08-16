@@ -148,7 +148,7 @@ const uploadCertification = async (req, res) => {
     res.status(201).json(cert);
   } catch (error) {
     console.error('uploadCertification error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -213,7 +213,7 @@ const updateCertification = async (req, res) => {
     res.json(cert);
   } catch (error) {
     console.error('updateCertification error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

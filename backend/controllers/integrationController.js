@@ -224,7 +224,7 @@ const sendTeamsWebhook = async (req, res) => {
     res.json({ message: responseMessage, log });
   } catch (error) {
     console.error('sendTeamsWebhook error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -257,7 +257,7 @@ const syncLmsRecord = async (req, res) => {
     res.status(201).json({ message: `Logged completed course: ${courseName}`, log });
   } catch (error) {
     console.error('syncLmsRecord error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

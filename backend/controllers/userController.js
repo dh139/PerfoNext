@@ -287,9 +287,10 @@ const createUser = async (req, res) => {
   } catch (error) {
     console.error('createUser error:', error);
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({ message: messages.join(', ') || 'Validation failed.' });
     }
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -411,7 +412,7 @@ const updateUser = async (req, res) => {
     res.json(updatedUser);
   } catch (error) {
     console.error('updateUser error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -579,7 +580,7 @@ const updateMyProfile = async (req, res) => {
     res.json(updatedUser);
   } catch (error) {
     console.error('updateMyProfile error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -693,7 +694,7 @@ const deleteUser = async (req, res) => {
     res.json({ message: 'User and all associated data deleted successfully.' });
   } catch (error) {
     console.error('deleteUser error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -732,7 +733,7 @@ const deleteDepartment = async (req, res) => {
     });
   } catch (error) {
     console.error('deleteDepartment error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -771,7 +772,7 @@ const deleteDesignation = async (req, res) => {
     });
   } catch (error) {
     console.error('deleteDesignation error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -809,7 +810,7 @@ const uploadProfilePhoto = async (req, res) => {
     res.json(updatedUser);
   } catch (error) {
     console.error('uploadProfilePhoto error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

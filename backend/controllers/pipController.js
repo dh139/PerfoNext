@@ -147,7 +147,7 @@ const createPip = async (req, res) => {
     res.status(201).json(populatedPip);
   } catch (error) {
     console.error('createPip error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -233,7 +233,7 @@ const updatePip = async (req, res) => {
     res.json(updatedPip);
   } catch (error) {
     console.error('updatePip error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

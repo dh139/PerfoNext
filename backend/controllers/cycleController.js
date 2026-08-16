@@ -149,7 +149,7 @@ const createReviewCycle = async (req, res) => {
     res.status(201).json(cycle);
   } catch (error) {
     console.error('createReviewCycle error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -201,7 +201,7 @@ const updateReviewCycle = async (req, res) => {
     res.json(updatedCycle);
   } catch (error) {
     console.error('updateReviewCycle error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -253,7 +253,7 @@ const notifyAllEmployeesOfNewCycle = async (cycle) => {
     for (const emp of targetUsers) {
       if (emp.email) {
         sendReviewCycleStartedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.endDate)
-          .catch(err => console.error(`Review cycle email failed for ${emp.email}:`, err));
+          .catch(err => console.error('Review cycle email failed:', err.message || err));
       }
     }
   } catch (err) {
@@ -330,7 +330,7 @@ const notifyAllEmployeesOfUpdatedCycle = async (cycle, oldCycle) => {
     for (const emp of targetUsers) {
       if (emp.email) {
         sendReviewCycleUpdatedEmail(emp.email, emp.firstName, cycle.reviewMonth, cycle.startDate, cycle.endDate)
-          .catch(err => console.error(`Review cycle update email failed for ${emp.email}:`, err));
+          .catch(err => console.error('Review cycle update email failed:', err.message || err));
       }
     }
   } catch (err) {
@@ -549,7 +549,11 @@ const submitSelfAssessment = async (req, res) => {
     res.json(assessment);
   } catch (error) {
     console.error('submitSelfAssessment error:', error);
-    res.status(400).json({ message: error.message || 'Validation or DB error.' });
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({ message: messages.join(', ') || 'Validation failed.' });
+    }
+    res.status(400).json({ message: 'Validation or DB error.' });
   }
 };
 
@@ -688,7 +692,11 @@ const submitManagerReview = async (req, res) => {
     res.json(review);
   } catch (error) {
     console.error('submitManagerReview error:', error);
-    res.status(400).json({ message: error.message || 'Validation or DB error.' });
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(val => val.message);
+      return res.status(400).json({ message: messages.join(', ') || 'Validation failed.' });
+    }
+    res.status(400).json({ message: 'Validation or DB error.' });
   }
 };
 
@@ -1217,7 +1225,7 @@ const unlockUserForCycle = async (req, res) => {
     res.json(updatedCycle);
   } catch (error) {
     console.error('unlockUserForCycle error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -1258,7 +1266,7 @@ const relockUserForCycle = async (req, res) => {
     res.json(updatedCycle);
   } catch (error) {
     console.error('relockUserForCycle error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

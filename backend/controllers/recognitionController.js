@@ -97,7 +97,7 @@ const createRecognition = async (req, res) => {
     res.status(201).json(populated);
   } catch (error) {
     console.error('createRecognition error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 

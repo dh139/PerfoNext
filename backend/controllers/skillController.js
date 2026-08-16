@@ -69,7 +69,7 @@ const createSkill = async (req, res) => {
     res.status(201).json(skill);
   } catch (error) {
     console.error('createSkill error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -156,7 +156,7 @@ const updateEmployeeSkill = async (req, res) => {
     res.json(empSkill);
   } catch (error) {
     console.error('updateEmployeeSkill error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
@@ -193,7 +193,7 @@ const updateSkill = async (req, res) => {
     res.json(skill);
   } catch (error) {
     console.error('updateSkill error:', error);
-    res.status(500).json({ message: error.message || 'Internal server error.' });
+    res.status(500).json({ message: 'Internal server error.' });
   }
 };
 
