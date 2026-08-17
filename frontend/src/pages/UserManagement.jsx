@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
-import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw, UserPlus } from 'lucide-react';
+import { AlertCircle, Plus, Edit2, Trash2, Users, User, Search, Layers, ShieldCheck, CheckCircle2, XCircle, RefreshCw, UserPlus, Eye, EyeOff } from 'lucide-react';
 import ConfirmModal from '../components/ConfirmModal';
 import { getUserAvatarUrl } from '../utils/avatar';
 import { toast } from '../store/toastStore';
@@ -80,6 +80,7 @@ const UserManagement = () => {
   const [gender, setGender] = useState('male');
   const [workMode, setWorkMode] = useState('Work From office');
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const validateField = (name, value) => {
     switch (name) {
@@ -157,6 +158,7 @@ const UserManagement = () => {
     setWorkMode('Work From office');
     setJoiningDate(new Date().toISOString().split('T')[0]);
     if (departments.length > 0) setDepartmentId(departments[0]._id);
+    setShowPassword(false);
     setShowModal(true);
   };
 
@@ -174,6 +176,7 @@ const UserManagement = () => {
     setGender(user.gender || 'male');
     setWorkMode(user.workMode || 'Work From office');
     setJoiningDate(user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : '');
+    setShowPassword(false);
     setShowModal(true);
   };
 
@@ -824,18 +827,28 @@ const UserManagement = () => {
                     <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                       {editUser ? 'Password (leave blank to keep current)' : 'Account Password'} {!editUser && <span className="text-rose-500">*</span>}
                     </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPassword(val);
-                        setErrors(prev => ({ ...prev, password: validateField('password', val) }));
-                      }}
-                      placeholder={editUser ? '••••••••' : 'Enter password...'}
-                      className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 transition-all"
-                      required={!editUser}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPassword(val);
+                          setErrors(prev => ({ ...prev, password: validateField('password', val) }));
+                        }}
+                        placeholder={editUser ? '••••••••' : 'Enter password...'}
+                        className="w-full bg-slate-50 border border-slate-200 pl-3 pr-10 py-2.5 rounded-xl outline-none focus:border-sky-500 focus:bg-white text-slate-800 transition-all font-medium"
+                        required={!editUser}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                     {errors.password && (
                       <p className="text-[10px] text-rose-500 font-bold mt-0.5">{errors.password}</p>
                     )}
