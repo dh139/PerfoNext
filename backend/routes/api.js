@@ -153,6 +153,8 @@ router.get('/integrations/attendance', verifyToken, integrationController.getAtt
 router.post('/integrations/attendance/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncAttendance);
 router.post('/integrations/attendance/batch-sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.batchSyncAttendance);
 router.post('/integrations/teams/webhook', verifyToken, authorizeRoles('admin', 'hr', 'manager'), integrationController.sendTeamsWebhook);
+router.get('/integrations/lms', verifyToken, integrationController.getLmsRecords);
+router.post('/integrations/lms/sync', verifyToken, authorizeRoles('admin', 'hr'), integrationController.syncLmsRecord);
 router.get('/integrations/logs', verifyToken, authorizeRoles('admin', 'hr'), integrationController.getIntegrationLogs);
 
 // Daily Work Log & Continuous Performance Routes
