@@ -90,7 +90,7 @@ const getPips = async (req, res) => {
     const pips = await Pip.find(filter)
       .populate({
         path: 'employeeId',
-        select: 'firstName lastName email employeeCode departmentId designationId',
+        select: 'firstName lastName email employeeCode departmentId designationId profilePhoto gender',
         populate: { path: 'departmentId designationId' }
       })
       .populate({ path: 'managerId', select: 'firstName lastName email' })
@@ -121,7 +121,7 @@ const createPip = async (req, res) => {
     });
 
     const populatedPip = await Pip.findById(pip._id)
-      .populate({ path: 'employeeId', select: 'firstName lastName email' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email profilePhoto gender' });
 
     // Notify employee
     await Notification.create({
@@ -191,7 +191,7 @@ const updatePip = async (req, res) => {
     if (endDate) updates.endDate = endDate;
 
     const updatedPip = await Pip.findByIdAndUpdate(id, updates, { new: true })
-      .populate({ path: 'employeeId', select: 'firstName lastName email' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email profilePhoto gender' });
 
     // Notify employee on outcome update or date extension
     const hasStatusChanged = status && oldPip.status !== status;

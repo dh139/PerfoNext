@@ -393,7 +393,7 @@ const getSelfAssessments = async (req, res) => {
 
     const assessments = await SelfAssessment.find(filter)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode profilePhoto gender' });
 
     res.json(assessments);
   } catch (error) {
@@ -406,7 +406,7 @@ const getSelfAssessmentById = async (req, res) => {
   try {
     const assessment = await SelfAssessment.findById(req.params.id)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId profilePhoto gender' });
 
     if (!assessment) {
       return res.status(404).json({ message: 'Self-assessment not found.' });
@@ -575,7 +575,7 @@ const getManagerReviews = async (req, res) => {
 
     const reviews = await ManagerReview.find(filter)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId profilePhoto gender' })
       .populate({ path: 'managerId', select: 'firstName lastName email' });
 
     res.json(reviews);
@@ -589,7 +589,7 @@ const getManagerReviewById = async (req, res) => {
   try {
     const review = await ManagerReview.findById(req.params.id)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId' })
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId profilePhoto gender' })
       .populate({ path: 'managerId', select: 'firstName lastName email' });
 
     if (!review) {
@@ -933,7 +933,7 @@ const getReviewScores = async (req, res) => {
 
     const scores = await ReviewScore.find(filter)
       .populate('reviewCycleId')
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' });
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId profilePhoto gender' });
 
     res.json(scores);
   } catch (error) {

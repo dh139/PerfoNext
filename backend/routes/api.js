@@ -166,7 +166,7 @@ router.post('/work-journal/batch-review', verifyToken, authorizeRoles('admin', '
 router.get('/work-journal/stats', verifyToken, workJournalController.getWorkJournalStats);
 router.get('/work-journal/timeline', verifyToken, workJournalController.getWorkJournalTimeline);
 router.get('/work-journal/project-statuses', verifyToken, workJournalController.getProjectStatuses);
-router.post('/work-journal/project-status', verifyToken, authorizeRoles('admin', 'hr', 'manager', 'executive'), workJournalController.updateProjectStatus);
+router.post('/work-journal/project-status', verifyToken, authorizeRoles('admin', 'executive'), workJournalController.updateProjectStatus);
 
 // Work Journal Department Template Routes
 const workJournalTemplateController = require('../controllers/workJournalTemplateController');

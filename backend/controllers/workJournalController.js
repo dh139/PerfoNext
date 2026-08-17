@@ -79,7 +79,7 @@ const getWorkJournalItems = async (req, res) => {
     const items = await WorkJournal.find(query)
       .populate({
         path: 'employeeId',
-        select: 'firstName lastName email role employeeCode departmentId',
+        select: 'firstName lastName email role employeeCode departmentId profilePhoto gender',
         populate: {
           path: 'departmentId',
           select: 'departmentName'
@@ -423,7 +423,7 @@ const getPendingManagerItems = async (req, res) => {
     const pendingItems = await WorkJournal.find({
       employeeId: { $in: reporteeIds }
     })
-      .populate('employeeId', 'firstName lastName email employeeCode role departmentId designationId')
+      .populate('employeeId', 'firstName lastName email employeeCode role departmentId designationId profilePhoto gender')
       .populate('reviewedBy', 'firstName lastName')
       .sort({ createdAt: -1 });
 

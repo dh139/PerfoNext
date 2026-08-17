@@ -232,9 +232,11 @@ const ExecutiveDashboard = ({ data, user }) => {
             <div className="flex flex-wrap items-center gap-3 shrink-0">
               {/* CEO identity chip — mirrors Reporting Manager card in Employee dashboard */}
               <div className="bg-slate-900/90 border border-slate-700 p-3 rounded-2xl text-[10px] flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-[10px] shadow-sm">
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
-                </div>
+                <img
+                  src={getUserAvatarUrl(user)}
+                  alt="Avatar"
+                  className="w-8 h-8 rounded-xl object-cover shrink-0 border border-slate-700 shadow-sm"
+                />
                 <div>
                   <p className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Role</p>
                   <p className="text-slate-200 font-black mt-0.5">Chief Executive Officer</p>

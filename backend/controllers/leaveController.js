@@ -92,7 +92,7 @@ const getPendingLeaves = async (req, res) => {
     }
 
     let leaves = await LeaveRequest.find({ status: 'pending' })
-      .populate('employeeId', 'firstName lastName employeeCode role')
+      .populate('employeeId', 'firstName lastName employeeCode role profilePhoto gender')
       .sort({ createdAt: -1 });
 
     if (reviewerRole === 'executive') {
@@ -247,7 +247,7 @@ const getAllLeaves = async (req, res) => {
     const leaves = await LeaveRequest.find()
       .populate({
         path: 'employeeId',
-        select: 'firstName lastName employeeCode role departmentId',
+        select: 'firstName lastName employeeCode role departmentId profilePhoto gender',
         populate: {
           path: 'departmentId',
           select: 'departmentName'

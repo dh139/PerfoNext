@@ -93,7 +93,7 @@ const getUsers = async (req, res) => {
 
     const users = await User.find(query)
       .populate('departmentId designationId')
-      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email' })
+      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email profilePhoto gender' })
       .select('-passwordHash -refreshToken');
 
     res.json(users);
@@ -125,7 +125,7 @@ const getUserById = async (req, res) => {
 
     const user = await User.findById(targetId)
       .populate('departmentId designationId')
-      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email' })
+      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email profilePhoto gender' })
       .select('-passwordHash -refreshToken');
 
     if (!user) {
@@ -504,7 +504,7 @@ const getMyProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .populate('departmentId designationId')
-      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email' })
+      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email profilePhoto gender' })
       .select('-passwordHash -refreshToken');
 
     if (!user) {
@@ -564,7 +564,7 @@ const updateMyProfile = async (req, res) => {
 
     const updatedUser = await User.findById(user._id)
       .populate('departmentId designationId')
-      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email' })
+      .populate({ path: 'managerId', select: 'firstName lastName employeeCode email profilePhoto gender' })
       .select('-passwordHash -refreshToken');
 
     await logAction({

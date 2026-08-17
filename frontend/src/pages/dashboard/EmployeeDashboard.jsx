@@ -4,6 +4,7 @@ import {
   CheckCircle2, AlertCircle, Lock, Clock, BookOpen, Plus, Bell, FileText, ArrowUpRight
 } from 'lucide-react';
 import PunchCard from './PunchCard';
+import { getUserAvatarUrl } from '../../utils/avatar';
 
 const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
   const {
@@ -174,9 +175,11 @@ const EmployeeDashboard = ({ data, user, onAddWorkLogClick }) => {
           </button>
           {profile?.managerId && (
             <div className="bg-slate-900/90 border border-slate-850 p-3 rounded-2xl text-[10px] flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center text-white font-extrabold text-[10px] shadow-sm">
-                {profile.managerId.firstName?.[0]}{profile.managerId.lastName?.[0]}
-              </div>
+              <img
+                src={getUserAvatarUrl(profile.managerId)}
+                alt="Avatar"
+                className="w-8 h-8 rounded-xl object-cover shrink-0 border border-slate-700 shadow-sm"
+              />
               <div>
                 <p className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Reporting Manager</p>
                 <p className="text-slate-200 font-black mt-0.5">{profile.managerId.firstName} {profile.managerId.lastName}</p>

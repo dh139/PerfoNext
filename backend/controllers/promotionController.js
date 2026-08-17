@@ -16,7 +16,7 @@ const getPromotions = async (req, res) => {
     }
 
     const promotions = await Promotion.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId profilePhoto gender' })
       .populate('currentDesignationId proposedDesignationId')
       .populate({
         path: 'supportingReviewScores',
@@ -72,7 +72,7 @@ const createPromotion = async (req, res) => {
     });
 
     const populated = await Promotion.findById(promotion._id)
-      .populate({ path: 'employeeId', select: 'firstName lastName' })
+      .populate({ path: 'employeeId', select: 'firstName lastName profilePhoto gender' })
       .populate('currentDesignationId proposedDesignationId')
       .populate({
         path: 'supportingReviewScores',

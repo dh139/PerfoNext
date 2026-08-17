@@ -4,6 +4,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { toast } from '../store/toastStore';
 import TablePagination from '../components/TablePagination';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { 
   CalendarRange, 
   Plus, 
@@ -467,9 +468,11 @@ const LeaveWorkspace = () => {
                     {paginatedAllLeaves.map(leave => (
                       <tr key={leave._id} className="hover:bg-slate-50/30">
                         <td className="py-3 px-4 flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold shrink-0">
-                            <UserIcon size={12} />
-                          </div>
+                          <img
+                             src={getUserAvatarUrl(leave.employeeId)}
+                             alt="Avatar"
+                             className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                           />
                           <div>
                             <p className="font-bold text-slate-800">{leave.employeeId?.firstName} {leave.employeeId?.lastName}</p>
                             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{leave.employeeId?.employeeCode}</p>
@@ -614,10 +617,12 @@ const LeaveWorkspace = () => {
                 <tbody className="divide-y divide-slate-50">
                   {paginatedPendingLeaves.map(leave => (
                     <tr key={leave._id} className="hover:bg-slate-50/40">
-                      <td className="py-3.5 px-4 flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0 font-bold">
-                          <UserIcon size={14} />
-                        </div>
+                       <td className="py-3.5 px-4 flex items-center gap-2">
+                         <img
+                           src={getUserAvatarUrl(leave.employeeId)}
+                           alt="Avatar"
+                           className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                         />
                         <div>
                           <p className="font-bold text-slate-800">
                             {leave.employeeId?.firstName} {leave.employeeId?.lastName}

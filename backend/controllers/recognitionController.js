@@ -12,7 +12,7 @@ const getRecognitions = async (req, res) => {
     if (employeeId) filter.employeeId = employeeId;
 
     const recognitions = await Recognition.find(filter)
-      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
+      .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId profilePhoto gender' })
       .populate({ path: 'awardedBy', select: 'firstName lastName email' })
       .sort({ awardedAt: -1, createdAt: -1 });
 
@@ -77,7 +77,7 @@ const createRecognition = async (req, res) => {
 
 
     const populated = await Recognition.findById(recognition._id)
-      .populate({ path: 'employeeId', select: 'firstName lastName' });
+      .populate({ path: 'employeeId', select: 'firstName lastName profilePhoto gender' });
 
     // Notify Employee
     await Notification.create({

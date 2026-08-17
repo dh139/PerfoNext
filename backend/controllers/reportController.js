@@ -114,7 +114,7 @@ const getDepartmentReport = async (req, res) => {
     // Get all eligible employees of the department for this target role
     const employees = await User.find(employeeFilter)
       .populate('designationId departmentId')
-      .select('firstName lastName employeeCode designationId departmentId role avatar');
+      .select('firstName lastName employeeCode designationId departmentId role profilePhoto gender');
 
     const employeeIds = employees.map(emp => emp._id);
 
@@ -125,7 +125,7 @@ const getDepartmentReport = async (req, res) => {
 
     // Get scores for these employees
     const scores = await ReviewScore.find(matchFilter)
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId role avatar' })
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode designationId role profilePhoto gender' })
       .populate({ path: 'reviewCycleId', select: 'reviewMonth targetRole' });
 
     // Build map of existing scores

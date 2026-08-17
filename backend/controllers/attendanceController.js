@@ -481,7 +481,7 @@ const getPendingRegularizations = async (req, res) => {
     }
 
     const pending = await AttendancePunch.find(filter)
-      .populate('employeeId', 'firstName lastName employeeCode email')
+      .populate('employeeId', 'firstName lastName employeeCode email profilePhoto gender')
       .sort('-createdAt');
 
     res.json(pending);
@@ -608,7 +608,7 @@ const getCeoSummary = async (req, res) => {
     const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
     const punches = await AttendancePunch.find({ date: targetDate })
-      .populate('employeeId', 'firstName lastName role departmentId');
+      .populate('employeeId', 'firstName lastName role departmentId profilePhoto gender');
 
     let present = 0, halfDay = 0, absent = 0, late = 0, autoClosed = 0, leave = 0;
     const lateEmployees = [];
@@ -689,7 +689,7 @@ const getHrSummary = async (req, res) => {
     const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
     const totalUsers = await User.countDocuments({ role: { $in: eligibleRoles } });
     const punches = await AttendancePunch.find({ date: targetDate })
-      .populate('employeeId', 'firstName lastName employeeCode email');
+      .populate('employeeId', 'firstName lastName employeeCode email profilePhoto gender');
 
     let present = 0, halfDay = 0, absent = 0, late = 0, earlyExit = 0, autoClosed = 0;
     const working = [];
@@ -778,7 +778,7 @@ async function getAttendanceByDate(req, res) {
     const holiday = await Holiday.findOne({ date });
 
     const punches = await AttendancePunch.find({ date: targetDate })
-      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode departmentId designationId', populate: { path: 'departmentId', select: 'departmentName' } })
+      .populate({ path: 'employeeId', select: 'firstName lastName employeeCode departmentId designationId profilePhoto gender', populate: { path: 'departmentId', select: 'departmentName' } })
       .sort('punchIn')
       .lean();
 

@@ -8,6 +8,7 @@ import {
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
 import PunchCard from './PunchCard';
+import { getUserAvatarUrl } from '../../utils/avatar';
 
 const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
   const navigate = useNavigate();
@@ -266,11 +267,11 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black shrink-0 ${
-                          isReady ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500'
-                        }`}>
-                          {item.employee.firstName?.[0]}{item.employee.lastName?.[0]}
-                        </div>
+                        <img
+                          src={getUserAvatarUrl(item.employee)}
+                          alt="Avatar"
+                          className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                        />
                         <div>
                           <p className="font-bold text-slate-800 text-xs">
                             {item.employee.firstName} {item.employee.lastName}
@@ -333,9 +334,11 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
                   <div key={reg._id} className="text-xs p-4 bg-slate-50 border border-slate-100 rounded-xl hover:border-amber-200 transition-colors flex flex-col justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
-                          {reg.employeeId?.firstName?.[0]}{reg.employeeId?.lastName?.[0]}
-                        </div>
+                        <img
+                          src={getUserAvatarUrl(reg.employeeId)}
+                          alt="Avatar"
+                          className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                        />
                         <div>
                           <p className="font-bold text-slate-800 leading-tight">{reg.employeeId?.firstName} {reg.employeeId?.lastName}</p>
                           <p className="text-[9px] text-slate-400">{new Date(reg.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
@@ -397,9 +400,11 @@ const ManagerDashboard = ({ data, user, onAddWorkLogClick }) => {
                       className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/60 hover:border-slate-200 transition-colors"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-black shrink-0">
-                          {score.employeeId?.firstName?.[0]}{score.employeeId?.lastName?.[0]}
-                        </div>
+                        <img
+                          src={getUserAvatarUrl(score.employeeId)}
+                          alt="Avatar"
+                          className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                        />
                         <div>
                           <p className="font-bold text-slate-800 text-[11px] leading-tight">
                             {score.employeeId?.firstName} {score.employeeId?.lastName}

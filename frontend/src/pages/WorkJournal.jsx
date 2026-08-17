@@ -59,6 +59,7 @@ const WorkJournal = () => {
   const [projectStatusSearch, setProjectStatusSearch] = useState('');
   const [expandedProjects, setExpandedProjects] = useState({});
   const [projectStatusFilter, setProjectStatusFilter] = useState('all');
+  const [projectDeptFilter, setProjectDeptFilter] = useState('all');
   const [projectStatusPage, setProjectStatusPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -147,6 +148,7 @@ const WorkJournal = () => {
   const [projQuery, setProjQuery] = useState('');
   const [orgWideLogs, setOrgWideLogs] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [projectRegistryPages, setProjectRegistryPages] = useState({});
 
   const fetchProjectStatuses = async () => {
     try {
@@ -602,10 +604,17 @@ const WorkJournal = () => {
           const name = l.employeeId.firstName 
             ? `${l.employeeId.firstName} ${l.employeeId.lastName}` 
             : 'You';
-          const avatar = l.employeeId.gender || 'male';
-          contributorsMap[empId] = { name, avatar };
+          contributorsMap[empId] = { 
+            name, 
+            gender: l.employeeId.gender, 
+            profilePhoto: l.employeeId.profilePhoto 
+          };
         } else {
-          contributorsMap['me'] = { name: 'You', avatar: user?.gender || 'male' };
+          contributorsMap['me'] = { 
+            name: 'You', 
+            gender: user?.gender, 
+            profilePhoto: user?.profilePhoto 
+          };
         }
       });
       const contributors = Object.values(contributorsMap);
@@ -623,6 +632,9 @@ const WorkJournal = () => {
 
       // Status determined by manual configuration, defaulting to 'Active'
       const projStatus = projectStatuses[projectName] || 'Active';
+      const projObj = projectsList.find(p => p.projectName === projectName);
+      const departmentId = projObj?.departmentId?._id || projObj?.departmentId || null;
+      const departmentName = projObj?.departmentId?.departmentName || 'Global';
 
       return {
         projectName,
@@ -636,7 +648,9 @@ const WorkJournal = () => {
         lastActivity,
         categories,
         projStatus,
-        logs: projLogs
+        logs: projLogs,
+        departmentId,
+        departmentName
       };
     }).sort((a, b) => {
       const timeA = a.lastActivity ? a.lastActivity.getTime() : 0;
@@ -1530,7 +1544,10 @@ const WorkJournal = () => {
           const matchesSearch = proj.projectName.toLowerCase().includes(projectStatusSearch.toLowerCase()) ||
             proj.contributors.some(c => c.name.toLowerCase().includes(projectStatusSearch.toLowerCase()));
           const matchesStatus = projectStatusFilter === 'all' || proj.projStatus === projectStatusFilter;
-          return matchesSearch && matchesStatus;
+          const matchesDept = projectDeptFilter === 'all' || 
+            (projectDeptFilter === 'global' && !proj.departmentId) ||
+            (proj.departmentId && proj.departmentId.toString() === projectDeptFilter);
+          return matchesSearch && matchesStatus && matchesDept;
         });
 
         const PROJECT_STATUS_PAGE_SIZE = 10;
@@ -1580,6 +1597,22 @@ const WorkJournal = () => {
                   <option value="Completed">Completed</option>
                 </select>
 
+                {/* Department Dropdown Filter */}
+                <select
+                  value={projectDeptFilter}
+                  onChange={(e) => {
+                    setProjectDeptFilter(e.target.value);
+                    setProjectStatusPage(1); // Reset page on filter change
+                  }}
+                  className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs outline-none focus:border-sky-500 font-bold cursor-pointer font-sans"
+                >
+                  <option value="all">All Departments</option>
+                  <option value="global">Global / No Dept</option>
+                  {departments.map(d => (
+                    <option key={d._id} value={d._id}>{d.departmentName}</option>
+                  ))}
+                </select>
+
                 {/* Project Status Search Bar */}
                 <div className="relative flex-1 sm:w-64">
                   <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
@@ -1595,7 +1628,7 @@ const WorkJournal = () => {
                   />
                 </div>
 
-                {['admin', 'hr', 'executive'].includes(user?.role) && (
+                {['admin', 'executive'].includes(user?.role) && (
                   <button
                     onClick={() => setShowAddProjectModal(true)}
                     className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-3.5 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -1744,13 +1777,13 @@ const WorkJournal = () => {
                               >
                                 <div className="flex -space-x-1.5 overflow-hidden">
                                   {proj.contributors.slice(0, 3).map((contrib, index) => (
-                                    <div 
+                                    <img 
                                       key={index}
+                                      src={getUserAvatarUrl(contrib)}
+                                      alt={contrib.name}
                                       title={contrib.name}
-                                      className="w-5 h-5 rounded-full border border-white bg-slate-200 text-[9px] font-black text-slate-700 flex items-center justify-center shrink-0 shadow-3xs"
-                                    >
-                                      {contrib.name.charAt(0)}
-                                    </div>
+                                      className="w-5 h-5 rounded-full border border-white object-cover shrink-0 shadow-3xs"
+                                    />
                                   ))}
                                   {proj.contributors.length > 3 && (
                                     <div className="w-5 h-5 rounded-full border border-white bg-slate-800 text-[8px] font-black text-white flex items-center justify-center shrink-0 shadow-3xs">
@@ -1800,9 +1833,11 @@ const WorkJournal = () => {
                                           
                                           return (
                                             <span key={idx} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-800">
-                                              <span className="w-4 h-4 rounded-full bg-sky-100 text-[8.5px] font-black text-sky-700 flex items-center justify-center">
-                                                {c.name.charAt(0)}
-                                              </span>
+                                              <img
+                                                src={getUserAvatarUrl(c)}
+                                                alt={c.name}
+                                                className="w-4 h-4 rounded-full object-cover shrink-0"
+                                              />
                                               {c.name}
                                               <span className="bg-sky-50 border border-sky-100 text-sky-850 text-[8px] font-black px-1.5 py-0.2 rounded-md">
                                                 {contribHrs} hrs
@@ -1830,41 +1865,91 @@ const WorkJournal = () => {
                                           </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 font-semibold text-slate-750">
-                                          {proj.logs.map(log => {
-                                            const cName = log.employeeId
-                                              ? `${log.employeeId.firstName} ${log.employeeId.lastName}`
-                                              : 'You';
-                                            return (
-                                              <tr key={log._id} className="hover:bg-slate-50/40">
-                                                <td className="py-2.5 px-3 font-bold text-slate-900">{log.title}</td>
-                                                <td className="py-2.5 px-3">{log.category}</td>
-                                                <td className="py-2.5 px-3 text-slate-600">{cName}</td>
-                                                <td className="py-2.5 px-3 font-extrabold text-sky-800">{log.hoursSpent} hrs</td>
-                                                <td className="py-2.5 px-3 text-slate-500 font-medium">
-                                                  {log.completedDate 
-                                                    ? new Date(log.completedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                                                    : 'N/A'
-                                                  }
-                                                </td>
-                                                <td className="py-2.5 px-3">
-                                                  <span className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase border ${
-                                                    log.status === 'approved'
-                                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                                      : log.status === 'submitted'
-                                                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                                      : log.status === 'needs_changes'
-                                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                                      : 'bg-rose-50 text-rose-700 border-rose-200'
-                                                  }`}>
-                                                    {log.status === 'approved' ? 'Verified' : log.status === 'needs_changes' ? 'Changes Needed' : log.status}
-                                                  </span>
-                                                </td>
-                                              </tr>
+                                          {(() => {
+                                            const sortedLogs = [...proj.logs].sort((a, b) => {
+                                              const dateA = new Date(a.completedDate || a.createdAt).getTime();
+                                              const dateB = new Date(b.completedDate || b.createdAt).getTime();
+                                              return dateB - dateA;
+                                            });
+                                            const REGISTRY_PAGE_SIZE = 5;
+                                            const currentRegistryPage = projectRegistryPages[proj.projectName] || 1;
+                                            const totalRegistryPages = Math.ceil(sortedLogs.length / REGISTRY_PAGE_SIZE) || 1;
+                                            const safeRegistryPage = Math.max(1, Math.min(currentRegistryPage, totalRegistryPages));
+                                            const paginatedLogs = sortedLogs.slice(
+                                              (safeRegistryPage - 1) * REGISTRY_PAGE_SIZE,
+                                              safeRegistryPage * REGISTRY_PAGE_SIZE
                                             );
-                                          })}
+
+                                            return paginatedLogs.map(log => {
+                                              const cName = log.employeeId
+                                                ? `${log.employeeId.firstName} ${log.employeeId.lastName}`
+                                                : 'You';
+                                              return (
+                                                <tr key={log._id} className="hover:bg-slate-50/40">
+                                                  <td className="py-2.5 px-3 font-bold text-slate-900">{log.title}</td>
+                                                  <td className="py-2.5 px-3">{log.category}</td>
+                                                  <td className="py-2.5 px-3 text-slate-600">{cName}</td>
+                                                  <td className="py-2.5 px-3 font-extrabold text-sky-800">{log.hoursSpent} hrs</td>
+                                                  <td className="py-2.5 px-3 text-slate-500 font-medium">
+                                                    {log.completedDate 
+                                                      ? new Date(log.completedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                                      : 'N/A'
+                                                    }
+                                                  </td>
+                                                  <td className="py-2.5 px-3">
+                                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase border ${
+                                                      log.status === 'approved'
+                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                        : log.status === 'submitted'
+                                                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                        : log.status === 'needs_changes'
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                        : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                    }`}>
+                                                      {log.status === 'approved' ? 'Verified' : log.status === 'needs_changes' ? 'Changes Needed' : log.status}
+                                                    </span>
+                                                  </td>
+                                                </tr>
+                                              );
+                                            });
+                                          })()}
                                         </tbody>
                                       </table>
                                     </div>
+                                    {(() => {
+                                      const REGISTRY_PAGE_SIZE = 5;
+                                      const sortedLogs = proj.logs;
+                                      const currentRegistryPage = projectRegistryPages[proj.projectName] || 1;
+                                      const totalRegistryPages = Math.ceil(sortedLogs.length / REGISTRY_PAGE_SIZE) || 1;
+                                      const safeRegistryPage = Math.max(1, Math.min(currentRegistryPage, totalRegistryPages));
+
+                                      if (totalRegistryPages <= 1) return null;
+
+                                      return (
+                                        <div className="flex justify-between items-center pt-2 text-[10px] text-slate-500 font-bold px-1 font-sans">
+                                          <span>Showing {(safeRegistryPage - 1) * REGISTRY_PAGE_SIZE + 1} to {Math.min(safeRegistryPage * REGISTRY_PAGE_SIZE, sortedLogs.length)} of {sortedLogs.length} logs</span>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={safeRegistryPage === 1}
+                                              onClick={() => setProjectRegistryPages(prev => ({ ...prev, [proj.projectName]: safeRegistryPage - 1 }))}
+                                              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                            >
+                                              Prev
+                                            </button>
+                                            <span className="px-1 text-slate-750">Page {safeRegistryPage} of {totalRegistryPages}</span>
+                                            <button
+                                              type="button"
+                                              disabled={safeRegistryPage === totalRegistryPages}
+                                              onClick={() => setProjectRegistryPages(prev => ({ ...prev, [proj.projectName]: safeRegistryPage + 1 }))}
+                                              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                                            >
+                                              Next
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </td>
@@ -2240,9 +2325,11 @@ const WorkJournal = () => {
                     className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-2xl hover:bg-slate-100/40 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-black text-indigo-700 flex items-center justify-center shrink-0">
-                        {c.name.charAt(0)}
-                      </div>
+                      <img
+                        src={getUserAvatarUrl(c)}
+                        alt={c.name}
+                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-slate-100"
+                      />
                       <div>
                         <p className="font-extrabold text-slate-800 text-xs">{c.name}</p>
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">

@@ -27,7 +27,7 @@ const getDashboardData = async (req, res) => {
 
     const user = await User.findById(userId)
       .populate('departmentId designationId')
-      .populate({ path: 'managerId', select: 'firstName lastName email' });
+      .populate({ path: 'managerId', select: 'firstName lastName email profilePhoto gender' });
 
     const pendingSelfAssessments = [];
     
@@ -180,7 +180,7 @@ const getDashboardData = async (req, res) => {
           { managerId: new mongoose.Types.ObjectId(userId) }
         ],
         employmentStatus: 'active'
-      }).select('firstName lastName email employeeCode designationId departmentId avatar role joiningDate');
+      }).select('firstName lastName email employeeCode designationId departmentId profilePhoto gender role joiningDate');
 
       const teamIds = team.map(t => t._id);
 
@@ -242,7 +242,7 @@ const getDashboardData = async (req, res) => {
       }
 
       const teamScores = await ReviewScore.find({ employeeId: { $in: teamIds } })
-        .populate('employeeId', 'firstName lastName')
+        .populate('employeeId', 'firstName lastName profilePhoto gender')
         .populate('reviewCycleId', 'reviewMonth')
         .sort({ calculatedAt: -1 })
         .limit(10);
@@ -364,7 +364,7 @@ const getDashboardData = async (req, res) => {
         .populate('reviewCycleId')
         .populate({
           path: 'employeeId',
-          select: 'firstName lastName email employeeCode role designationId departmentId avatar',
+          select: 'firstName lastName email employeeCode role designationId departmentId profilePhoto gender',
           populate: { path: 'departmentId designationId' }
         })
         .sort({ calculatedAt: -1 });
@@ -425,7 +425,7 @@ const getDashboardData = async (req, res) => {
       }
 
       // 4. Audit logs for audit trail tab
-      const recentAudits = await AuditLog.find().populate('userId', 'firstName lastName email role').sort({ createdAt: -1 }).limit(30);
+      const recentAudits = await AuditLog.find().populate('userId', 'firstName lastName email role profilePhoto gender').sort({ createdAt: -1 }).limit(30);
 
       return res.json({
         profile: user,

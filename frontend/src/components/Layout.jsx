@@ -5,6 +5,7 @@ import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import { Bell, Menu, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from '../store/toastStore';
+import { getUserAvatarUrl } from '../utils/avatar';
 
 const Layout = () => {
   const { user } = useAuthStore();
@@ -152,9 +153,11 @@ const Layout = () => {
 
             {/* User Profile Badge */}
             <div className="flex items-center gap-2 border-l border-slate-200 pl-3 sm:pl-4">
-              <div className="w-8 h-8 rounded-full bg-slate-800 text-slate-100 flex items-center justify-center font-bold text-xs uppercase">
-                {user?.firstName[0]}{user?.lastName[0]}
-              </div>
+              <img
+                src={getUserAvatarUrl(user)}
+                alt="Avatar"
+                className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-slate-100"
+              />
               <div className="text-left hidden md:block">
                 <p className="text-xs font-semibold text-slate-800 leading-tight">
                   {user?.firstName} {user?.lastName}

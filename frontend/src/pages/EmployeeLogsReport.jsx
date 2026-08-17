@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
 import TablePagination from '../components/TablePagination';
+import { getUserAvatarUrl } from '../utils/avatar';
 import { 
   FileText, 
   User as UserIcon, 
@@ -395,9 +396,11 @@ const EmployeeLogsReport = () => {
                           <tr className="hover:bg-slate-50/40 transition-colors">
                             {isAllEmployees && (
                               <td className="py-3.5 px-4 flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold shrink-0">
-                                  <UserIcon size={12} />
-                                </div>
+                                <img
+                                  src={getUserAvatarUrl(log.employeeId)}
+                                  alt="Avatar"
+                                  className="w-7 h-7 rounded-full object-cover shrink-0 border border-slate-100 shadow-3xs"
+                                />
                                 <div>
                                   <p className="font-bold text-slate-800 leading-tight">
                                     {log.employeeId?.firstName} {log.employeeId?.lastName}
