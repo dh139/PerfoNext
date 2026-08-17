@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../utils/api';
 import useAuthStore from '../store/authStore';
-import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera, Award } from 'lucide-react';
+import { User, Mail, Phone, Briefcase, Layers, Shield, Calendar, Lock, CheckCircle2, AlertCircle, Camera, Award, Eye, EyeOff } from 'lucide-react';
 import { getUserAvatarUrl } from '../utils/avatar';
 import { formatDateDDMMYYYY } from '../utils/dateUtils';
 
@@ -82,6 +82,9 @@ const Profile = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const [errors, setErrors] = useState({});
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const validateField = (name, value) => {
     let err = '';
@@ -418,6 +421,9 @@ const Profile = () => {
                       setCurrentPassword('');
                       setNewPassword('');
                       setConfirmPassword('');
+                      setShowCurrentPassword(false);
+                      setShowNewPassword(false);
+                      setShowConfirmPassword(false);
                       setErrors(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
                     }}
                     className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
@@ -428,45 +434,75 @@ const Profile = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Current Password</label>
-                    <input
-                      type="password"
-                      value={currentPassword}
-                      onChange={(e) => {
-                        setCurrentPassword(e.target.value);
-                        validateField('currentPassword', e.target.value);
-                      }}
-                      className={`w-full bg-slate-50 border ${errors.currentPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={currentPassword}
+                        onChange={(e) => {
+                          setCurrentPassword(e.target.value);
+                          validateField('currentPassword', e.target.value);
+                        }}
+                        className={`w-full bg-slate-50 border ${errors.currentPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 pl-3.5 pr-10 py-2.5 rounded-xl text-xs outline-none transition-all`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                        title={showCurrentPassword ? "Hide password" : "Show password"}
+                      >
+                        {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                     {errors.currentPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.currentPassword}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">New Password</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => {
-                        setNewPassword(e.target.value);
-                        validateField('newPassword', e.target.value);
-                        if (confirmPassword) {
-                          setErrors(prev => ({ ...prev, confirmPassword: e.target.value !== confirmPassword ? 'Passwords do not match.' : '' }));
-                        }
-                      }}
-                      placeholder="Min 6 characters"
-                      className={`w-full bg-slate-50 border ${errors.newPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value);
+                          validateField('newPassword', e.target.value);
+                          if (confirmPassword) {
+                            setErrors(prev => ({ ...prev, confirmPassword: e.target.value !== confirmPassword ? 'Passwords do not match.' : '' }));
+                          }
+                        }}
+                        placeholder="Min 6 characters"
+                        className={`w-full bg-slate-50 border ${errors.newPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 pl-3.5 pr-10 py-2.5 rounded-xl text-xs outline-none transition-all`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                        title={showNewPassword ? "Hide password" : "Show password"}
+                      >
+                        {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                     {errors.newPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.newPassword}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold text-slate-500 tracking-wide uppercase">Confirm New Password</label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        validateField('confirmPassword', e.target.value);
-                      }}
-                      className={`w-full bg-slate-50 border ${errors.confirmPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 px-3.5 py-2.5 rounded-xl text-xs outline-none transition-all`}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          validateField('confirmPassword', e.target.value);
+                        }}
+                        className={`w-full bg-slate-50 border ${errors.confirmPassword ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200 focus:border-sky-500'} text-slate-800 pl-3.5 pr-10 py-2.5 rounded-xl text-xs outline-none transition-all`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none cursor-pointer"
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
                     {errors.confirmPassword && <p className="text-[10px] text-rose-500 font-bold mt-1">{errors.confirmPassword}</p>}
                   </div>
                 </div>
