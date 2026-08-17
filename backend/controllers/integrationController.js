@@ -92,8 +92,8 @@ const getAttendance = async (req, res) => {
     const allQueryMonths = new Set();
     const now = new Date();
     users.forEach(user => {
-      const joiningDate = user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-      const userMonths = getMonthsBetweenDates(joiningDate, now);
+      const trackingStartDate = user.createdAt || user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+      const userMonths = getMonthsBetweenDates(trackingStartDate, now);
       userMonths.forEach(m => allQueryMonths.add(m));
     });
     
@@ -128,8 +128,8 @@ const getAttendance = async (req, res) => {
 
     // For every user and month, compile dynamic monthly summaries
     users.forEach(user => {
-      const joiningDate = user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-      const userMonths = getMonthsBetweenDates(joiningDate, now);
+      const trackingStartDate = user.createdAt || user.joiningDate || new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
+      const userMonths = getMonthsBetweenDates(trackingStartDate, now);
       const targetMonths = month ? userMonths.filter(m => m === month) : userMonths;
 
       targetMonths.forEach(m => {
@@ -141,7 +141,7 @@ const getAttendance = async (req, res) => {
           else if (p.status === 'Half Day') daysPresent += 0.5;
         });
 
-        const totalWorkingDays = getWeekdayCount(m, configWeekends, holidayDates, joiningDate);
+        const totalWorkingDays = getWeekdayCount(m, configWeekends, holidayDates, trackingStartDate);
         const attendancePercentage = +((daysPresent / totalWorkingDays) * 100).toFixed(2);
 
         records.push({

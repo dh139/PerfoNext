@@ -42,6 +42,7 @@ const IntegrationsWorkspace = () => {
 
   // Table filtering & pagination state
   const [tableSearch, setTableSearch] = useState('');
+  const [tableYearFilter, setTableYearFilter] = useState('all');
   const [tableMonthFilter, setTableMonthFilter] = useState('all');
   const [tableDeptFilter, setTableDeptFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -353,49 +354,52 @@ const IntegrationsWorkspace = () => {
           const deptId = u.departmentId?._id || u.departmentId;
           const matchesDept = tableDeptFilter === 'all' || (deptId && deptId.toString() === tableDeptFilter.toString());
 
-          // If a specific month is selected, verify user has a record for that month
-          if (tableMonthFilter !== 'all') {
-            const hasRecordForMonth = attendanceRecords.some(rec => {
+          // If a year or month filter is active, verify user has a record matching the selected filters
+          if (tableYearFilter !== 'all' || tableMonthFilter !== 'all') {
+            const hasMatchingRecord = attendanceRecords.some(rec => {
               const recEmpId = rec.employeeId?._id || rec.employeeId;
-              return recEmpId && recEmpId.toString() === u._id.toString() && rec.month === tableMonthFilter;
+              if (recEmpId?.toString() !== u._id.toString()) return false;
+              const [yr, mo] = rec.month.split('-');
+              const yearMatches = tableYearFilter === 'all' || yr === tableYearFilter;
+              const monthMatches = tableMonthFilter === 'all' || mo === tableMonthFilter;
+              return yearMatches && monthMatches;
             });
-            if (!hasRecordForMonth) return false;
+            if (!hasMatchingRecord) return false;
           }
 
           return matchesSearch && matchesDept;
         }).map(u => {
           // Find all attendance records for this user
-          const records = attendanceRecords.filter(rec => {
+          const allUserRecords = attendanceRecords.filter(rec => {
             const recEmpId = rec.employeeId?._id || rec.employeeId;
             return recEmpId && recEmpId.toString() === u._id.toString();
           });
 
+          // Filter records by selected year and month
+          const matchedRecords = allUserRecords.filter(rec => {
+            const [yr, mo] = rec.month.split('-');
+            const yearMatches = tableYearFilter === 'all' || yr === tableYearFilter;
+            const monthMatches = tableMonthFilter === 'all' || mo === tableMonthFilter;
+            return yearMatches && monthMatches;
+          });
+
           // Sort records descending by month
-          records.sort((a, b) => b.month.localeCompare(a.month));
+          matchedRecords.sort((a, b) => b.month.localeCompare(a.month));
 
-          if (tableMonthFilter !== 'all') {
-            const specificRecord = records.find(r => r.month === tableMonthFilter);
-            return {
-              ...u,
-              records,
-              specificRecord,
-              displayPercent: specificRecord ? specificRecord.attendancePercentage : 0
-            };
-          }
-
-          const avgAttendance = records.length > 0 
-            ? Math.round((records.reduce((sum, r) => sum + r.attendancePercentage, 0) / records.length) * 100) / 100
+          const totalWorking = matchedRecords.reduce((sum, r) => sum + r.totalWorkingDays, 0) || 0;
+          const totalPresent = matchedRecords.reduce((sum, r) => sum + r.daysPresent, 0) || 0;
+          const avgAttendance = totalWorking > 0 
+            ? Math.round((totalPresent / totalWorking) * 100 * 100) / 100
             : null;
 
           return {
             ...u,
-            records,
-            avgAttendance,
+            records: matchedRecords,
             displayPercent: avgAttendance
           };
         });
 
-        const uniqueMonths = Array.from(new Set(attendanceRecords.map(r => r.month))).sort().reverse();
+        const uniqueYears = Array.from(new Set(attendanceRecords.map(r => r.month.split('-')[0]))).sort().reverse();
 
         const ITEMS_PER_PAGE = 10;
         const totalPages = Math.ceil(filteredAttendanceRecords.length / ITEMS_PER_PAGE) || 1;
@@ -434,17 +438,7 @@ const IntegrationsWorkspace = () => {
                     <Search size={12} className="absolute left-2.5 top-2.5 text-slate-400 pointer-events-none" />
                   </div>
 
-                  {/* Month Filter */}
-                  <select
-                    value={tableMonthFilter}
-                    onChange={(e) => { setTableMonthFilter(e.target.value); setCurrentPage(1); }}
-                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
-                  >
-                    <option value="all">All Months</option>
-                    {uniqueMonths.map(m => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
+
 
                   {/* Department Filter (HR / Admin only) */}
                   {(user?.role === 'hr' || user?.role === 'admin') && (
@@ -460,10 +454,43 @@ const IntegrationsWorkspace = () => {
                     </select>
                   )}
 
+                  {/* Year Filter */}
+                  <select
+                    value={tableYearFilter}
+                    onChange={(e) => { setTableYearFilter(e.target.value); setCurrentPage(1); }}
+                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Years</option>
+                    {uniqueYears.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+
+                  {/* Month Filter */}
+                  <select
+                    value={tableMonthFilter}
+                    onChange={(e) => { setTableMonthFilter(e.target.value); setCurrentPage(1); }}
+                    className="bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 outline-none cursor-pointer"
+                  >
+                    <option value="all">All Months</option>
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+
                   {/* Reset Filters */}
-                  {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
+                  {(tableSearch || tableMonthFilter !== 'all' || tableYearFilter !== 'all' || tableDeptFilter !== 'all') && (
                     <button
-                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
+                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableYearFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
                       className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors cursor-pointer"
                       title="Clear Filters"
                     >
@@ -477,9 +504,9 @@ const IntegrationsWorkspace = () => {
                 <div className="py-12 text-center space-y-2">
                   <Clock size={32} className="mx-auto text-slate-300" />
                   <p className="text-slate-400 italic">No employees matching your filter criteria.</p>
-                  {(tableSearch || tableMonthFilter !== 'all' || tableDeptFilter !== 'all') && (
+                  {(tableSearch || tableMonthFilter !== 'all' || tableYearFilter !== 'all' || tableDeptFilter !== 'all') && (
                     <button
-                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
+                      onClick={() => { setTableSearch(''); setTableMonthFilter('all'); setTableYearFilter('all'); setTableDeptFilter('all'); setCurrentPage(1); }}
                       className="text-xs font-bold text-sky-600 hover:underline cursor-pointer"
                     >
                       Clear search & filters
@@ -531,23 +558,19 @@ const IntegrationsWorkspace = () => {
                                 <p className="font-semibold text-slate-700">{deptName}</p>
                                 <p className="text-[10px] text-slate-400">{desigName}</p>
                               </td>
-                              <td className="py-3 text-slate-600 font-medium">
-                                {tableMonthFilter === 'all' ? (
+                              <td className="py-3 text-slate-600 font-medium font-bold">
+                                {tableMonthFilter === 'all' && tableYearFilter === 'all' ? (
                                   <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded text-[11px] border border-sky-200">
                                     {emp.records?.length || 0} months logged
                                   </span>
                                 ) : (
                                   <span className="px-2 py-0.5 bg-slate-100 rounded text-[11px] border border-slate-200">
-                                    {tableMonthFilter}
+                                    {emp.records?.length === 1 ? emp.records[0].month : `${emp.records?.length || 0} months logged`}
                                   </span>
                                 )}
                               </td>
                               <td className="py-3 text-slate-600 font-medium">
-                                {tableMonthFilter === 'all' ? (
-                                  <span>{totalPresent} / {totalWorking} days</span>
-                                ) : (
-                                  <span>{emp.specificRecord?.daysPresent || 0} / {emp.specificRecord?.totalWorkingDays || 0} days</span>
-                                )}
+                                <span>{totalPresent} / {totalWorking} days</span>
                               </td>
                               <td className="py-3">
                                 {emp.displayPercent !== null ? (
@@ -691,31 +714,39 @@ const IntegrationsWorkspace = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {attendanceModalUser.records && attendanceModalUser.records.length > 0 ? (
-                        attendanceModalUser.records.map(rec => (
-                          <tr key={rec._id} className="hover:bg-slate-50/50">
-                            <td className="p-3 font-bold text-slate-700">{rec.month}</td>
-                            <td className="p-3 text-slate-600 font-medium">
-                              {rec.daysPresent} / {rec.totalWorkingDays} days
-                            </td>
-                            <td className="p-3 text-right">
-                              <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
-                                rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                                'bg-rose-50 text-rose-700 border border-rose-200'
-                              }`}>
-                                {rec.attendancePercentage}%
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="3" className="p-6 text-center text-slate-400 italic">
-                            No attendance records found for this employee.
-                          </td>
-                        </tr>
-                      )}
+                      {(() => {
+                         const modalRecords = attendanceRecords.filter(rec => {
+                           const recEmpId = rec.employeeId?._id || rec.employeeId;
+                           return recEmpId && recEmpId.toString() === attendanceModalUser._id.toString();
+                         });
+                         modalRecords.sort((a, b) => b.month.localeCompare(a.month));
+                         if (modalRecords.length === 0) {
+                           return (
+                             <tr>
+                               <td colSpan="3" className="p-6 text-center text-slate-400 italic">
+                                 No attendance records found for this employee.
+                               </td>
+                             </tr>
+                           );
+                         }
+                         return modalRecords.map(rec => (
+                           <tr key={rec._id} className="hover:bg-slate-50/50">
+                             <td className="p-3 font-bold text-slate-700">{rec.month}</td>
+                             <td className="p-3 text-slate-600 font-medium">
+                               {rec.daysPresent} / {rec.totalWorkingDays} days
+                             </td>
+                             <td className="p-3 text-right">
+                               <span className={`font-bold px-2.5 py-0.5 rounded-full text-[10px] inline-flex items-center gap-1 ${
+                                 rec.attendancePercentage >= 90 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                 rec.attendancePercentage >= 75 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                 'bg-rose-50 text-rose-700 border border-rose-200'
+                               }`}>
+                                 {rec.attendancePercentage}%
+                               </span>
+                             </td>
+                           </tr>
+                         ));
+                       })()}
                     </tbody>
                   </table>
                 </div>
