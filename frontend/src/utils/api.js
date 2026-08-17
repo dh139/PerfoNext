@@ -92,10 +92,13 @@ api.interceptors.response.use(
           })
           .catch((refreshError) => {
             processQueue(refreshError, null);
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
-            window.location.href = '/login';
+            // Only force logout if the server explicitly rejects the refresh token as invalid/expired (401/403)
+            if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+              localStorage.removeItem('accessToken');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+            }
             reject(refreshError);
           })
           .finally(() => {

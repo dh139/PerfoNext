@@ -351,7 +351,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
           className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
         >
           <LogOut size={18} />
-          <span>Sign Out</span>
+          <span>Logout</span>
         </button>
       </div>
     </div>
@@ -364,7 +364,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
             <LogOut size={24} />
           </div>
           <div>
-            <h3 className="text-white font-extrabold text-base">Confirm Sign Out</h3>
+            <h3 className="text-white font-extrabold text-base">Confirm Logout</h3>
             <p className="text-slate-400 text-xs mt-1">Are you sure you want to log out of your PerfoNext session?</p>
           </div>
           <div className="flex gap-3">
@@ -380,7 +380,7 @@ const Sidebar = ({ sidebarOpen = false, setSidebarOpen }) => {
               onClick={confirmLogout}
               className="flex-1 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-bold text-xs py-3 rounded-xl shadow-lg cursor-pointer transition-colors"
             >
-              Yes, Sign Out
+              Yes, Logout
             </button>
           </div>
         </div>

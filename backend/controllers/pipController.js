@@ -20,7 +20,7 @@ const getPipSuggestions = async (req, res) => {
         query.departmentId = mgrDeptId;
       }
     } else {
-      query.role = { $in: ['employee', 'manager', 'hr'] };
+      query.role = { $in: ['employee', 'manager', 'hr', 'admin'] };
     }
 
     const employees = await User.find(query).populate('departmentId designationId');

@@ -103,11 +103,12 @@ const getDepartmentReport = async (req, res) => {
 
     const employeeFilter = { departmentId, employmentStatus: 'active' };
     if (targetRole === 'manager') {
-      employeeFilter.role = { $in: ['manager', 'hr'] };
+      employeeFilter.role = { $in: ['manager', 'hr', 'admin'] };
     } else if (targetRole === 'employee') {
       employeeFilter.role = 'employee';
     } else {
-      employeeFilter.role = { $ne: 'admin' };
+      // Include all departmental roles including admin
+      employeeFilter.role = { $in: ['employee', 'manager', 'hr', 'admin'] };
     }
 
     // Get all eligible employees of the department for this target role
@@ -232,7 +233,7 @@ const getReviewCompletionReport = async (req, res) => {
     const template = cycle.kpiTemplateId;
     const filter = { employmentStatus: 'active' };
     if (cycle.targetRole === 'manager') {
-      filter.role = { $in: ['manager', 'hr'] };
+      filter.role = { $in: ['manager', 'hr', 'admin'] };
     } else {
       filter.role = 'employee';
     }

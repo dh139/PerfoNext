@@ -30,7 +30,7 @@ const LeaveWorkspace = () => {
   // Roles check
   const isHR = ['hr', 'admin'].includes(user?.role);
   const isManagement = ['hr', 'admin', 'executive'].includes(user?.role);
-  const canApply = !['executive', 'admin'].includes(user?.role);
+  const canApply = user?.role !== 'executive';
 
   // Tabs: 'dashboard' (HR/Admin/CEO default), 'hr' (HR/Admin approvals), 'my' (Own requests)
   const [activeTab, setActiveTab] = useState('my');
@@ -563,8 +563,8 @@ const LeaveWorkspace = () => {
                         {leave.status === 'rejected' && leave.rejectionReason 
                           ? `Rejected: "${leave.rejectionReason}"` 
                           : leave.status === 'approved' 
-                          ? (['hr', 'manager'].includes(user?.role) ? 'Approved by CEO' : 'Approved by HR') 
-                          : (['hr', 'manager'].includes(user?.role) ? 'Awaiting CEO decision' : 'Awaiting HR decision')}
+                          ? (['hr', 'manager', 'admin'].includes(user?.role) ? 'Approved by CEO' : 'Approved by HR') 
+                          : (['hr', 'manager', 'admin'].includes(user?.role) ? 'Awaiting CEO decision' : 'Awaiting HR decision')}
                       </td>
                     </tr>
                   ))}

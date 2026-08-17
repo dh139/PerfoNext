@@ -54,7 +54,7 @@ const Login = () => {
             <Activity size={28} />
           </div>
           <h2 className="text-xl font-bold text-slate-100 tracking-wide">PerfoNext System Dashboard</h2>
-          <p className="text-xs text-slate-400 mt-1">Sign in to track and manage employee performance</p>
+          <p className="text-xs text-slate-400 mt-1">Login to track and manage employee performance</p>
         </div>
 
         {/* Errors Alert */}
@@ -123,7 +123,7 @@ const Login = () => {
             disabled={loading}
             className="w-full bg-sky-700 hover:bg-sky-600 disabled:bg-slate-800 text-white font-semibold py-3 px-4 rounded-xl text-sm transition-all shadow-lg hover:shadow-sky-700/20 active:scale-[0.99] cursor-pointer mt-4"
           >
-            {loading ? 'Authenticating session...' : 'Sign In'}
+            {loading ? 'Authenticating session...' : 'Login'}
           </button>
         </form>
 

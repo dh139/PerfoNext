@@ -248,7 +248,7 @@ const ForgotPassword = () => {
 
         {step !== 4 && (
           <div className="text-center text-slate-400 mt-6 text-xs">
-            Remembered your password? <Link to="/login" className="text-sky-500 hover:underline font-semibold">Sign In</Link>
+            Remembered your password? <Link to="/login" className="text-sky-500 hover:underline font-semibold">Login</Link>
           </div>
         )}
       </div>

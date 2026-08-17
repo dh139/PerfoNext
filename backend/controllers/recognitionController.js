@@ -13,7 +13,8 @@ const getRecognitions = async (req, res) => {
 
     const recognitions = await Recognition.find(filter)
       .populate({ path: 'employeeId', select: 'firstName lastName email employeeCode departmentId designationId' })
-      .populate({ path: 'awardedBy', select: 'firstName lastName email' });
+      .populate({ path: 'awardedBy', select: 'firstName lastName email' })
+      .sort({ awardedAt: -1, createdAt: -1 });
 
     res.json(recognitions);
   } catch (error) {
@@ -49,9 +50,9 @@ const createRecognition = async (req, res) => {
       if (!['hr', 'executive', 'admin'].includes(giverRole)) {
         return res.status(403).json({ message: 'Forbidden. Reporting Managers can only be awarded by CEO / Management or HR.' });
       }
-    } else if (recipientRole === 'hr') {
+    } else if (recipientRole === 'hr' || recipientRole === 'admin') {
       if (!['executive', 'admin'].includes(giverRole)) {
-        return res.status(403).json({ message: 'Forbidden. HR Managers can only be awarded by CEO / Management.' });
+        return res.status(403).json({ message: 'Forbidden. HR and Admin Managers can only be awarded by CEO / Management.' });
       }
     } else {
       return res.status(403).json({ message: 'Forbidden. Cannot grant awards to this role.' });

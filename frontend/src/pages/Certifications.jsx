@@ -135,8 +135,10 @@ const Certifications = () => {
       let allUsers = usersRes.data || [];
       setDepartments(deptsRes.data || []);
 
-      // Exclude system admin accounts
-      allUsers = allUsers.filter(u => u.role !== 'admin');
+      // Exclude system admin accounts unless viewed by Admin, CEO, or HR
+      if (user?.role !== 'admin' && user?.role !== 'executive' && user?.role !== 'hr') {
+        allUsers = allUsers.filter(u => u.role !== 'admin');
+      }
 
       // If logged-in user is a Reporting Manager, scope strictly to their assigned department
       if (user?.role === 'manager') {

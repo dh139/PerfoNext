@@ -109,6 +109,11 @@ const updateEmployeeSkill = async (req, res) => {
     const { skillId, selfRating, managerRating, employeeId } = req.body;
     const targetEmployeeId = employeeId || req.user.id;
 
+    // Prevents self-validation: No user is allowed to assign manager rating to their own skills
+    if (targetEmployeeId === req.user.id && managerRating !== undefined && managerRating !== null) {
+      return res.status(403).json({ message: 'Users cannot assign manager ratings to their own skills.' });
+    }
+
     // Roles boundary check: standard employees can only update their own self-rating
     if (req.user.role === 'employee') {
       if (targetEmployeeId !== req.user.id) {

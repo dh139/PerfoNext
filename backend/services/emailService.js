@@ -108,7 +108,7 @@ const sendOtpEmail = async (toEmail, otp) => {
   const t = getTransporter();
 
   if (!t) {
-    console.log(`[emailService] SMTP not configured. OTP for ${toEmail}: ${otp}`);
+    console.log('[emailService] SMTP not configured. OTP email simulated.');
     return { simulated: true };
   }
 
@@ -161,7 +161,7 @@ const sendWelcomeEmail = async (toEmail, firstName, employeeCode, role, password
   const t = getTransporter();
 
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Welcome email simulated for ${toEmail} (Code: ${employeeCode}, Role: ${roleTitle}, Pass: ${password || 'EPTS2026!'})`);
+    console.log('[emailService] SMTP not configured. Welcome email simulated.');
     return { simulated: true };
   }
 
@@ -194,7 +194,7 @@ const sendReviewCycleStartedEmail = async (toEmail, firstName, reviewMonth, endD
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Review cycle email simulated for ${toEmail}`);
+    console.log('[emailService] SMTP not configured. Review cycle email simulated.');
     return { simulated: true };
   }
 
@@ -226,7 +226,7 @@ const sendSelfAssessmentSubmittedEmail = async (managerEmail, managerName, emplo
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Self-assessment submission email simulated for manager ${managerEmail}`);
+    console.log('[emailService] SMTP not configured. Self-assessment submission email simulated.');
     return { simulated: true };
   }
 
@@ -260,7 +260,7 @@ const sendFinalReportGeneratedEmail = async (employeeEmail, employeeName, review
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Final report email simulated for ${employeeEmail}`);
+    console.log('[emailService] SMTP not configured. Final report email simulated.');
     return { simulated: true };
   }
 
@@ -294,7 +294,7 @@ const sendIndividualExtensionEmail = async (toEmail, firstName, reviewMonth, end
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Individual extension email simulated for ${toEmail}`);
+    console.log('[emailService] SMTP not configured. Individual extension email simulated.');
     return { simulated: true };
   }
 
@@ -335,7 +335,7 @@ const sendPipCreatedEmail = async (toEmail, employeeName, startDate, endDate) =>
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. PIP assignment email simulated for ${toEmail}`);
+    console.log('[emailService] SMTP not configured. PIP assignment email simulated.');
     return { simulated: true };
   }
 
@@ -406,7 +406,7 @@ const sendPipStatusUpdatedEmail = async (toEmail, employeeName, status, notes, n
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. PIP status update email simulated for ${toEmail}`);
+    console.log('[emailService] SMTP not configured. PIP status update email simulated.');
     return { simulated: true };
   }
 
@@ -456,7 +456,7 @@ const sendLeaveSubmittedEmail = async (hrEmail, employeeName, leaveTitle, fromDa
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Leave submission email simulated for HR ${hrEmail}`);
+    console.log('[emailService] SMTP not configured. Leave submission email simulated.');
     return { simulated: true };
   }
 
@@ -510,7 +510,7 @@ const sendLeaveReviewedEmail = async (employeeEmail, employeeName, leaveTitle, f
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Leave review email simulated for ${employeeEmail}`);
+    console.log('[emailService] SMTP not configured. Leave review email simulated.');
     return { simulated: true };
   }
 
@@ -545,7 +545,7 @@ const sendReviewCycleUpdatedEmail = async (toEmail, firstName, reviewMonth, star
 
   const t = getTransporter();
   if (!t) {
-    console.log(`[emailService] SMTP not configured. Review cycle update email simulated for ${toEmail}`);
+    console.log('[emailService] SMTP not configured. Review cycle update email simulated.');
     return { simulated: true };
   }
 

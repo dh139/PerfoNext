@@ -800,7 +800,7 @@ const WorkJournalTemplates = () => {
                   <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">{projectLabel || 'Project / Account'}</label>
                     <div className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-400 italic">
-                      {projectPlaceholder || 'e.g. Enterprise Client'}
+                      Select {projectLabel || 'Project / Account'}...
                     </div>
                   </div>
 

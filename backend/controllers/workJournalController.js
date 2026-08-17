@@ -134,8 +134,8 @@ const createWorkJournalItem = async (req, res) => {
     if (!project || !project.trim()) {
       return res.status(400).json({ message: 'Project / Client / Account name is required.' });
     }
-    if (!hoursSpent || isNaN(Number(hoursSpent)) || Number(hoursSpent) <= 0) {
-      return res.status(400).json({ message: 'Hours Spent is required and must be a positive number.' });
+    if (hoursSpent === undefined || hoursSpent === null || hoursSpent === '' || isNaN(Number(hoursSpent)) || Number(hoursSpent) < 0) {
+      return res.status(400).json({ message: 'Hours Spent is required and must be a non-negative number.' });
     }
     if (!resultSummary || !resultSummary.trim()) {
       return res.status(400).json({ message: 'Work Summary & Output Result is required.' });
@@ -255,8 +255,8 @@ const updateWorkJournalItem = async (req, res) => {
     if (updateData.project !== undefined && (!updateData.project || !updateData.project.trim())) {
       return res.status(400).json({ message: 'Project / Client / Account name is required.' });
     }
-    if (updateData.hoursSpent !== undefined && (!updateData.hoursSpent || isNaN(Number(updateData.hoursSpent)) || Number(updateData.hoursSpent) <= 0)) {
-      return res.status(400).json({ message: 'Hours Spent is required and must be a positive number.' });
+    if (updateData.hoursSpent !== undefined && (updateData.hoursSpent === undefined || updateData.hoursSpent === null || updateData.hoursSpent === '' || isNaN(Number(updateData.hoursSpent)) || Number(updateData.hoursSpent) < 0)) {
+      return res.status(400).json({ message: 'Hours Spent is required and must be a non-negative number.' });
     }
     if (updateData.resultSummary !== undefined && (!updateData.resultSummary || !updateData.resultSummary.trim())) {
       return res.status(400).json({ message: 'Work Summary & Output Result is required.' });
@@ -720,7 +720,28 @@ const batchReviewWorkJournalItems = async (req, res) => {
 
 const getProjectStatuses = async (req, res) => {
   try {
-    const statuses = await ProjectStatus.find().populate('updatedBy', 'firstName lastName');
+    const { departmentId } = req.query;
+    const filter = {};
+
+    // Filter by departmentId if requested, or filter by user's department for employees
+    if (departmentId) {
+      filter.$or = [
+        { departmentId: departmentId },
+        { departmentId: null }
+      ];
+    } else if (req.user && ['employee', 'manager'].includes(req.user.role)) {
+      const user = await User.findById(req.user.id);
+      if (user && user.departmentId) {
+        filter.$or = [
+          { departmentId: user.departmentId },
+          { departmentId: null }
+        ];
+      }
+    }
+
+    const statuses = await ProjectStatus.find(filter)
+      .populate('updatedBy', 'firstName lastName')
+      .populate('departmentId', 'departmentName');
     res.json(statuses);
   } catch (error) {
     console.error('getProjectStatuses error:', error);
@@ -730,7 +751,7 @@ const getProjectStatuses = async (req, res) => {
 
 const updateProjectStatus = async (req, res) => {
   try {
-    const { projectName, status } = req.body;
+    const { projectName, status, departmentId } = req.body;
     if (!projectName || !status) {
       return res.status(400).json({ message: 'projectName and status are required.' });
     }
@@ -739,14 +760,20 @@ const updateProjectStatus = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status. Must be Active, Inactive, Stale, or Completed.' });
     }
 
+    const updateData = { 
+      projectName: projectName.trim(), 
+      status, 
+      updatedBy: req.user.id 
+    };
+
+    if (departmentId !== undefined) {
+      updateData.departmentId = departmentId ? departmentId : null;
+    }
+
     // Upsert the status for this project name
     const projectStatus = await ProjectStatus.findOneAndUpdate(
       { projectName: projectName.trim() },
-      { 
-        projectName: projectName.trim(), 
-        status, 
-        updatedBy: req.user.id 
-      },
+      updateData,
       { new: true, upsert: true }
     );
 

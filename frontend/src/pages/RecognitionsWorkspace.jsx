@@ -89,8 +89,11 @@ const RecognitionsWorkspace = () => {
           // HR Manager can award Reporting Managers and Employees
           allowedRecipients = allUsers.filter(u => u.role === 'manager' || u.role === 'employee');
         } else if (user?.role === 'executive' || user?.role === 'admin') {
-          // CEO / Management can award Reporting Managers, HR Managers, and Employees
-          allowedRecipients = allUsers.filter(u => u.role === 'manager' || u.role === 'hr' || u.role === 'employee');
+          // CEO / Management can award Reporting Managers, HR Managers, Admins, and Employees
+          allowedRecipients = allUsers.filter(u => 
+            (u.role === 'manager' || u.role === 'hr' || u.role === 'admin' || u.role === 'employee') && 
+            u._id.toString() !== (user?._id || user?.id || '').toString()
+          );
         }
 
         setEmployees(allowedRecipients);

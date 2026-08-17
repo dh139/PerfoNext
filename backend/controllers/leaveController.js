@@ -32,8 +32,8 @@ const submitLeave = async (req, res) => {
 
     // Determine target notification users (hierarchy-based)
     let targetUsers = [];
-    if (['hr', 'manager'].includes(employeeRole)) {
-      // HR and Reporting Managers are approved by CEO (role: executive)
+    if (['hr', 'manager', 'admin'].includes(employeeRole)) {
+      // HR, Reporting Managers, and Admins are approved by CEO (role: executive)
       targetUsers = await User.find({ role: 'executive' });
     } else {
       // Standard employees are approved by HR/Admin
@@ -96,8 +96,8 @@ const getPendingLeaves = async (req, res) => {
       .sort({ createdAt: -1 });
 
     if (reviewerRole === 'executive') {
-      // CEO only sees HR and Manager applications
-      leaves = leaves.filter(l => l.employeeId && ['hr', 'manager'].includes(l.employeeId.role));
+      // CEO only sees HR, Manager, and Admin applications
+      leaves = leaves.filter(l => l.employeeId && ['hr', 'manager', 'admin'].includes(l.employeeId.role));
     } else {
       // HR and Admin only see employee applications
       leaves = leaves.filter(l => l.employeeId && l.employeeId.role === 'employee');
@@ -149,11 +149,11 @@ const reviewLeave = async (req, res) => {
     const employeeRole = employee.role;
 
     // Hierarchy validation:
-    // HR and Manager leaves must be reviewed by CEO ('executive')
+    // HR, Manager, and Admin leaves must be reviewed by CEO ('executive')
     // Employee leaves must be reviewed by HR/Admin ('hr', 'admin')
-    if (['hr', 'manager'].includes(employeeRole)) {
+    if (['hr', 'manager', 'admin'].includes(employeeRole)) {
       if (reviewerRole !== 'executive') {
-        return res.status(403).json({ message: 'Access denied. HR and Manager leaves can only be reviewed by the CEO.' });
+        return res.status(403).json({ message: 'Access denied. HR, Manager, and Admin leaves can only be reviewed by the CEO.' });
       }
     } else {
       if (reviewerRole !== 'hr' && reviewerRole !== 'admin') {

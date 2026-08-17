@@ -14,7 +14,7 @@ const getCertifications = async (req, res) => {
       return res.status(403).json({ message: 'Access denied.' });
     }
 
-    const certs = await Certification.find({ employeeId }).sort('-createdAt');
+    const certs = await Certification.find({ employeeId }).sort({ issueDate: -1, createdAt: -1 });
     res.json(certs);
   } catch (error) {
     console.error('getCertifications error:', error);

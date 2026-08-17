@@ -114,9 +114,6 @@ const SkillMatrix = () => {
       const res = await api.get('/api/users');
       let allUsers = res.data || [];
 
-      // Exclude system admin accounts
-      allUsers = allUsers.filter(u => u.role !== 'admin');
-
       // If logged-in user is a Reporting Manager, scope strictly to their assigned department
       if (user?.role === 'manager') {
         const mgrDeptId = user?.departmentId?._id || user?.departmentId;
@@ -660,7 +657,19 @@ const SkillMatrix = () => {
                 <div key={catName} className="space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-sky-500"></span>
-                    <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">{catName} Skills</h4>
+                    <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+                      {(() => {
+                        const isPredefined = catName.toLowerCase() === 'soft skills';
+                        let displayName = catName;
+                        if (!displayName.toLowerCase().endsWith('skills')) {
+                          displayName = `${displayName} Skills`;
+                        }
+                        if (isPredefined) {
+                          displayName = `${displayName} (Predefined)`;
+                        }
+                        return displayName;
+                      })()}
+                    </h4>
                     <span className="text-[10px] text-slate-400 font-bold">({skillsByCategory[catName].length})</span>
                   </div>
 
@@ -717,7 +726,7 @@ const SkillMatrix = () => {
                                 <span>Manager Validated</span>
                                 <span className="text-emerald-700 font-extrabold">{getProficiencyLabel(record.managerRating)}</span>
                               </div>
-                              {renderRatingStars(sk._id, record.managerRating, 'manager', isManagerOrHr)}
+                              {renderRatingStars(sk._id, record.managerRating, 'manager', isManagerOrHr && !isOwnProfile)}
                             </div>
                           </div>
                         </div>

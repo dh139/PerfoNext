@@ -269,7 +269,7 @@ const IntegrationsWorkspace = () => {
               <span>Ecosystem Integration Hub</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
-              Automated data pipelines connecting HRMS Attendance & Sync Audit Logs.
+              Automated data pipelines connecting HRMS Attendance.
             </p>
           </div>
         </div>
@@ -312,17 +312,7 @@ const IntegrationsWorkspace = () => {
           <span>Attendance HRMS Sync</span>
         </button>
 
-        {(user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
-          <button
-            onClick={() => { setActiveTab('logs'); setError(''); setSuccess(''); fetchLogs(); }}
-            className={`px-5 py-3 font-bold cursor-pointer border-b-2 text-xs transition-all flex items-center gap-2 shrink-0 ${
-              activeTab === 'logs' ? 'border-sky-600 text-sky-700 font-black' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Activity size={16} />
-            <span>Sync Audit Logs</span>
-          </button>
-        )}
+
       </div>
 
       {error && (
@@ -630,49 +620,7 @@ const IntegrationsWorkspace = () => {
         );
       })()}
 
-      {/* Tab 2: Integration Activity Logs */}
-      {activeTab === 'logs' && (user?.role === 'hr' || user?.role === 'admin' || user?.role === 'executive') && (
-        <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm space-y-4">
-          <h3 className="font-bold text-xs text-slate-800 border-b pb-2 uppercase tracking-wide">System Integration Audit Logs</h3>
 
-          {logs.length === 0 ? (
-            <p className="text-slate-400 italic text-center py-8">No integration events logged yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
-                    <th className="pb-2">Timestamp</th>
-                    <th className="pb-2">System</th>
-                    <th className="pb-2">Event Type</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2">Response Summary</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {logs.map(log => (
-                    <tr key={log._id} className="hover:bg-slate-50/60">
-                      <td className="py-3 text-slate-400 font-mono text-[10px]">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </td>
-                      <td className="py-3 font-bold text-indigo-700 uppercase text-[10px]">{log.system}</td>
-                      <td className="py-3 font-semibold text-slate-700">{log.eventType}</td>
-                      <td className="py-3">
-                        <span className={`font-bold text-[10px] px-2 py-0.5 rounded uppercase ${
-                          log.status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'
-                        }`}>
-                          {log.status}
-                        </span>
-                      </td>
-                      <td className="py-3 text-slate-655 truncate max-w-xs">{log.responseMessage}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
 
       {attendanceModalUser && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">

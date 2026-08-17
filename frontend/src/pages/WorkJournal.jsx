@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Image,
   Check,
-  Folder
+  Folder,
+  X
 } from 'lucide-react';
 import { toast } from '../store/toastStore';
 import TablePagination from '../components/TablePagination';
@@ -65,6 +66,7 @@ const WorkJournal = () => {
 
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedProjectContributors, setSelectedProjectContributors] = useState(null);
   const [editItemId, setEditItemId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -136,13 +138,22 @@ const WorkJournal = () => {
   // Timeline State
   const [timelineData, setTimelineData] = useState({});
   const [projectStatuses, setProjectStatuses] = useState({});
+  const [projectsList, setProjectsList] = useState([]);
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectStatus, setNewProjectStatus] = useState('Active');
+  const [newProjectDept, setNewProjectDept] = useState('');
+  const [isProjSelectOpen, setIsProjSelectOpen] = useState(false);
+  const [projQuery, setProjQuery] = useState('');
   const [orgWideLogs, setOrgWideLogs] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   const fetchProjectStatuses = async () => {
     try {
       const res = await api.get('/api/work-journal/project-statuses');
+      setProjectsList(res.data || []);
       const dict = {};
-      res.data.forEach(p => {
+      (res.data || []).forEach(p => {
         dict[p.projectName] = p.status;
       });
       setProjectStatuses(dict);
@@ -160,6 +171,15 @@ const WorkJournal = () => {
     }
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const res = await api.get('/api/departments');
+      setDepartments(res.data || []);
+    } catch (err) {
+      console.error('Failed to load departments:', err);
+    }
+  };
+
   const handleUpdateProjectStatus = async (projectName, newStatus) => {
     try {
       await api.post('/api/work-journal/project-status', { projectName, status: newStatus });
@@ -172,6 +192,29 @@ const WorkJournal = () => {
     } catch (err) {
       console.error(err);
       toast.error('Failed to update project status.');
+    }
+  };
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) {
+      toast.error('Project Name is required.');
+      return;
+    }
+    try {
+      await api.post('/api/work-journal/project-status', {
+        projectName: newProjectName.trim(),
+        status: newProjectStatus,
+        departmentId: newProjectDept || undefined
+      });
+      toast.success(`Project "${newProjectName.trim()}" created successfully.`);
+      setShowAddProjectModal(false);
+      setNewProjectName('');
+      setNewProjectStatus('Active');
+      setNewProjectDept('');
+      fetchProjectStatuses(); // Refresh project lists
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to create project.');
     }
   };
 
@@ -195,6 +238,7 @@ const WorkJournal = () => {
     }
     if (['admin', 'hr', 'executive'].includes(user.role)) {
       fetchOrgWideLogs();
+      fetchDepartments();
     }
   }, [user]);
 
@@ -278,8 +322,8 @@ const WorkJournal = () => {
       toast.error(`${formTemplate?.projectLabel || 'Project / Client / Account name'} is required.`);
       return;
     }
-    if (!hoursSpent || isNaN(Number(hoursSpent)) || Number(hoursSpent) <= 0) {
-      toast.error('Hours Spent is required and must be a positive number.');
+    if (hoursSpent === undefined || hoursSpent === null || hoursSpent === '' || isNaN(Number(hoursSpent)) || Number(hoursSpent) < 0) {
+      toast.error('Hours Spent is required and must be a non-negative number.');
       return;
     }
     if (!resultSummary || !resultSummary.trim()) {
@@ -532,6 +576,14 @@ const WorkJournal = () => {
         projectGroups[projName] = [];
       }
       projectGroups[projName].push(log);
+    });
+
+    // Ensure all defined projects from the Admin projectsList are initialized, even if they have 0 logs
+    projectsList.forEach(p => {
+      const name = (p.projectName || '').trim();
+      if (name && !projectGroups[name]) {
+        projectGroups[name] = [];
+      }
     });
 
     return Object.entries(projectGroups).map(([projectName, projLogs]) => {
@@ -1542,6 +1594,16 @@ const WorkJournal = () => {
                     className="w-full bg-slate-50 border border-slate-200 pl-8 pr-3 py-2 rounded-xl text-xs outline-none focus:border-sky-500 font-medium"
                   />
                 </div>
+
+                {['admin', 'hr', 'executive'].includes(user?.role) && (
+                  <button
+                    onClick={() => setShowAddProjectModal(true)}
+                    className="bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-3.5 py-2 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>Create Project</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1673,22 +1735,35 @@ const WorkJournal = () => {
                               }
                             </td>
                             <td className="py-3 px-4">
-                              <div className="flex -space-x-1.5 overflow-hidden">
-                                {proj.contributors.slice(0, 3).map((contrib, index) => (
-                                  <div 
-                                    key={index}
-                                    title={contrib.name}
-                                    className="w-6 h-6 rounded-full border border-white bg-slate-200 text-[10px] font-black text-slate-700 flex items-center justify-center shrink-0 shadow-2xs"
-                                  >
-                                    {contrib.name.charAt(0)}
-                                  </div>
-                                ))}
-                                {proj.contributors.length > 3 && (
-                                  <div className="w-6 h-6 rounded-full border border-white bg-slate-800 text-[8.5px] font-black text-white flex items-center justify-center shrink-0 shadow-2xs">
-                                    +{proj.contributors.length - 3}
-                                  </div>
-                                )}
-                              </div>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedProjectContributors(proj);
+                                }}
+                                className="flex items-center gap-1.5 hover:opacity-85 transition-opacity bg-slate-50 hover:bg-slate-100/80 border border-slate-200/60 px-2.5 py-1 rounded-xl cursor-pointer group shadow-3xs"
+                              >
+                                <div className="flex -space-x-1.5 overflow-hidden">
+                                  {proj.contributors.slice(0, 3).map((contrib, index) => (
+                                    <div 
+                                      key={index}
+                                      title={contrib.name}
+                                      className="w-5 h-5 rounded-full border border-white bg-slate-200 text-[9px] font-black text-slate-700 flex items-center justify-center shrink-0 shadow-3xs"
+                                    >
+                                      {contrib.name.charAt(0)}
+                                    </div>
+                                  ))}
+                                  {proj.contributors.length > 3 && (
+                                    <div className="w-5 h-5 rounded-full border border-white bg-slate-800 text-[8px] font-black text-white flex items-center justify-center shrink-0 shadow-3xs">
+                                      +{proj.contributors.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-650 max-w-[80px] truncate group-hover:text-indigo-700">
+                                  {proj.contributors.length === 1 
+                                    ? proj.contributors[0].name 
+                                    : `${proj.contributors.length} Users`}
+                                </span>
+                              </button>
                             </td>
                           </tr>
 
@@ -1854,14 +1929,84 @@ const WorkJournal = () => {
                   <label className="text-[10px] font-bold text-slate-500 uppercase">
                     {formTemplate?.projectLabel || 'Project / Module'} *
                   </label>
-                  <input
-                    type="text"
-                    placeholder={formTemplate?.projectPlaceholder || 'e.g. Enterprise Client / System'}
-                    value={project}
-                    onChange={(e) => setProject(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-sky-500"
-                    required
-                  />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsProjSelectOpen(!isProjSelectOpen)}
+                      className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-800 text-left flex justify-between items-center outline-none focus:border-sky-500 cursor-pointer"
+                    >
+                      <span className="truncate">{project || `Select ${formTemplate?.projectLabel || 'Project / Module'}`}</span>
+                      <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                    </button>
+
+                    {isProjSelectOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-40 cursor-default" 
+                          onClick={() => { setIsProjSelectOpen(false); setProjQuery(''); }}
+                        />
+                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-2 max-h-60 overflow-y-auto">
+                          <input
+                            type="text"
+                            placeholder="Search project..."
+                            value={projQuery}
+                            onChange={(e) => setProjQuery(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-250/70 p-2 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-sky-500"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="space-y-0.5">
+                            {projectsList
+                              .filter(p => p.status === 'Active')
+                              .filter(p => {
+                                const userDeptId = user?.departmentId?._id || user?.departmentId;
+                                const projDeptId = p.departmentId?._id || p.departmentId;
+                                return !projDeptId || projDeptId === userDeptId;
+                              })
+                              .filter(p => p.projectName.toLowerCase().includes(projQuery.toLowerCase()))
+                              .map(p => (
+                                <button
+                                  key={p.projectName}
+                                  type="button"
+                                  onClick={() => {
+                                    setProject(p.projectName);
+                                    setIsProjSelectOpen(false);
+                                    setProjQuery('');
+                                  }}
+                                  className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 rounded-lg text-xs font-bold text-slate-700 transition-colors cursor-pointer block"
+                                >
+                                  {p.projectName}
+                                </button>
+                              ))
+                            }
+                            {/* Fallback to preserve current value if not active */}
+                            {project && !projectsList.some(p => p.projectName === project && p.status === 'Active') && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsProjSelectOpen(false);
+                                  setProjQuery('');
+                                }}
+                                className="w-full text-left px-2.5 py-1.5 bg-indigo-50/50 rounded-lg text-xs font-bold text-indigo-700 cursor-pointer block"
+                              >
+                                {project} (Inactive/Completed)
+                              </button>
+                            )}
+                             {projectsList
+                               .filter(p => p.status === 'Active')
+                               .filter(p => {
+                                 const userDeptId = user?.departmentId?._id || user?.departmentId;
+                                 const projDeptId = p.departmentId?._id || p.departmentId;
+                                 return !projDeptId || projDeptId === userDeptId;
+                               })
+                               .filter(p => p.projectName.toLowerCase().includes(projQuery.toLowerCase()))
+                               .length === 0 && (
+                               <p className="text-slate-400 italic text-[10px] text-center py-2">No active projects found.</p>
+                             )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -1899,9 +2044,14 @@ const WorkJournal = () => {
                   <input
                     type="number"
                     step="0.5"
+                    min="0"
                     placeholder="e.g. 3.5"
                     value={hoursSpent}
-                    onChange={(e) => setHoursSpent(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (Number(val) < 0) return;
+                      setHoursSpent(val);
+                    }}
                     className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-sky-500"
                     required
                   />
@@ -1959,7 +2109,12 @@ const WorkJournal = () => {
                           type={field.fieldType === 'number' ? 'number' : field.fieldType === 'url' ? 'url' : 'text'}
                           placeholder={field.placeholder || `Enter ${field.label}...`}
                           value={customFieldsData[field.fieldKey] || ''}
-                          onChange={(e) => setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (field.fieldType === 'number' && Number(val) < 0) return;
+                            setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: val });
+                          }}
+                          min={field.fieldType === 'number' ? "0" : undefined}
                           className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:border-sky-500"
                           required={field.required}
                         />
@@ -2039,6 +2194,165 @@ const WorkJournal = () => {
                   ) : (
                     <span>{editItemId ? 'Update & Resubmit' : 'Submit for Verification'}</span>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: View Project Contributors */}
+      {selectedProjectContributors && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl space-y-4 border border-slate-100 animate-fade-in">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">
+                  {selectedProjectContributors.projectName}
+                </h3>
+                <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-wider">
+                  Active Contributors ({selectedProjectContributors.contributors.length})
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedProjectContributors(null)}
+                className="text-slate-400 hover:text-slate-650 cursor-pointer p-1 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+              {selectedProjectContributors.contributors.map((c, idx) => {
+                const contribLogs = selectedProjectContributors.logs.filter(l => {
+                  if (l.employeeId) {
+                    const name = `${l.employeeId.firstName} ${l.employeeId.lastName}`;
+                    return name === c.name;
+                  }
+                  return c.name === 'You';
+                });
+                const contribHrs = contribLogs.reduce((sum, l) => sum + (Number(l.hoursSpent) || 0), 0);
+                const contribCount = contribLogs.length;
+
+                return (
+                  <div 
+                    key={idx} 
+                    className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/80 rounded-2xl hover:bg-slate-100/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-black text-indigo-700 flex items-center justify-center shrink-0">
+                        {c.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-slate-800 text-xs">{c.name}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          {contribCount} {contribCount === 1 ? 'log' : 'logs'} registered
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-block bg-sky-50 border border-sky-100 text-sky-850 text-[10px] font-black px-2.5 py-0.5 rounded-lg">
+                        {contribHrs} hrs
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setSelectedProjectContributors(null)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2 px-5 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Add New Project (Admin/HR/Executive only) */}
+      {showAddProjectModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl space-y-4 border border-slate-100 animate-fade-in text-xs">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-black text-slate-900 text-sm">
+                Create New Project
+              </h3>
+              <button 
+                onClick={() => {
+                  setShowAddProjectModal(false);
+                  setNewProjectName('');
+                  setNewProjectStatus('Active');
+                  setNewProjectDept('');
+                }}
+                className="text-slate-400 hover:text-slate-650 cursor-pointer p-1 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateProject} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Project Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Enterprise Payroll v2"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-sky-500"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Target Department</label>
+                <select
+                  value={newProjectDept}
+                  onChange={(e) => setNewProjectDept(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                >
+                  <option value="">Global / All Departments</option>
+                  {departments.map(d => (
+                    <option key={d._id} value={d._id}>{d.departmentName}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Initial Status *</label>
+                <select
+                  value={newProjectStatus}
+                  onChange={(e) => setNewProjectStatus(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                  required
+                >
+                  <option value="Active">Active</option>
+                  <option value="Stale">Stale</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddProjectModal(false);
+                    setNewProjectName('');
+                    setNewProjectStatus('Active');
+                    setNewProjectDept('');
+                  }}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition-colors cursor-pointer"
+                >
+                  Create
                 </button>
               </div>
             </form>

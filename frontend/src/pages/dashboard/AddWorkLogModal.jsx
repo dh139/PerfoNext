@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, ChevronDown } from 'lucide-react';
 import api from '../../utils/api';
 import { toast } from '../../store/toastStore';
 
@@ -17,6 +17,22 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
   const [formTemplate, setFormTemplate] = useState(null);
   const [customFieldsData, setCustomFieldsData] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [projectsList, setProjectsList] = useState([]);
+  const [isProjSelectOpen, setIsProjSelectOpen] = useState(false);
+  const [projQuery, setProjQuery] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchProjects = async () => {
+      try {
+        const res = await api.get('/api/work-journal/project-statuses');
+        setProjectsList(res.data || []);
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      }
+    };
+    fetchProjects();
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !deptId) return;
@@ -76,8 +92,8 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
       toast.error(`${formTemplate?.projectLabel || 'Project / Client / Account name'} is required.`);
       return;
     }
-    if (!hoursSpent || isNaN(Number(hoursSpent)) || Number(hoursSpent) <= 0) {
-      toast.error('Hours Spent is required and must be a positive number.');
+    if (hoursSpent === undefined || hoursSpent === null || hoursSpent === '' || isNaN(Number(hoursSpent)) || Number(hoursSpent) < 0) {
+      toast.error('Hours Spent is required and must be a non-negative number.');
       return;
     }
     if (!resultSummary || !resultSummary.trim()) {
@@ -181,14 +197,84 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
               <label className="text-[10px] font-bold text-slate-500 uppercase">
                 {formTemplate?.projectLabel || 'Project / Module'} <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                placeholder={formTemplate?.projectPlaceholder || 'e.g. Enterprise Client / System'}
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
-                required
-              />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsProjSelectOpen(!isProjSelectOpen)}
+                  className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 text-left flex justify-between items-center outline-none focus:border-sky-500 cursor-pointer"
+                >
+                  <span className="truncate">{project || `Select ${formTemplate?.projectLabel || 'Project / Module'}`}</span>
+                  <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                </button>
+
+                {isProjSelectOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40 cursor-default" 
+                      onClick={() => { setIsProjSelectOpen(false); setProjQuery(''); }}
+                    />
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-2 space-y-2 max-h-60 overflow-y-auto">
+                      <input
+                        type="text"
+                        placeholder="Search project..."
+                        value={projQuery}
+                        onChange={(e) => setProjQuery(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-250/70 p-2 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-sky-500"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="space-y-0.5 text-left">
+                        {projectsList
+                          .filter(p => p.status === 'Active')
+                          .filter(p => {
+                            const userDeptId = user?.departmentId?._id || user?.departmentId;
+                            const projDeptId = p.departmentId?._id || p.departmentId;
+                            return !projDeptId || projDeptId === userDeptId;
+                          })
+                          .filter(p => p.projectName.toLowerCase().includes(projQuery.toLowerCase()))
+                          .map(p => (
+                            <button
+                              key={p.projectName}
+                              type="button"
+                              onClick={() => {
+                                  setProject(p.projectName);
+                                  setIsProjSelectOpen(false);
+                                  setProjQuery('');
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-slate-50 rounded-lg text-xs font-bold text-slate-700 transition-colors cursor-pointer block"
+                            >
+                              {p.projectName}
+                            </button>
+                          ))
+                        }
+                        {/* Fallback to preserve current value if not active */}
+                        {project && !projectsList.some(p => p.projectName === project && p.status === 'Active') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsProjSelectOpen(false);
+                              setProjQuery('');
+                            }}
+                            className="w-full text-left px-2.5 py-1.5 bg-indigo-50/50 rounded-lg text-xs font-bold text-indigo-700 cursor-pointer block"
+                          >
+                            {project} (Inactive/Completed)
+                          </button>
+                        )}
+                        {projectsList
+                          .filter(p => p.status === 'Active')
+                          .filter(p => {
+                            const userDeptId = user?.departmentId?._id || user?.departmentId;
+                            const projDeptId = p.departmentId?._id || p.departmentId;
+                            return !projDeptId || projDeptId === userDeptId;
+                          })
+                          .filter(p => p.projectName.toLowerCase().includes(projQuery.toLowerCase()))
+                          .length === 0 && (
+                          <p className="text-slate-400 italic text-[10px] text-center py-2">No active projects found.</p>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -226,9 +312,14 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
               <input
                 type="number"
                 step="0.5"
+                min="0"
                 placeholder="e.g. 3.5"
                 value={hoursSpent}
-                onChange={(e) => setHoursSpent(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (Number(val) < 0) return;
+                  setHoursSpent(val);
+                }}
                 className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
                 required
               />
@@ -285,7 +376,12 @@ const AddWorkLogModal = ({ isOpen, onClose, user, deptId, onSuccess }) => {
                       type={field.fieldType === 'number' ? 'number' : field.fieldType === 'url' ? 'url' : 'text'}
                       placeholder={field.placeholder || `Enter ${field.label}...`}
                       value={customFieldsData[field.fieldKey] || ''}
-                      onChange={(e) => setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (field.fieldType === 'number' && Number(val) < 0) return;
+                        setCustomFieldsData({ ...customFieldsData, [field.fieldKey]: val });
+                      }}
+                      min={field.fieldType === 'number' ? "0" : undefined}
                       className="w-full bg-white border border-slate-200 p-2.5 rounded-xl text-xs font-semibold text-slate-855 outline-none focus:border-sky-500"
                       required={field.required}
                     />
