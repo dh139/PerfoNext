@@ -617,15 +617,21 @@ const HRDashboard = ({ data, user, onAddWorkLogClick }) => {
                           <tr key={i} className="hover:bg-slate-50 transition-colors">
                             <td className="py-2.5 px-3">
                               <p className="font-bold text-slate-800">{r.name}</p>
-                              <p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
+<p className="text-[9px] text-slate-400 font-mono">{r.code}</p>
                             </td>
                             <td className="py-2.5 px-3 text-slate-500">{r.department}</td>
                             <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeOnly(r.punchIn) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeOnly(r.punchOut) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 text-slate-600">
-                              {r.workingMinutes > 0 || r.punchIn ? (
-                                `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && dateViewDate === todayIso ? ' (Active)' : ''}`
-                              ) : '--'}
+                              {(() => {
+                                 if (!r.punchIn) return '--';
+                                 let mins = r.workingMinutes || 0;
+                                 if (!r.punchOut && dateViewDate === todayIso) {
+                                   const diff = new Date() - new Date(r.punchIn);
+                                   mins = Math.max(0, Math.floor(diff / 60000));
+                                 }
+                                 return `${Math.floor(mins/60)}h ${mins%60}m${!r.punchOut && dateViewDate === todayIso ? ' (Active)' : ''}`;
+                               })()}
                             </td>
                             <td className="py-2.5 px-3">
                               {!r.punchIn || ['Absent', 'Not Punched Yet', 'Leave'].includes(r.status) ? (

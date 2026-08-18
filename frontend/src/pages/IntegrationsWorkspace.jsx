@@ -791,8 +791,15 @@ const IntegrationsWorkspace = () => {
                               </td>
                               <td className="p-3 font-semibold text-slate-700">{formatTimeStr(p.punchIn)}</td>
                               <td className="p-3 font-semibold text-slate-700">{formatTimeStr(p.punchOut)}</td>
-                              <td className="p-3 text-slate-500 font-medium">
-                                {p.workingMinutes > 0 ? `${Math.floor(p.workingMinutes/60)}h ${p.workingMinutes%60}m` : p.punchIn ? '0h 0m' : '--'}
+                              <td className="p-3 text-slate-500 font-medium font-bold">
+                               {(() => {
+                                 let mins = p.workingMinutes || 0;
+                                 if (!p.punchOut && p.punchIn) {
+                                   const diff = new Date() - new Date(p.punchIn);
+                                   mins = Math.max(0, Math.floor(diff / 60000));
+                                 }
+                                 return mins > 0 ? `${Math.floor(mins/60)}h ${mins%60}m` : p.punchIn ? '0h 0m' : '--';
+                               })()}
                               </td>
                               <td className="p-3 text-right">
                                 <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${statusColor(p.status)}`}>

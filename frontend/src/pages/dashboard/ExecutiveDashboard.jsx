@@ -590,9 +590,15 @@ const ExecutiveDashboard = ({ data, user }) => {
                             <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchIn) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 font-bold text-slate-700">{formatTimeStr(r.punchOut) || <span className="text-slate-300">--</span>}</td>
                             <td className="py-2.5 px-3 text-slate-600">
-                              {r.workingMinutes > 0 || r.punchIn ? (
-                                `${Math.floor(r.workingMinutes/60)}h ${r.workingMinutes%60}m${!r.punchOut && ceoDateViewDate === ceotodayIso ? ' (Active)' : ''}`
-                              ) : '--'}
+                              {(() => {
+                                 if (!r.punchIn) return '--';
+                                 let mins = r.workingMinutes || 0;
+                                 if (!r.punchOut && ceoDateViewDate === ceotodayIso) {
+                                   const diff = new Date() - new Date(r.punchIn);
+                                   mins = Math.max(0, Math.floor(diff / 60000));
+                                 }
+                                 return `${Math.floor(mins/60)}h ${mins%60}m${!r.punchOut && ceoDateViewDate === ceotodayIso ? ' (Active)' : ''}`;
+                               })()}
                             </td>
                             <td className="py-2.5 px-3">
                               {!r.punchIn || ['Absent', 'Not Punched Yet', 'Leave'].includes(r.status) ? (
