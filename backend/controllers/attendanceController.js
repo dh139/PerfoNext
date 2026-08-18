@@ -22,11 +22,24 @@ const parseTimeStr = (str) => {
   return { hours, minutes };
 };
 
+const getKolkataDateStr = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const [{ value: month }, , { value: day }, , { value: year }] = formatter.formatToParts(new Date(date));
+  return `${year}-${month}-${day}`;
+};
+
 const getDateWithTime = (baseDate, timeStr) => {
-  const d = new Date(baseDate);
+  const datePart = getKolkataDateStr(baseDate);
   const { hours, minutes } = parseTimeStr(timeStr);
-  d.setHours(hours, minutes, 0, 0);
-  return d;
+  const hh = String(hours).padStart(2, '0');
+  const mm = String(minutes).padStart(2, '0');
+  const isoString = `${datePart}T${hh}:${mm}:00+05:30`;
+  return new Date(isoString);
 };
 
 // Singleton Settings Fetcher
@@ -64,7 +77,7 @@ const autoCloseIncompletePunches = async (settings) => {
 
   const autoTimeStr = settings.attendanceRules.autoPunchOut.time || '11:59 PM';
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = getKolkataDateStr(now);
   const todayDate = new Date(todayStr);
   const sixteenHoursAgo = new Date(now.getTime() - 16 * 60 * 60 * 1000);
 
@@ -80,7 +93,7 @@ const autoCloseIncompletePunches = async (settings) => {
 
   const rules = settings.attendanceRules;
   for (const punch of incompletePunches) {
-    const punchDateStr = punch.date.toISOString().split('T')[0];
+    const punchDateStr = getKolkataDateStr(punch.date);
     const outTime = getDateWithTime(new Date(punchDateStr), autoTimeStr);
     
     punch.punchOut = outTime;
@@ -124,7 +137,7 @@ const punchIn = async (req, res) => {
     const settings = await getActiveSettings();
     const rules = settings.attendanceRules;
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getKolkataDateStr(now);
     const todayDate = new Date(todayStr);
 
     // 1. Holiday Check
@@ -202,7 +215,7 @@ const punchOut = async (req, res) => {
     const settings = await getActiveSettings();
     const rules = settings.attendanceRules;
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getKolkataDateStr(now);
     const todayDate = new Date(todayStr);
 
     let punch = await AttendancePunch.findOne({ employeeId: req.user.id, date: todayDate });
@@ -291,7 +304,7 @@ const getTodayAttendance = async (req, res) => {
     await autoCloseIncompletePunches(settings);
 
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getKolkataDateStr(now);
     const todayDate = new Date(todayStr);
 
     const holiday = await Holiday.findOne({ date: todayStr });
@@ -602,7 +615,7 @@ const reviewRegularization = async (req, res) => {
 const getCeoSummary = async (req, res) => {
   try {
     const { date } = req.query;
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || getKolkataDateStr(new Date());
     const targetDate = new Date(targetDateStr);
 
     const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
@@ -683,7 +696,7 @@ const getCeoSummary = async (req, res) => {
 const getHrSummary = async (req, res) => {
   try {
     const { date } = req.query;
-    const targetDateStr = date || new Date().toISOString().split('T')[0];
+    const targetDateStr = date || getKolkataDateStr(new Date());
     const targetDate = new Date(targetDateStr);
 
     const eligibleRoles = ['employee', 'manager', 'hr', 'admin'];
@@ -787,7 +800,7 @@ async function getAttendanceByDate(req, res) {
       .lean();
 
     const punchedIds = new Set(punches.map(p => (p.employeeId?._id || p.employeeId)?.toString()));
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getKolkataDateStr(new Date());
     const isToday = date === todayStr;
 
     const fmt = (d) => {
@@ -869,7 +882,7 @@ const updateSettings = async (req, res) => {
     await current.save();
 
     // Recalculate today's punches under the new rules
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getKolkataDateStr(new Date());
     const todayDate = new Date(todayStr);
     const todayPunches = await AttendancePunch.find({ date: todayDate });
     const rules = current.attendanceRules;
