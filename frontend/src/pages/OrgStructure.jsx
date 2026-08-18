@@ -213,7 +213,7 @@ const OrgStructure = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Description</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase">Description (Optional)</label>
                   <textarea
                     rows="2"
                     value={deptDesc}
